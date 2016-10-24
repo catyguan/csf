@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	etcdErr "github.com/coreos/etcd/error"
+	etcdErr "github.com/catyguan/csf/error"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 )
@@ -62,7 +62,7 @@ func TestMinExpireTime(t *testing.T) {
 	assert.Equal(t, e.EtcdIndex, eidx, "")
 	assert.Equal(t, e.Action, "get", "")
 	assert.Equal(t, e.Node.Key, "/foo", "")
-	assert.Equal(t, e.Node.TTL, 0)
+	assert.Equal(t, e.Node.TTL, int64(0))
 }
 
 // Ensure that the store can recursively retrieve a directory listing.
@@ -107,7 +107,7 @@ func TestStoreGetDirectory(t *testing.T) {
 		case "/foo/baz/ttl":
 			assert.Equal(t, *node.Value, "Y", "")
 			assert.Equal(t, node.Dir, false, "")
-			assert.Equal(t, node.TTL, 3, "")
+			assert.Equal(t, node.TTL, int64(3), "")
 		default:
 			t.Errorf("key = %s, not matched", node.Key)
 		}

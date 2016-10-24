@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/types"
 )
 
 var (

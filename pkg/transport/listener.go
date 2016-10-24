@@ -30,8 +30,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/pkg/fileutil"
-	"github.com/coreos/etcd/pkg/tlsutil"
+	"github.com/catyguan/csf/pkg/fileutil"
+	"github.com/catyguan/csf/pkg/tlsutil"
 )
 
 func NewListener(addr, scheme string, tlscfg *tls.Config) (l net.Listener, err error) {

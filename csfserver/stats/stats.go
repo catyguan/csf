@@ -15,10 +15,10 @@
 // Package stats defines a standard interface for etcd cluster statistics.
 package stats
 
-import "github.com/coreos/pkg/capnslog"
+import "github.com/catyguan/csf/pkg/capnslog"
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver/stats")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "csfserver/stats")
 )
 
 type Stats interface {

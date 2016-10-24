@@ -25,14 +25,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coreos/etcd/mvcc/backend"
-	"github.com/coreos/etcd/pkg/netutil"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/store"
-	"github.com/coreos/etcd/version"
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/mvcc/backend"
+	"github.com/catyguan/csf/pkg/netutil"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/store"
+	"github.com/catyguan/csf/version"
 )
 
 // RaftCluster is a list of Members that belong to the same raft cluster

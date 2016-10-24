@@ -1,0 +1,26 @@
+syntax = "proto3";
+package compactorpb;
+
+import "gogoproto/gogo.proto";
+import "github.com/catyguan/csf/basepb/base.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// CompactionRequest compacts the key-value store up to a given revision. All superseded keys
+// with a revision less than the compaction revision will be removed.
+message CompactionRequest {
+  // revision is the key-value store revision for the compaction operation. 
+  int64 revision = 1;
+  // physical is set so the RPC will wait until the compaction is physically
+  // applied to the local database such that compacted entries are totally
+  // removed from the backend database.
+  bool physical = 2;
+}
+
+message CompactionResponse {
+  basepb.ResponseHeader header = 1;
+}

@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/coreos/etcd/mvcc/backend"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/store"
+	"github.com/catyguan/csf/mvcc/backend"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/store"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/semver"
 )
 
 const (

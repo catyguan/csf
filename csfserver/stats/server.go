@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/etcd/raft"
+	"github.com/catyguan/csf/raft"
 )
 
 // ServerStats encapsulates various statistics about an EtcdServer and its

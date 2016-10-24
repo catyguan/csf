@@ -17,8 +17,8 @@ package mockstore
 import (
 	"time"
 
-	"github.com/coreos/etcd/pkg/testutil"
-	"github.com/coreos/etcd/store"
+	"github.com/catyguan/csf/pkg/testutil"
+	"github.com/catyguan/csf/store"
 )
 
 // StoreRecorder provides a Store interface with a testutil.Recorder
