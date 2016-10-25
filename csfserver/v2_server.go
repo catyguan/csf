@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"time"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 	"golang.org/x/net/context"
 )
 
@@ -30,7 +30,7 @@ type v2API interface {
 	Head(ctx context.Context, r *pb.Request) (Response, error)
 }
 
-type v2apiStore struct{ s *EtcdServer }
+type v2apiStore struct{ s *CsfServer }
 
 func (a *v2apiStore) Post(ctx context.Context, r *pb.Request) (Response, error) {
 	return a.processRaftRequest(ctx, r)
@@ -101,7 +101,7 @@ func (a *v2apiStore) Head(ctx context.Context, r *pb.Request) (Response, error) 
 // Quorum == true, r will be sent through consensus before performing its
 // respective operation. Do will block until an action is performed or there is
 // an error.
-func (s *EtcdServer) Do(ctx context.Context, r pb.Request) (Response, error) {
+func (s *CsfServer) Do(ctx context.Context, r pb.Request) (Response, error) {
 	r.ID = s.reqIDGen.Next()
 	if r.Method == "GET" && r.Quorum {
 		r.Method = "QGET"

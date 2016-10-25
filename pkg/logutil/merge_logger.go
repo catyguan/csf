@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/capnslog"
 )
 
 var (

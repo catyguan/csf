@@ -29,8 +29,12 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/alarm"
+	alpb "github.com/catyguan/csf/alarm/alarmpb"
 	"github.com/catyguan/csf/auth"
 	"github.com/catyguan/csf/compactor"
+	"github.com/catyguan/csf/csfserver/api"
+	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 	"github.com/catyguan/csf/csfserver/membership"
 	"github.com/catyguan/csf/csfserver/stats"
 	"github.com/catyguan/csf/discovery"
@@ -38,25 +42,22 @@ import (
 	"github.com/catyguan/csf/mvcc"
 	"github.com/catyguan/csf/mvcc/backend"
 	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/contention"
 	"github.com/catyguan/csf/pkg/fileutil"
+	"github.com/catyguan/csf/pkg/idutil"
 	"github.com/catyguan/csf/pkg/pbutil"
+	"github.com/catyguan/csf/pkg/runtime"
 	"github.com/catyguan/csf/pkg/schedule"
 	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/pkg/wait"
 	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/raft/raftpb"
 	"github.com/catyguan/csf/rafthttp"
 	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/snap"
 	"github.com/catyguan/csf/store"
 	"github.com/catyguan/csf/version"
 	"github.com/catyguan/csf/wal"
-	"github.com/coreos/etcd/etcdserver/api"
-	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/pkg/contention"
-	"github.com/coreos/etcd/pkg/idutil"
-	"github.com/coreos/etcd/pkg/runtime"
-	"github.com/coreos/etcd/pkg/wait"
-	"github.com/coreos/etcd/snap"
 	"golang.org/x/net/context"
 )
 
@@ -88,7 +89,7 @@ const (
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "csfserver")
 
 	storeMemberAttributeRegexp = regexp.MustCompile(path.Join(membership.StoreMembersPrefix, "[[:xdigit:]]{1,16}", "attributes"))
 )
@@ -161,8 +162,8 @@ type Server interface {
 	ClusterVersion() *semver.Version
 }
 
-// EtcdServer is the production implementation of the Server interface
-type EtcdServer struct {
+// CsfServer is the production implementation of the Server interface
+type CsfServer struct {
 	// inflightSnapshots holds count the number of snapshots currently inflight.
 	inflightSnapshots int64  // must use atomic operations to access; keep 64-bit aligned.
 	appliedIndex      uint64 // must use atomic operations to access; keep 64-bit aligned.
@@ -242,9 +243,9 @@ type EtcdServer struct {
 	wg sync.WaitGroup
 }
 
-// NewServer creates a new EtcdServer from the supplied configuration. The
-// configuration is considered static for the lifetime of the EtcdServer.
-func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
+// NewServer creates a new CsfServer from the supplied configuration. The
+// configuration is considered static for the lifetime of the CsfServer.
+func NewServer(cfg *ServerConfig) (srv *CsfServer, err error) {
 	st := store.New(StoreClusterPrefix, StoreKeysPrefix)
 
 	var (
@@ -395,7 +396,7 @@ func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
 	lstats := stats.NewLeaderStats(id.String())
 
 	heartbeat := time.Duration(cfg.TickMs) * time.Millisecond
-	srv = &EtcdServer{
+	srv = &CsfServer{
 		readych:   make(chan struct{}),
 		Cfg:       cfg,
 		snapCount: cfg.SnapCount,
@@ -491,7 +492,7 @@ func NewServer(cfg *ServerConfig) (srv *EtcdServer, err error) {
 // Start prepares and starts server in a new goroutine. It is no longer safe to
 // modify a server's fields after it has been sent to Start.
 // It also starts a goroutine to publish its server information.
-func (s *EtcdServer) Start() {
+func (s *CsfServer) Start() {
 	s.start()
 	s.goAttach(func() { s.publish(s.Cfg.ReqTimeout()) })
 	s.goAttach(s.purgeFile)
@@ -503,7 +504,7 @@ func (s *EtcdServer) Start() {
 // start prepares and starts server in a new goroutine. It is no longer safe to
 // modify a server's fields after it has been sent to Start.
 // This function is just used for testing.
-func (s *EtcdServer) start() {
+func (s *CsfServer) start() {
 	if s.snapCount == 0 {
 		plog.Infof("set snapshot count to default %d", DefaultSnapCount)
 		s.snapCount = DefaultSnapCount
@@ -525,7 +526,7 @@ func (s *EtcdServer) start() {
 	go s.run()
 }
 
-func (s *EtcdServer) purgeFile() {
+func (s *CsfServer) purgeFile() {
 	var serrc, werrc <-chan error
 	if s.Cfg.MaxSnapFiles > 0 {
 		serrc = fileutil.PurgeFile(s.Cfg.SnapDir(), "snap", s.Cfg.MaxSnapFiles, purgeFileInterval, s.done)
@@ -543,15 +544,15 @@ func (s *EtcdServer) purgeFile() {
 	}
 }
 
-func (s *EtcdServer) ID() types.ID { return s.id }
+func (s *CsfServer) ID() types.ID { return s.id }
 
-func (s *EtcdServer) Cluster() *membership.RaftCluster { return s.cluster }
+func (s *CsfServer) Cluster() *membership.RaftCluster { return s.cluster }
 
-func (s *EtcdServer) RaftHandler() http.Handler { return s.r.transport.Handler() }
+func (s *CsfServer) RaftHandler() http.Handler { return s.r.transport.Handler() }
 
-func (s *EtcdServer) Lessor() lease.Lessor { return s.lessor }
+func (s *CsfServer) Lessor() lease.Lessor { return s.lessor }
 
-func (s *EtcdServer) Process(ctx context.Context, m raftpb.Message) error {
+func (s *CsfServer) Process(ctx context.Context, m raftpb.Message) error {
 	if s.cluster.IsIDRemoved(types.ID(m.From)) {
 		plog.Warningf("reject message from removed member %s", types.ID(m.From).String())
 		return httptypes.NewHTTPError(http.StatusForbidden, "cannot process message from removed member")
@@ -562,13 +563,13 @@ func (s *EtcdServer) Process(ctx context.Context, m raftpb.Message) error {
 	return s.r.Step(ctx, m)
 }
 
-func (s *EtcdServer) IsIDRemoved(id uint64) bool { return s.cluster.IsIDRemoved(types.ID(id)) }
+func (s *CsfServer) IsIDRemoved(id uint64) bool { return s.cluster.IsIDRemoved(types.ID(id)) }
 
-func (s *EtcdServer) ReportUnreachable(id uint64) { s.r.ReportUnreachable(id) }
+func (s *CsfServer) ReportUnreachable(id uint64) { s.r.ReportUnreachable(id) }
 
 // ReportSnapshot reports snapshot sent status to the raft state machine,
 // and clears the used snapshot from the snapshot store.
-func (s *EtcdServer) ReportSnapshot(id uint64, status raft.SnapshotStatus) {
+func (s *CsfServer) ReportSnapshot(id uint64, status raft.SnapshotStatus) {
 	s.r.ReportSnapshot(id, status)
 }
 
@@ -578,7 +579,7 @@ type etcdProgress struct {
 	appliedi  uint64
 }
 
-// raftReadyHandler contains a set of EtcdServer operations to be called by raftNode,
+// raftReadyHandler contains a set of CsfServer operations to be called by raftNode,
 // and helps decouple state machine logic from Raft algorithms.
 // TODO: add a state machine interface to apply the commit entries and do snapshot/recover
 type raftReadyHandler struct {
@@ -586,7 +587,7 @@ type raftReadyHandler struct {
 	sendMessage      func(msgs []raftpb.Message)
 }
 
-func (s *EtcdServer) run() {
+func (s *CsfServer) run() {
 	snap, err := s.r.raftStorage.Snapshot()
 	if err != nil {
 		plog.Panicf("get snapshot from raft storage error: %v", err)
@@ -725,7 +726,7 @@ func (s *EtcdServer) run() {
 	}
 }
 
-func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
+func (s *CsfServer) applyAll(ep *etcdProgress, apply *apply) {
 	s.applySnapshot(ep, apply)
 	st := time.Now()
 	s.applyEntries(ep, apply)
@@ -752,7 +753,7 @@ func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
 	}
 }
 
-func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
+func (s *CsfServer) applySnapshot(ep *etcdProgress, apply *apply) {
 	if raft.IsEmptySnap(apply.snapshot) {
 		return
 	}
@@ -771,6 +772,7 @@ func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
 	}
 
 	fn := path.Join(s.Cfg.SnapDir(), databaseFilename)
+	// os.MkdirAll(s.Cfg.SnapDir(), os.ModePerm)
 	if err := os.Rename(snapfn, fn); err != nil {
 		plog.Panicf("rename snapshot file error: %v", err)
 	}
@@ -853,7 +855,7 @@ func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
 	ep.confState = apply.snapshot.Metadata.ConfState
 }
 
-func (s *EtcdServer) applyEntries(ep *etcdProgress, apply *apply) {
+func (s *CsfServer) applyEntries(ep *etcdProgress, apply *apply) {
 	if len(apply.entries) == 0 {
 		return
 	}
@@ -874,7 +876,7 @@ func (s *EtcdServer) applyEntries(ep *etcdProgress, apply *apply) {
 	}
 }
 
-func (s *EtcdServer) triggerSnapshot(ep *etcdProgress) {
+func (s *CsfServer) triggerSnapshot(ep *etcdProgress) {
 	if ep.appliedi-ep.snapi <= s.snapCount {
 		return
 	}
@@ -884,17 +886,17 @@ func (s *EtcdServer) triggerSnapshot(ep *etcdProgress) {
 	ep.snapi = ep.appliedi
 }
 
-func (s *EtcdServer) isMultiNode() bool {
+func (s *CsfServer) isMultiNode() bool {
 	return s.cluster != nil && len(s.cluster.MemberIDs()) > 1
 }
 
-func (s *EtcdServer) isLeader() bool {
+func (s *CsfServer) isLeader() bool {
 	return uint64(s.ID()) == s.Lead()
 }
 
 // transferLeadership transfers the leader to the given transferee.
 // TODO: maybe expose to client?
-func (s *EtcdServer) transferLeadership(ctx context.Context, lead, transferee uint64) error {
+func (s *CsfServer) transferLeadership(ctx context.Context, lead, transferee uint64) error {
 	now := time.Now()
 	interval := time.Duration(s.Cfg.TickMs) * time.Millisecond
 
@@ -915,7 +917,7 @@ func (s *EtcdServer) transferLeadership(ctx context.Context, lead, transferee ui
 }
 
 // TransferLeadership transfers the leader to the chosen transferee.
-func (s *EtcdServer) TransferLeadership() error {
+func (s *CsfServer) TransferLeadership() error {
 	if !s.isLeader() {
 		plog.Printf("skipped leadership transfer for stopping non-leader member")
 		return nil
@@ -939,7 +941,7 @@ func (s *EtcdServer) TransferLeadership() error {
 }
 
 // HardStop stops the server without coordination with other members in the cluster.
-func (s *EtcdServer) HardStop() {
+func (s *CsfServer) HardStop() {
 	select {
 	case s.stop <- struct{}{}:
 	case <-s.done:
@@ -952,7 +954,7 @@ func (s *EtcdServer) HardStop() {
 // Stop should be called after a Start(s), otherwise it will block forever.
 // When stopping leader, Stop transfers its leadership to one of its peers
 // before stopping the server.
-func (s *EtcdServer) Stop() {
+func (s *CsfServer) Stop() {
 	if err := s.TransferLeadership(); err != nil {
 		plog.Warningf("%s failed to transfer leadership (%v)", s.ID(), err)
 	}
@@ -961,9 +963,9 @@ func (s *EtcdServer) Stop() {
 
 // ReadyNotify returns a channel that will be closed when the server
 // is ready to serve client requests
-func (s *EtcdServer) ReadyNotify() <-chan struct{} { return s.readych }
+func (s *CsfServer) ReadyNotify() <-chan struct{} { return s.readych }
 
-func (s *EtcdServer) stopWithDelay(d time.Duration, err error) {
+func (s *CsfServer) stopWithDelay(d time.Duration, err error) {
 	select {
 	case <-time.After(d):
 	case <-s.done:
@@ -976,11 +978,11 @@ func (s *EtcdServer) stopWithDelay(d time.Duration, err error) {
 
 // StopNotify returns a channel that receives a empty struct
 // when the server is stopped.
-func (s *EtcdServer) StopNotify() <-chan struct{} { return s.done }
+func (s *CsfServer) StopNotify() <-chan struct{} { return s.done }
 
-func (s *EtcdServer) SelfStats() []byte { return s.stats.JSON() }
+func (s *CsfServer) SelfStats() []byte { return s.stats.JSON() }
 
-func (s *EtcdServer) LeaderStats() []byte {
+func (s *CsfServer) LeaderStats() []byte {
 	lead := atomic.LoadUint64(&s.r.lead)
 	if lead != uint64(s.id) {
 		return nil
@@ -988,9 +990,9 @@ func (s *EtcdServer) LeaderStats() []byte {
 	return s.lstats.JSON()
 }
 
-func (s *EtcdServer) StoreStats() []byte { return s.store.JsonStats() }
+func (s *CsfServer) StoreStats() []byte { return s.store.JsonStats() }
 
-func (s *EtcdServer) AddMember(ctx context.Context, memb membership.Member) error {
+func (s *CsfServer) AddMember(ctx context.Context, memb membership.Member) error {
 	if s.Cfg.StrictReconfigCheck {
 		// by default StrictReconfigCheck is enabled; reject new members if unhealthy
 		if !s.cluster.IsReadyToAddNewMember() {
@@ -1016,7 +1018,7 @@ func (s *EtcdServer) AddMember(ctx context.Context, memb membership.Member) erro
 	return s.configure(ctx, cc)
 }
 
-func (s *EtcdServer) RemoveMember(ctx context.Context, id uint64) error {
+func (s *CsfServer) RemoveMember(ctx context.Context, id uint64) error {
 	// by default StrictReconfigCheck is enabled; reject removal if leads to quorum loss
 	if err := s.mayRemoveMember(types.ID(id)); err != nil {
 		return err
@@ -1029,7 +1031,7 @@ func (s *EtcdServer) RemoveMember(ctx context.Context, id uint64) error {
 	return s.configure(ctx, cc)
 }
 
-func (s *EtcdServer) mayRemoveMember(id types.ID) error {
+func (s *CsfServer) mayRemoveMember(id types.ID) error {
 	if !s.Cfg.StrictReconfigCheck {
 		return nil
 	}
@@ -1055,7 +1057,7 @@ func (s *EtcdServer) mayRemoveMember(id types.ID) error {
 	return nil
 }
 
-func (s *EtcdServer) UpdateMember(ctx context.Context, memb membership.Member) error {
+func (s *CsfServer) UpdateMember(ctx context.Context, memb membership.Member) error {
 	b, err := json.Marshal(memb)
 	if err != nil {
 		return err
@@ -1070,23 +1072,23 @@ func (s *EtcdServer) UpdateMember(ctx context.Context, memb membership.Member) e
 
 // Implement the RaftTimer interface
 
-func (s *EtcdServer) Index() uint64 { return atomic.LoadUint64(&s.r.index) }
+func (s *CsfServer) Index() uint64 { return atomic.LoadUint64(&s.r.index) }
 
-func (s *EtcdServer) Term() uint64 { return atomic.LoadUint64(&s.r.term) }
+func (s *CsfServer) Term() uint64 { return atomic.LoadUint64(&s.r.term) }
 
 // Lead is only for testing purposes.
 // TODO: add Raft server interface to expose raft related info:
 // Index, Term, Lead, Committed, Applied, LastIndex, etc.
-func (s *EtcdServer) Lead() uint64 { return atomic.LoadUint64(&s.r.lead) }
+func (s *CsfServer) Lead() uint64 { return atomic.LoadUint64(&s.r.lead) }
 
-func (s *EtcdServer) Leader() types.ID { return types.ID(s.Lead()) }
+func (s *CsfServer) Leader() types.ID { return types.ID(s.Lead()) }
 
-func (s *EtcdServer) IsPprofEnabled() bool { return s.Cfg.EnablePprof }
+func (s *CsfServer) IsPprofEnabled() bool { return s.Cfg.EnablePprof }
 
 // configure sends a configuration change through consensus and
 // then waits for it to be applied to the server. It
 // will block until the change is performed or there is an error.
-func (s *EtcdServer) configure(ctx context.Context, cc raftpb.ConfChange) error {
+func (s *CsfServer) configure(ctx context.Context, cc raftpb.ConfChange) error {
 	cc.ID = s.reqIDGen.Next()
 	ch := s.w.Register(cc.ID)
 	start := time.Now()
@@ -1114,7 +1116,7 @@ func (s *EtcdServer) configure(ctx context.Context, cc raftpb.ConfChange) error 
 // sync proposes a SYNC request and is non-blocking.
 // This makes no guarantee that the request will be proposed or performed.
 // The request will be canceled after the given timeout.
-func (s *EtcdServer) sync(timeout time.Duration) {
+func (s *CsfServer) sync(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	req := pb.Request{
 		Method: "SYNC",
@@ -1135,7 +1137,7 @@ func (s *EtcdServer) sync(timeout time.Duration) {
 // static clientURLs of the server.
 // The function keeps attempting to register until it succeeds,
 // or its server is stopped.
-func (s *EtcdServer) publish(timeout time.Duration) {
+func (s *CsfServer) publish(timeout time.Duration) {
 	b, err := json.Marshal(s.attributes)
 	if err != nil {
 		plog.Panicf("json marshal error: %v", err)
@@ -1166,7 +1168,7 @@ func (s *EtcdServer) publish(timeout time.Duration) {
 }
 
 // TODO: move this function into raft.go
-func (s *EtcdServer) send(ms []raftpb.Message) {
+func (s *CsfServer) send(ms []raftpb.Message) {
 	sentAppResp := false
 	for i := len(ms) - 1; i >= 0; i-- {
 		if s.cluster.IsIDRemoved(types.ID(ms[i].To)) {
@@ -1206,7 +1208,7 @@ func (s *EtcdServer) send(ms []raftpb.Message) {
 	s.r.transport.Send(ms)
 }
 
-func (s *EtcdServer) sendMergedSnap(merged snap.Message) {
+func (s *CsfServer) sendMergedSnap(merged snap.Message) {
 	atomic.AddInt64(&s.inflightSnapshots, 1)
 
 	s.r.transport.SendSnapshot(merged)
@@ -1231,9 +1233,9 @@ func (s *EtcdServer) sendMergedSnap(merged snap.Message) {
 }
 
 // apply takes entries received from Raft (after it has been committed) and
-// applies them to the current state of the EtcdServer.
+// applies them to the current state of the CsfServer.
 // The given entries should not be empty.
-func (s *EtcdServer) apply(es []raftpb.Entry, confState *raftpb.ConfState) (uint64, bool) {
+func (s *CsfServer) apply(es []raftpb.Entry, confState *raftpb.ConfState) (uint64, bool) {
 	var applied uint64
 	var shouldstop bool
 	for i := range es {
@@ -1257,8 +1259,8 @@ func (s *EtcdServer) apply(es []raftpb.Entry, confState *raftpb.ConfState) (uint
 	return applied, shouldstop
 }
 
-// applyEntryNormal apples an EntryNormal type raftpb request to the EtcdServer
-func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
+// applyEntryNormal apples an EntryNormal type raftpb request to the CsfServer
+func (s *CsfServer) applyEntryNormal(e *raftpb.Entry) {
 	shouldApplyV3 := false
 	if e.Index > s.consistIndex.ConsistentIndex() {
 		// set the consistent index of current executing entry
@@ -1318,17 +1320,17 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		return
 	}
 
-	if ar.err != ErrNoSpace || len(s.alarmStore.Get(pb.AlarmType_NOSPACE)) > 0 {
+	if ar.err != ErrNoSpace || len(s.alarmStore.Get(alpb.NOSPACE)) > 0 {
 		s.w.Trigger(id, ar)
 		return
 	}
 
 	plog.Errorf("applying raft message exceeded backend quota")
 	s.goAttach(func() {
-		a := &pb.AlarmRequest{
+		a := &alpb.AlarmRequest{
 			MemberID: uint64(s.ID()),
-			Action:   pb.AlarmRequest_ACTIVATE,
-			Alarm:    pb.AlarmType_NOSPACE,
+			Action:   alpb.ACTIVATE,
+			Alarm:    alpb.NOSPACE,
 		}
 		r := pb.InternalRaftRequest{Alarm: a}
 		s.processInternalRaftRequest(context.TODO(), r)
@@ -1338,7 +1340,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 
 // applyConfChange applies a ConfChange to the server. It is only
 // invoked with a ConfChange that has already passed through Raft
-func (s *EtcdServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.ConfState) (bool, error) {
+func (s *CsfServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.ConfState) (bool, error) {
 	if err := s.cluster.ValidateConfigurationChange(cc); err != nil {
 		cc.NodeID = raft.None
 		s.r.ApplyConfChange(cc)
@@ -1382,7 +1384,7 @@ func (s *EtcdServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.Con
 }
 
 // TODO: non-blocking snapshot
-func (s *EtcdServer) snapshot(snapi uint64, confState raftpb.ConfState) {
+func (s *CsfServer) snapshot(snapi uint64, confState raftpb.ConfState) {
 	clone := s.store.Clone()
 	// commit kv to write metadata (for example: consistent index) to disk.
 	// KV().commit() updates the consistent index in backend.
@@ -1444,7 +1446,7 @@ func (s *EtcdServer) snapshot(snapi uint64, confState raftpb.ConfState) {
 }
 
 // CutPeer drops messages to the specified peer.
-func (s *EtcdServer) CutPeer(id types.ID) {
+func (s *CsfServer) CutPeer(id types.ID) {
 	tr, ok := s.r.transport.(*rafthttp.Transport)
 	if ok {
 		tr.CutPeer(id)
@@ -1452,18 +1454,18 @@ func (s *EtcdServer) CutPeer(id types.ID) {
 }
 
 // MendPeer recovers the message dropping behavior of the given peer.
-func (s *EtcdServer) MendPeer(id types.ID) {
+func (s *CsfServer) MendPeer(id types.ID) {
 	tr, ok := s.r.transport.(*rafthttp.Transport)
 	if ok {
 		tr.MendPeer(id)
 	}
 }
 
-func (s *EtcdServer) PauseSending() { s.r.pauseSending() }
+func (s *CsfServer) PauseSending() { s.r.pauseSending() }
 
-func (s *EtcdServer) ResumeSending() { s.r.resumeSending() }
+func (s *CsfServer) ResumeSending() { s.r.resumeSending() }
 
-func (s *EtcdServer) ClusterVersion() *semver.Version {
+func (s *CsfServer) ClusterVersion() *semver.Version {
 	if s.cluster == nil {
 		return nil
 	}
@@ -1474,7 +1476,7 @@ func (s *EtcdServer) ClusterVersion() *semver.Version {
 // It updates the cluster version if all members agrees on a higher one.
 // It prints out log if there is a member with a higher version than the
 // local version.
-func (s *EtcdServer) monitorVersions() {
+func (s *CsfServer) monitorVersions() {
 	for {
 		select {
 		case <-s.forceVersionC:
@@ -1516,7 +1518,7 @@ func (s *EtcdServer) monitorVersions() {
 	}
 }
 
-func (s *EtcdServer) updateClusterVersion(ver string) {
+func (s *CsfServer) updateClusterVersion(ver string) {
 	if s.cluster.Version() == nil {
 		plog.Infof("setting up the initial cluster version to %s", version.Cluster(ver))
 	} else {
@@ -1541,7 +1543,7 @@ func (s *EtcdServer) updateClusterVersion(ver string) {
 	}
 }
 
-func (s *EtcdServer) parseProposeCtxErr(err error, start time.Time) error {
+func (s *CsfServer) parseProposeCtxErr(err error, start time.Time) error {
 	switch err {
 	case context.Canceled:
 		return ErrCanceled
@@ -1572,47 +1574,47 @@ func (s *EtcdServer) parseProposeCtxErr(err error, start time.Time) error {
 	}
 }
 
-func (s *EtcdServer) KV() mvcc.ConsistentWatchableKV { return s.kv }
-func (s *EtcdServer) Backend() backend.Backend {
+func (s *CsfServer) KV() mvcc.ConsistentWatchableKV { return s.kv }
+func (s *CsfServer) Backend() backend.Backend {
 	s.bemu.Lock()
 	defer s.bemu.Unlock()
 	return s.be
 }
 
-func (s *EtcdServer) AuthStore() auth.AuthStore { return s.authStore }
+func (s *CsfServer) AuthStore() auth.AuthStore { return s.authStore }
 
-func (s *EtcdServer) restoreAlarms() error {
+func (s *CsfServer) restoreAlarms() error {
 	s.applyV3 = s.newApplierV3()
 	as, err := alarm.NewAlarmStore(s)
 	if err != nil {
 		return err
 	}
 	s.alarmStore = as
-	if len(as.Get(pb.AlarmType_NOSPACE)) > 0 {
+	if len(as.Get(alpb.NOSPACE)) > 0 {
 		s.applyV3 = newApplierV3Capped(s.applyV3)
 	}
 	return nil
 }
 
-func (s *EtcdServer) getAppliedIndex() uint64 {
+func (s *CsfServer) getAppliedIndex() uint64 {
 	return atomic.LoadUint64(&s.appliedIndex)
 }
 
-func (s *EtcdServer) setAppliedIndex(v uint64) {
+func (s *CsfServer) setAppliedIndex(v uint64) {
 	atomic.StoreUint64(&s.appliedIndex, v)
 }
 
-func (s *EtcdServer) getCommittedIndex() uint64 {
+func (s *CsfServer) getCommittedIndex() uint64 {
 	return atomic.LoadUint64(&s.committedIndex)
 }
 
-func (s *EtcdServer) setCommittedIndex(v uint64) {
+func (s *CsfServer) setCommittedIndex(v uint64) {
 	atomic.StoreUint64(&s.committedIndex, v)
 }
 
 // goAttach creates a goroutine on a given function and tracks it using
 // the etcdserver waitgroup.
-func (s *EtcdServer) goAttach(f func()) {
+func (s *CsfServer) goAttach(f func()) {
 	s.wgMu.RLock() // this blocks with ongoing close(s.stopping)
 	defer s.wgMu.RUnlock()
 	select {

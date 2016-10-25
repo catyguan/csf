@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"time"
 
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/rafthttp"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/rafthttp"
 )
 
 // isConnectedToQuorumSince checks whether the local member is connected to the

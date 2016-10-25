@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"encoding/json"
@@ -22,16 +22,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/pkg/pbutil"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/rafthttp"
-	"github.com/coreos/etcd/wal"
-	"github.com/coreos/etcd/wal/walpb"
-	"github.com/coreos/pkg/capnslog"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/pbutil"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/rafthttp"
+	"github.com/catyguan/csf/wal"
+	"github.com/catyguan/csf/wal/walpb"
 )
 
 const (
@@ -62,7 +62,7 @@ var (
 )
 
 func init() {
-	raft.SetLogger(capnslog.NewPackageLogger("github.com/coreos/etcd", "raft"))
+	raft.SetLogger(capnslog.NewPackageLogger("github.com/catyguan/csf", "raft"))
 	expvar.Publish("raft.status", expvar.Func(func() interface{} {
 		raftStatusMu.Lock()
 		defer raftStatusMu.Unlock()

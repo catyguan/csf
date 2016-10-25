@@ -96,6 +96,7 @@ func Create(dirpath string, metadata []byte) (*WAL, error) {
 		return nil, os.ErrExist
 	}
 
+	var err error
 	// keep temporary wal directory so WAL initialization appears atomic
 	tmpdirpath := path.Clean(dirpath) + ".tmp"
 	if fileutil.Exist(tmpdirpath) {
@@ -103,14 +104,20 @@ func Create(dirpath string, metadata []byte) (*WAL, error) {
 			return nil, err
 		}
 	}
-	if err := fileutil.CreateDirAll(tmpdirpath); err != nil {
-		return nil, err
-	}
 
-	p := path.Join(tmpdirpath, walName(0, 0))
-	f, err := fileutil.LockFile(p, os.O_WRONLY|os.O_CREATE, fileutil.PrivateFileMode)
+	err = fileutil.CreateDirAll(tmpdirpath)
 	if err != nil {
 		return nil, err
+	}
+	// err = os.Rename(tmpdirpath, dirpath+".aaa")
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	p := path.Join(tmpdirpath, walName(0, 0))
+	f, err2 := fileutil.LockFile(p, os.O_WRONLY|os.O_CREATE, fileutil.PrivateFileMode)
+	if err2 != nil {
+		return nil, err2
 	}
 	if _, err = f.Seek(0, os.SEEK_END); err != nil {
 		return nil, err
@@ -131,6 +138,7 @@ func Create(dirpath string, metadata []byte) (*WAL, error) {
 	if err = w.saveCrc(0); err != nil {
 		return nil, err
 	}
+	// f.Close()
 	if err = w.encoder.encode(&walpb.Record{Type: metadataType, Data: metadata}); err != nil {
 		return nil, err
 	}
@@ -139,6 +147,7 @@ func Create(dirpath string, metadata []byte) (*WAL, error) {
 	}
 
 	if w, err = w.renameWal(tmpdirpath); err != nil {
+		plog.Errorf("rename wal fail %v - %v", tmpdirpath, err)
 		return nil, err
 	}
 
@@ -497,6 +506,9 @@ func (w *WAL) ReleaseLockTo(index uint64) error {
 }
 
 func (w *WAL) Close() error {
+	if w == nil {
+		return nil
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -507,6 +519,7 @@ func (w *WAL) Close() error {
 
 	if w.tail() != nil {
 		if err := w.sync(); err != nil {
+			plog.Errorf("failed to sync during closing wal: %s", err)
 			return err
 		}
 	}
@@ -518,8 +531,12 @@ func (w *WAL) Close() error {
 			plog.Errorf("failed to unlock during closing wal: %s", err)
 		}
 	}
-
-	return w.dirFile.Close()
+	if w.dirFile != nil {
+		err := w.dirFile.Close()
+		w.dirFile = nil
+		return err
+	}
+	return nil
 }
 
 func (w *WAL) saveEntry(e *raftpb.Entry) error {

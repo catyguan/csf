@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/mvcc/backend"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/mvcc/backend"
 )
 
 // Quota represents an arbitrary quota against arbitrary requests. Each request
@@ -38,7 +38,7 @@ func (*passthroughQuota) Cost(interface{}) int       { return 0 }
 func (*passthroughQuota) Remaining() int64           { return 1 }
 
 type backendQuota struct {
-	s               *EtcdServer
+	s               *CsfServer
 	maxBackendBytes int64
 }
 
@@ -49,7 +49,7 @@ const (
 	kvOverhead = 256
 )
 
-func NewBackendQuota(s *EtcdServer) Quota {
+func NewBackendQuota(s *CsfServer) Quota {
 	if s.Cfg.QuotaBackendBytes < 0 {
 		// disable quotas if negative
 		plog.Warningf("disabling backend quota")

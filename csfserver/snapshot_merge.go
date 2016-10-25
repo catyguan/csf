@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"io"
 	"log"
 
-	"github.com/coreos/etcd/mvcc/backend"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/snap"
+	"github.com/catyguan/csf/mvcc/backend"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/snap"
 )
 
 // createMergedSnapshotMessage creates a snapshot message that contains: raft status (term, conf),
 // a snapshot of v2 store inside raft.Snapshot as []byte, a snapshot of v3 KV in the top level message
 // as ReadCloser.
-func (s *EtcdServer) createMergedSnapshotMessage(m raftpb.Message, snapi uint64, confState raftpb.ConfState) snap.Message {
+func (s *CsfServer) createMergedSnapshotMessage(m raftpb.Message, snapi uint64, confState raftpb.ConfState) snap.Message {
 	snapt, err := s.r.raftStorage.Term(snapi)
 	if err != nil {
 		log.Panicf("get term should never fail: %v", err)

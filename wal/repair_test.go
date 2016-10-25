@@ -43,13 +43,18 @@ func TestRepairTruncate(t *testing.T) {
 
 func testRepair(t *testing.T, ents [][]raftpb.Entry, corrupt corruptFunc, expectedEnts int) {
 	p, err := ioutil.TempDir(os.TempDir(), "waltest")
+	p += ".aaa"
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(p)
 	// create WAL
 	w, err := Create(p, nil)
-	defer w.Close()
+	defer func() {
+		if w != nil {
+			w.Close()
+		}
+	}()
 	if err != nil {
 		t.Fatal(err)
 	}

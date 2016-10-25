@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	bpb "github.com/catyguan/csf/basepb"
 	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 	"github.com/catyguan/csf/lease"
 	"github.com/catyguan/csf/lease/leasepb"
@@ -92,8 +93,8 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// TODO: fill out ResponseHeader
 		resp := &leasepb.LeaseInternalResponse{
-			LeaseTimeToLiveResponse: &pb.LeaseTimeToLiveResponse{
-				Header:     &pb.ResponseHeader{},
+			LeaseTimeToLiveResponse: &leasepb.LeaseTimeToLiveResponse{
+				Header:     &bpb.ResponseHeader{},
 				ID:         lreq.LeaseTimeToLiveRequest.ID,
 				TTL:        int64(l.Remaining().Seconds()),
 				GrantedTTL: l.TTL(),
@@ -165,7 +166,7 @@ func RenewHTTP(id lease.LeaseID, url string, rt http.RoundTripper, timeout time.
 // TimeToLiveHTTP retrieves lease information of the given lease ID.
 func TimeToLiveHTTP(ctx context.Context, id lease.LeaseID, keys bool, url string, rt http.RoundTripper) (*leasepb.LeaseInternalResponse, error) {
 	// will post lreq protobuf to leader
-	lreq, err := (&leasepb.LeaseInternalRequest{&pb.LeaseTimeToLiveRequest{ID: int64(id), Keys: keys}}).Marshal()
+	lreq, err := (&leasepb.LeaseInternalRequest{&leasepb.LeaseTimeToLiveRequest{ID: int64(id), Keys: keys}}).Marshal()
 	if err != nil {
 		return nil, err
 	}

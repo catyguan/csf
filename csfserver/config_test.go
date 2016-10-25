@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"net/url"
 	"testing"
 
-	"github.com/coreos/etcd/pkg/types"
+	"github.com/catyguan/csf/pkg/types"
 )
 
 func mustNewURLs(t *testing.T, urls []string) []url.URL {

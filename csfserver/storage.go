@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"io"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/pkg/pbutil"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/snap"
-	"github.com/coreos/etcd/wal"
-	"github.com/coreos/etcd/wal/walpb"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/pkg/pbutil"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/snap"
+	"github.com/catyguan/csf/wal"
+	"github.com/catyguan/csf/wal/walpb"
 )
 
 type Storage interface {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"bytes"
@@ -21,16 +21,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/auth"
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/lease"
-	"github.com/coreos/etcd/lease/leasehttp"
-	"github.com/coreos/etcd/lease/leasepb"
-	"github.com/coreos/etcd/mvcc"
-	"github.com/coreos/etcd/raft"
+	alpb "github.com/catyguan/csf/alarm/alarmpb"
+	"github.com/catyguan/csf/auth"
+	apb "github.com/catyguan/csf/auth/authpb"
+	bpb "github.com/catyguan/csf/basepb"
+	cpb "github.com/catyguan/csf/compactor/compactorpb"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/lease"
+	"github.com/catyguan/csf/lease/leasehttp"
+	"github.com/catyguan/csf/lease/leasepb"
+	"github.com/catyguan/csf/mvcc"
+	"github.com/catyguan/csf/raft"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/semver"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
 )
@@ -58,7 +62,7 @@ type RaftKV interface {
 	Put(ctx context.Context, r *pb.PutRequest) (*pb.PutResponse, error)
 	DeleteRange(ctx context.Context, r *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error)
 	Txn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error)
-	Compact(ctx context.Context, r *pb.CompactionRequest) (*pb.CompactionResponse, error)
+	Compact(ctx context.Context, r *cpb.CompactionRequest) (*cpb.CompactionResponse, error)
 }
 
 type Lessor interface {
@@ -72,29 +76,29 @@ type Lessor interface {
 	LeaseRenew(id lease.LeaseID) (int64, error)
 
 	// LeaseTimeToLive retrieves lease information.
-	LeaseTimeToLive(ctx context.Context, r *pb.LeaseTimeToLiveRequest) (*pb.LeaseTimeToLiveResponse, error)
+	LeaseTimeToLive(ctx context.Context, r *leasepb.LeaseTimeToLiveRequest) (*leasepb.LeaseTimeToLiveResponse, error)
 }
 
 type Authenticator interface {
 	AuthEnable(ctx context.Context, r *pb.AuthEnableRequest) (*pb.AuthEnableResponse, error)
 	AuthDisable(ctx context.Context, r *pb.AuthDisableRequest) (*pb.AuthDisableResponse, error)
-	Authenticate(ctx context.Context, r *pb.AuthenticateRequest) (*pb.AuthenticateResponse, error)
-	UserAdd(ctx context.Context, r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse, error)
-	UserDelete(ctx context.Context, r *pb.AuthUserDeleteRequest) (*pb.AuthUserDeleteResponse, error)
-	UserChangePassword(ctx context.Context, r *pb.AuthUserChangePasswordRequest) (*pb.AuthUserChangePasswordResponse, error)
-	UserGrantRole(ctx context.Context, r *pb.AuthUserGrantRoleRequest) (*pb.AuthUserGrantRoleResponse, error)
-	UserGet(ctx context.Context, r *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse, error)
-	UserRevokeRole(ctx context.Context, r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUserRevokeRoleResponse, error)
-	RoleAdd(ctx context.Context, r *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse, error)
-	RoleGrantPermission(ctx context.Context, r *pb.AuthRoleGrantPermissionRequest) (*pb.AuthRoleGrantPermissionResponse, error)
-	RoleGet(ctx context.Context, r *pb.AuthRoleGetRequest) (*pb.AuthRoleGetResponse, error)
-	RoleRevokePermission(ctx context.Context, r *pb.AuthRoleRevokePermissionRequest) (*pb.AuthRoleRevokePermissionResponse, error)
-	RoleDelete(ctx context.Context, r *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDeleteResponse, error)
-	UserList(ctx context.Context, r *pb.AuthUserListRequest) (*pb.AuthUserListResponse, error)
-	RoleList(ctx context.Context, r *pb.AuthRoleListRequest) (*pb.AuthRoleListResponse, error)
+	Authenticate(ctx context.Context, r *pb.AuthenticateRequest) (*apb.AuthenticateResponse, error)
+	UserAdd(ctx context.Context, r *apb.AuthUserAddRequest) (*apb.AuthUserAddResponse, error)
+	UserDelete(ctx context.Context, r *apb.AuthUserDeleteRequest) (*apb.AuthUserDeleteResponse, error)
+	UserChangePassword(ctx context.Context, r *apb.AuthUserChangePasswordRequest) (*apb.AuthUserChangePasswordResponse, error)
+	UserGrantRole(ctx context.Context, r *apb.AuthUserGrantRoleRequest) (*apb.AuthUserGrantRoleResponse, error)
+	UserGet(ctx context.Context, r *apb.AuthUserGetRequest) (*apb.AuthUserGetResponse, error)
+	UserRevokeRole(ctx context.Context, r *apb.AuthUserRevokeRoleRequest) (*apb.AuthUserRevokeRoleResponse, error)
+	RoleAdd(ctx context.Context, r *apb.AuthRoleAddRequest) (*apb.AuthRoleAddResponse, error)
+	RoleGrantPermission(ctx context.Context, r *apb.AuthRoleGrantPermissionRequest) (*apb.AuthRoleGrantPermissionResponse, error)
+	RoleGet(ctx context.Context, r *apb.AuthRoleGetRequest) (*apb.AuthRoleGetResponse, error)
+	RoleRevokePermission(ctx context.Context, r *apb.AuthRoleRevokePermissionRequest) (*apb.AuthRoleRevokePermissionResponse, error)
+	RoleDelete(ctx context.Context, r *apb.AuthRoleDeleteRequest) (*apb.AuthRoleDeleteResponse, error)
+	UserList(ctx context.Context, r *apb.AuthUserListRequest) (*apb.AuthUserListResponse, error)
+	RoleList(ctx context.Context, r *apb.AuthRoleListRequest) (*apb.AuthRoleListResponse, error)
 }
 
-func (s *EtcdServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
+func (s *CsfServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	// TODO: remove this checking when we release etcd 3.2
 	if s.ClusterVersion() == nil || s.ClusterVersion().LessThan(newRangeClusterVersion) {
 		return s.legacyRange(ctx, r)
@@ -119,7 +123,7 @@ func (s *EtcdServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeRe
 }
 
 // TODO: remove this func when we release etcd 3.2
-func (s *EtcdServer) legacyRange(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
+func (s *CsfServer) legacyRange(ctx context.Context, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	if r.Serializable {
 		var resp *pb.RangeResponse
 		var err error
@@ -142,7 +146,7 @@ func (s *EtcdServer) legacyRange(ctx context.Context, r *pb.RangeRequest) (*pb.R
 	return result.resp.(*pb.RangeResponse), nil
 }
 
-func (s *EtcdServer) Put(ctx context.Context, r *pb.PutRequest) (*pb.PutResponse, error) {
+func (s *CsfServer) Put(ctx context.Context, r *pb.PutRequest) (*pb.PutResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{Put: r})
 	if err != nil {
 		return nil, err
@@ -153,7 +157,7 @@ func (s *EtcdServer) Put(ctx context.Context, r *pb.PutRequest) (*pb.PutResponse
 	return result.resp.(*pb.PutResponse), nil
 }
 
-func (s *EtcdServer) DeleteRange(ctx context.Context, r *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error) {
+func (s *CsfServer) DeleteRange(ctx context.Context, r *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{DeleteRange: r})
 	if err != nil {
 		return nil, err
@@ -164,7 +168,7 @@ func (s *EtcdServer) DeleteRange(ctx context.Context, r *pb.DeleteRangeRequest) 
 	return result.resp.(*pb.DeleteRangeResponse), nil
 }
 
-func (s *EtcdServer) Txn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error) {
+func (s *CsfServer) Txn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error) {
 	// TODO: remove this checking when we release etcd 3.2
 	if s.ClusterVersion() == nil || s.ClusterVersion().LessThan(newRangeClusterVersion) {
 		return s.legacyTxn(ctx, r)
@@ -199,7 +203,7 @@ func (s *EtcdServer) Txn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse
 }
 
 // TODO: remove this func when we release etcd 3.2
-func (s *EtcdServer) legacyTxn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error) {
+func (s *CsfServer) legacyTxn(ctx context.Context, r *pb.TxnRequest) (*pb.TxnResponse, error) {
 	if isTxnSerializable(r) {
 		var resp *pb.TxnResponse
 		var err error
@@ -250,7 +254,7 @@ func isTxnReadonly(r *pb.TxnRequest) bool {
 	return true
 }
 
-func (s *EtcdServer) Compact(ctx context.Context, r *pb.CompactionRequest) (*pb.CompactionResponse, error) {
+func (s *CsfServer) Compact(ctx context.Context, r *cpb.CompactionRequest) (*cpb.CompactionResponse, error) {
 	result, err := s.processInternalRaftRequestOnce(ctx, pb.InternalRaftRequest{Compaction: r})
 	if r.Physical && result != nil && result.physc != nil {
 		<-result.physc
@@ -267,18 +271,18 @@ func (s *EtcdServer) Compact(ctx context.Context, r *pb.CompactionRequest) (*pb.
 	if result.err != nil {
 		return nil, result.err
 	}
-	resp := result.resp.(*pb.CompactionResponse)
+	resp := result.resp.(*cpb.CompactionResponse)
 	if resp == nil {
-		resp = &pb.CompactionResponse{}
+		resp = &cpb.CompactionResponse{}
 	}
 	if resp.Header == nil {
-		resp.Header = &pb.ResponseHeader{}
+		resp.Header = &bpb.ResponseHeader{}
 	}
 	resp.Header.Revision = s.kv.Rev()
 	return resp, nil
 }
 
-func (s *EtcdServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
+func (s *CsfServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
 	// no id given? choose one
 	for r.ID == int64(lease.NoLease) {
 		// only use positive int64 id's
@@ -294,7 +298,7 @@ func (s *EtcdServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*
 	return result.resp.(*pb.LeaseGrantResponse), nil
 }
 
-func (s *EtcdServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
+func (s *CsfServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
 	result, err := s.processInternalRaftRequestOnce(ctx, pb.InternalRaftRequest{LeaseRevoke: r})
 	if err != nil {
 		return nil, err
@@ -305,7 +309,7 @@ func (s *EtcdServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) 
 	return result.resp.(*pb.LeaseRevokeResponse), nil
 }
 
-func (s *EtcdServer) LeaseRenew(id lease.LeaseID) (int64, error) {
+func (s *CsfServer) LeaseRenew(id lease.LeaseID) (int64, error) {
 	ttl, err := s.lessor.Renew(id)
 	if err == nil { // already requested to primary lessor(leader)
 		return ttl, nil
@@ -330,7 +334,7 @@ func (s *EtcdServer) LeaseRenew(id lease.LeaseID) (int64, error) {
 	return ttl, err
 }
 
-func (s *EtcdServer) LeaseTimeToLive(ctx context.Context, r *pb.LeaseTimeToLiveRequest) (*pb.LeaseTimeToLiveResponse, error) {
+func (s *CsfServer) LeaseTimeToLive(ctx context.Context, r *leasepb.LeaseTimeToLiveRequest) (*leasepb.LeaseTimeToLiveResponse, error) {
 	if s.Leader() == s.ID() {
 		// primary; timetolive directly from leader
 		le := s.lessor.Lookup(lease.LeaseID(r.ID))
@@ -338,7 +342,7 @@ func (s *EtcdServer) LeaseTimeToLive(ctx context.Context, r *pb.LeaseTimeToLiveR
 			return nil, lease.ErrLeaseNotFound
 		}
 		// TODO: fill out ResponseHeader
-		resp := &pb.LeaseTimeToLiveResponse{Header: &pb.ResponseHeader{}, ID: r.ID, TTL: int64(le.Remaining().Seconds()), GrantedTTL: le.TTL()}
+		resp := &leasepb.LeaseTimeToLiveResponse{Header: &bpb.ResponseHeader{}, ID: r.ID, TTL: int64(le.Remaining().Seconds()), GrantedTTL: le.TTL()}
 		if r.Keys {
 			ks := le.Keys()
 			kbs := make([][]byte, len(ks))
@@ -367,7 +371,7 @@ func (s *EtcdServer) LeaseTimeToLive(ctx context.Context, r *pb.LeaseTimeToLiveR
 	return nil, err
 }
 
-func (s *EtcdServer) waitLeader() (*membership.Member, error) {
+func (s *CsfServer) waitLeader() (*membership.Member, error) {
 	leader := s.cluster.Member(s.Leader())
 	for i := 0; i < 5 && leader == nil; i++ {
 		// wait an election
@@ -385,7 +389,7 @@ func (s *EtcdServer) waitLeader() (*membership.Member, error) {
 	return leader, nil
 }
 
-func (s *EtcdServer) Alarm(ctx context.Context, r *pb.AlarmRequest) (*pb.AlarmResponse, error) {
+func (s *CsfServer) Alarm(ctx context.Context, r *alpb.AlarmRequest) (*alpb.AlarmResponse, error) {
 	result, err := s.processInternalRaftRequestOnce(ctx, pb.InternalRaftRequest{Alarm: r})
 	if err != nil {
 		return nil, err
@@ -393,10 +397,10 @@ func (s *EtcdServer) Alarm(ctx context.Context, r *pb.AlarmRequest) (*pb.AlarmRe
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AlarmResponse), nil
+	return result.resp.(*alpb.AlarmResponse), nil
 }
 
-func (s *EtcdServer) AuthEnable(ctx context.Context, r *pb.AuthEnableRequest) (*pb.AuthEnableResponse, error) {
+func (s *CsfServer) AuthEnable(ctx context.Context, r *pb.AuthEnableRequest) (*pb.AuthEnableResponse, error) {
 	result, err := s.processInternalRaftRequestOnce(ctx, pb.InternalRaftRequest{AuthEnable: r})
 	if err != nil {
 		return nil, err
@@ -407,7 +411,7 @@ func (s *EtcdServer) AuthEnable(ctx context.Context, r *pb.AuthEnableRequest) (*
 	return result.resp.(*pb.AuthEnableResponse), nil
 }
 
-func (s *EtcdServer) AuthDisable(ctx context.Context, r *pb.AuthDisableRequest) (*pb.AuthDisableResponse, error) {
+func (s *CsfServer) AuthDisable(ctx context.Context, r *pb.AuthDisableRequest) (*pb.AuthDisableResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthDisable: r})
 	if err != nil {
 		return nil, err
@@ -418,7 +422,7 @@ func (s *EtcdServer) AuthDisable(ctx context.Context, r *pb.AuthDisableRequest) 
 	return result.resp.(*pb.AuthDisableResponse), nil
 }
 
-func (s *EtcdServer) Authenticate(ctx context.Context, r *pb.AuthenticateRequest) (*pb.AuthenticateResponse, error) {
+func (s *CsfServer) Authenticate(ctx context.Context, r *pb.AuthenticateRequest) (*apb.AuthenticateResponse, error) {
 	var result *applyResult
 
 	for {
@@ -455,10 +459,10 @@ func (s *EtcdServer) Authenticate(ctx context.Context, r *pb.AuthenticateRequest
 		break
 	}
 
-	return result.resp.(*pb.AuthenticateResponse), nil
+	return result.resp.(*apb.AuthenticateResponse), nil
 }
 
-func (s *EtcdServer) UserAdd(ctx context.Context, r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse, error) {
+func (s *CsfServer) UserAdd(ctx context.Context, r *apb.AuthUserAddRequest) (*apb.AuthUserAddResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserAdd: r})
 	if err != nil {
 		return nil, err
@@ -466,10 +470,10 @@ func (s *EtcdServer) UserAdd(ctx context.Context, r *pb.AuthUserAddRequest) (*pb
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserAddResponse), nil
+	return result.resp.(*apb.AuthUserAddResponse), nil
 }
 
-func (s *EtcdServer) UserDelete(ctx context.Context, r *pb.AuthUserDeleteRequest) (*pb.AuthUserDeleteResponse, error) {
+func (s *CsfServer) UserDelete(ctx context.Context, r *apb.AuthUserDeleteRequest) (*apb.AuthUserDeleteResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserDelete: r})
 	if err != nil {
 		return nil, err
@@ -477,10 +481,10 @@ func (s *EtcdServer) UserDelete(ctx context.Context, r *pb.AuthUserDeleteRequest
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserDeleteResponse), nil
+	return result.resp.(*apb.AuthUserDeleteResponse), nil
 }
 
-func (s *EtcdServer) UserChangePassword(ctx context.Context, r *pb.AuthUserChangePasswordRequest) (*pb.AuthUserChangePasswordResponse, error) {
+func (s *CsfServer) UserChangePassword(ctx context.Context, r *apb.AuthUserChangePasswordRequest) (*apb.AuthUserChangePasswordResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserChangePassword: r})
 	if err != nil {
 		return nil, err
@@ -488,10 +492,10 @@ func (s *EtcdServer) UserChangePassword(ctx context.Context, r *pb.AuthUserChang
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserChangePasswordResponse), nil
+	return result.resp.(*apb.AuthUserChangePasswordResponse), nil
 }
 
-func (s *EtcdServer) UserGrantRole(ctx context.Context, r *pb.AuthUserGrantRoleRequest) (*pb.AuthUserGrantRoleResponse, error) {
+func (s *CsfServer) UserGrantRole(ctx context.Context, r *apb.AuthUserGrantRoleRequest) (*apb.AuthUserGrantRoleResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserGrantRole: r})
 	if err != nil {
 		return nil, err
@@ -499,10 +503,10 @@ func (s *EtcdServer) UserGrantRole(ctx context.Context, r *pb.AuthUserGrantRoleR
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserGrantRoleResponse), nil
+	return result.resp.(*apb.AuthUserGrantRoleResponse), nil
 }
 
-func (s *EtcdServer) UserGet(ctx context.Context, r *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse, error) {
+func (s *CsfServer) UserGet(ctx context.Context, r *apb.AuthUserGetRequest) (*apb.AuthUserGetResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserGet: r})
 	if err != nil {
 		return nil, err
@@ -510,10 +514,10 @@ func (s *EtcdServer) UserGet(ctx context.Context, r *pb.AuthUserGetRequest) (*pb
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserGetResponse), nil
+	return result.resp.(*apb.AuthUserGetResponse), nil
 }
 
-func (s *EtcdServer) UserList(ctx context.Context, r *pb.AuthUserListRequest) (*pb.AuthUserListResponse, error) {
+func (s *CsfServer) UserList(ctx context.Context, r *apb.AuthUserListRequest) (*apb.AuthUserListResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserList: r})
 	if err != nil {
 		return nil, err
@@ -521,10 +525,10 @@ func (s *EtcdServer) UserList(ctx context.Context, r *pb.AuthUserListRequest) (*
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserListResponse), nil
+	return result.resp.(*apb.AuthUserListResponse), nil
 }
 
-func (s *EtcdServer) UserRevokeRole(ctx context.Context, r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUserRevokeRoleResponse, error) {
+func (s *CsfServer) UserRevokeRole(ctx context.Context, r *apb.AuthUserRevokeRoleRequest) (*apb.AuthUserRevokeRoleResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthUserRevokeRole: r})
 	if err != nil {
 		return nil, err
@@ -532,10 +536,10 @@ func (s *EtcdServer) UserRevokeRole(ctx context.Context, r *pb.AuthUserRevokeRol
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthUserRevokeRoleResponse), nil
+	return result.resp.(*apb.AuthUserRevokeRoleResponse), nil
 }
 
-func (s *EtcdServer) RoleAdd(ctx context.Context, r *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse, error) {
+func (s *CsfServer) RoleAdd(ctx context.Context, r *apb.AuthRoleAddRequest) (*apb.AuthRoleAddResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleAdd: r})
 	if err != nil {
 		return nil, err
@@ -543,10 +547,10 @@ func (s *EtcdServer) RoleAdd(ctx context.Context, r *pb.AuthRoleAddRequest) (*pb
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleAddResponse), nil
+	return result.resp.(*apb.AuthRoleAddResponse), nil
 }
 
-func (s *EtcdServer) RoleGrantPermission(ctx context.Context, r *pb.AuthRoleGrantPermissionRequest) (*pb.AuthRoleGrantPermissionResponse, error) {
+func (s *CsfServer) RoleGrantPermission(ctx context.Context, r *apb.AuthRoleGrantPermissionRequest) (*apb.AuthRoleGrantPermissionResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleGrantPermission: r})
 	if err != nil {
 		return nil, err
@@ -554,10 +558,10 @@ func (s *EtcdServer) RoleGrantPermission(ctx context.Context, r *pb.AuthRoleGran
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleGrantPermissionResponse), nil
+	return result.resp.(*apb.AuthRoleGrantPermissionResponse), nil
 }
 
-func (s *EtcdServer) RoleGet(ctx context.Context, r *pb.AuthRoleGetRequest) (*pb.AuthRoleGetResponse, error) {
+func (s *CsfServer) RoleGet(ctx context.Context, r *apb.AuthRoleGetRequest) (*apb.AuthRoleGetResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleGet: r})
 	if err != nil {
 		return nil, err
@@ -565,10 +569,10 @@ func (s *EtcdServer) RoleGet(ctx context.Context, r *pb.AuthRoleGetRequest) (*pb
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleGetResponse), nil
+	return result.resp.(*apb.AuthRoleGetResponse), nil
 }
 
-func (s *EtcdServer) RoleList(ctx context.Context, r *pb.AuthRoleListRequest) (*pb.AuthRoleListResponse, error) {
+func (s *CsfServer) RoleList(ctx context.Context, r *apb.AuthRoleListRequest) (*apb.AuthRoleListResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleList: r})
 	if err != nil {
 		return nil, err
@@ -576,10 +580,10 @@ func (s *EtcdServer) RoleList(ctx context.Context, r *pb.AuthRoleListRequest) (*
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleListResponse), nil
+	return result.resp.(*apb.AuthRoleListResponse), nil
 }
 
-func (s *EtcdServer) RoleRevokePermission(ctx context.Context, r *pb.AuthRoleRevokePermissionRequest) (*pb.AuthRoleRevokePermissionResponse, error) {
+func (s *CsfServer) RoleRevokePermission(ctx context.Context, r *apb.AuthRoleRevokePermissionRequest) (*apb.AuthRoleRevokePermissionResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleRevokePermission: r})
 	if err != nil {
 		return nil, err
@@ -587,10 +591,10 @@ func (s *EtcdServer) RoleRevokePermission(ctx context.Context, r *pb.AuthRoleRev
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleRevokePermissionResponse), nil
+	return result.resp.(*apb.AuthRoleRevokePermissionResponse), nil
 }
 
-func (s *EtcdServer) RoleDelete(ctx context.Context, r *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDeleteResponse, error) {
+func (s *CsfServer) RoleDelete(ctx context.Context, r *apb.AuthRoleDeleteRequest) (*apb.AuthRoleDeleteResponse, error) {
 	result, err := s.processInternalRaftRequest(ctx, pb.InternalRaftRequest{AuthRoleDelete: r})
 	if err != nil {
 		return nil, err
@@ -598,10 +602,10 @@ func (s *EtcdServer) RoleDelete(ctx context.Context, r *pb.AuthRoleDeleteRequest
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.AuthRoleDeleteResponse), nil
+	return result.resp.(*apb.AuthRoleDeleteResponse), nil
 }
 
-func (s *EtcdServer) isValidSimpleToken(token string) bool {
+func (s *CsfServer) isValidSimpleToken(token string) bool {
 	splitted := strings.Split(token, ".")
 	if len(splitted) != 2 {
 		return false
@@ -619,7 +623,7 @@ func (s *EtcdServer) isValidSimpleToken(token string) bool {
 	}
 }
 
-func (s *EtcdServer) authInfoFromCtx(ctx context.Context) (*auth.AuthInfo, error) {
+func (s *CsfServer) authInfoFromCtx(ctx context.Context) (*auth.AuthInfo, error) {
 	md, ok := metadata.FromContext(ctx)
 	if !ok {
 		return nil, nil
@@ -644,7 +648,7 @@ func (s *EtcdServer) authInfoFromCtx(ctx context.Context) (*auth.AuthInfo, error
 }
 
 // doSerialize handles the auth logic, with permissions checked by "chk", for a serialized request "get". Returns a non-nil error on authentication failure.
-func (s *EtcdServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) error, get func()) error {
+func (s *CsfServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) error, get func()) error {
 	for {
 		ai, err := s.authInfoFromCtx(ctx)
 		if err != nil {
@@ -670,7 +674,7 @@ func (s *EtcdServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) e
 	}
 }
 
-func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
+func (s *CsfServer) processInternalRaftRequestOnce(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
 	ai := s.getAppliedIndex()
 	ci := s.getCommittedIndex()
 	if ci > ai+maxGapBetweenApplyAndCommitIndex {
@@ -725,7 +729,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	}
 }
 
-func (s *EtcdServer) processInternalRaftRequest(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
+func (s *CsfServer) processInternalRaftRequest(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
 	var result *applyResult
 	var err error
 	for {
@@ -738,10 +742,10 @@ func (s *EtcdServer) processInternalRaftRequest(ctx context.Context, r pb.Intern
 	return result, err
 }
 
-// Watchable returns a watchable interface attached to the etcdserver.
-func (s *EtcdServer) Watchable() mvcc.WatchableKV { return s.KV() }
+// Watchable returns a watchable interface attached to the CsfServer.
+func (s *CsfServer) Watchable() mvcc.WatchableKV { return s.KV() }
 
-func (s *EtcdServer) linearizableReadLoop() {
+func (s *CsfServer) linearizableReadLoop() {
 	var rs raft.ReadState
 	internalTimeout := time.Second
 
@@ -811,7 +815,7 @@ func (s *EtcdServer) linearizableReadLoop() {
 	}
 }
 
-func (s *EtcdServer) linearizableReadNotify(ctx context.Context) error {
+func (s *CsfServer) linearizableReadNotify(ctx context.Context) error {
 	s.readMu.RLock()
 	nc := s.readNotifier
 	s.readMu.RUnlock()

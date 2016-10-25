@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package etcdserver defines how etcd servers interact and store their states.
-package etcdserver
+// Package csfserver defines how etcd servers interact and store their states.
+package csfserver

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"encoding/json"
@@ -24,23 +24,23 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/lease"
-	"github.com/coreos/etcd/mvcc"
-	"github.com/coreos/etcd/mvcc/backend"
-	"github.com/coreos/etcd/pkg/idutil"
-	"github.com/coreos/etcd/pkg/mock/mockstorage"
-	"github.com/coreos/etcd/pkg/mock/mockstore"
-	"github.com/coreos/etcd/pkg/mock/mockwait"
-	"github.com/coreos/etcd/pkg/pbutil"
-	"github.com/coreos/etcd/pkg/testutil"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/pkg/wait"
-	"github.com/coreos/etcd/raft"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/rafthttp"
-	"github.com/coreos/etcd/store"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/lease"
+	"github.com/catyguan/csf/mvcc"
+	"github.com/catyguan/csf/mvcc/backend"
+	"github.com/catyguan/csf/pkg/idutil"
+	"github.com/catyguan/csf/pkg/mock/mockstorage"
+	"github.com/catyguan/csf/pkg/mock/mockstore"
+	"github.com/catyguan/csf/pkg/mock/mockwait"
+	"github.com/catyguan/csf/pkg/pbutil"
+	"github.com/catyguan/csf/pkg/testutil"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/pkg/wait"
+	"github.com/catyguan/csf/raft"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/rafthttp"
+	"github.com/catyguan/csf/store"
 	"golang.org/x/net/context"
 )
 
@@ -85,7 +85,7 @@ func TestDoLocalAction(t *testing.T) {
 	}
 	for i, tt := range tests {
 		st := mockstore.NewRecorder()
-		srv := &EtcdServer{
+		srv := &CsfServer{
 			store:    st,
 			reqIDGen: idutil.NewGenerator(0, time.Time{}),
 		}
@@ -138,7 +138,7 @@ func TestDoBadLocalAction(t *testing.T) {
 	}
 	for i, tt := range tests {
 		st := mockstore.NewErrRecorder(storeErr)
-		srv := &EtcdServer{
+		srv := &CsfServer{
 			store:    st,
 			reqIDGen: idutil.NewGenerator(0, time.Time{}),
 		}
@@ -167,7 +167,7 @@ func TestApplyRepeat(t *testing.T) {
 	st := store.New()
 	cl.SetStore(store.New())
 	cl.AddMember(&membership.Member{ID: 1234})
-	s := &EtcdServer{
+	s := &CsfServer{
 		r: raftNode{
 			Node:        n,
 			raftStorage: raft.NewMemoryStorage(),
@@ -205,7 +205,7 @@ func TestApplyRepeat(t *testing.T) {
 	}()
 	s.Stop()
 
-	// only want to confirm etcdserver won't panic; no data to check
+	// only want to confirm CsfServer won't panic; no data to check
 
 	if err != nil {
 		t.Fatal(err)
@@ -444,7 +444,7 @@ func TestApplyRequest(t *testing.T) {
 
 	for i, tt := range tests {
 		st := mockstore.NewRecorder()
-		srv := &EtcdServer{store: st}
+		srv := &CsfServer{store: st}
 		srv.applyV2 = &applierV2store{store: srv.store, cluster: srv.cluster}
 		resp := srv.applyV2Request(&tt.req)
 
@@ -460,7 +460,7 @@ func TestApplyRequest(t *testing.T) {
 
 func TestApplyRequestOnAdminMemberAttributes(t *testing.T) {
 	cl := newTestCluster([]*membership.Member{{ID: 1}})
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		store:   mockstore.NewRecorder(),
 		cluster: cl,
 	}
@@ -522,7 +522,7 @@ func TestApplyConfChangeError(t *testing.T) {
 	}
 	for i, tt := range tests {
 		n := newNodeRecorder()
-		srv := &EtcdServer{
+		srv := &CsfServer{
 			r:       raftNode{Node: n},
 			cluster: cl,
 			Cfg:     &ServerConfig{},
@@ -550,7 +550,7 @@ func TestApplyConfChangeShouldStop(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		cl.AddMember(&membership.Member{ID: types.ID(i)})
 	}
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		id: 1,
 		r: raftNode{
 			Node:      newNodeNop(),
@@ -590,7 +590,7 @@ func TestApplyMultiConfChangeShouldStop(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		cl.AddMember(&membership.Member{ID: types.ID(i)})
 	}
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		id: 2,
 		r: raftNode{
 			Node:      newNodeNop(),
@@ -628,7 +628,7 @@ func TestDoProposal(t *testing.T) {
 	}
 	for i, tt := range tests {
 		st := mockstore.NewRecorder()
-		srv := &EtcdServer{
+		srv := &CsfServer{
 			Cfg: &ServerConfig{TickMs: 1},
 			r: raftNode{
 				Node:        newNodeCommitter(),
@@ -660,7 +660,7 @@ func TestDoProposal(t *testing.T) {
 
 func TestDoProposalCancelled(t *testing.T) {
 	wt := mockwait.NewRecorder()
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg:      &ServerConfig{TickMs: 1},
 		r:        raftNode{Node: newNodeNop()},
 		w:        wt,
@@ -682,7 +682,7 @@ func TestDoProposalCancelled(t *testing.T) {
 }
 
 func TestDoProposalTimeout(t *testing.T) {
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg:      &ServerConfig{TickMs: 1},
 		r:        raftNode{Node: newNodeNop()},
 		w:        mockwait.NewNop(),
@@ -698,7 +698,7 @@ func TestDoProposalTimeout(t *testing.T) {
 }
 
 func TestDoProposalStopped(t *testing.T) {
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg:      &ServerConfig{TickMs: 1},
 		r:        raftNode{Node: newNodeNop()},
 		w:        mockwait.NewNop(),
@@ -717,7 +717,7 @@ func TestDoProposalStopped(t *testing.T) {
 // TestSync tests sync 1. is nonblocking 2. proposes SYNC request.
 func TestSync(t *testing.T) {
 	n := newNodeRecorder()
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		r:        raftNode{Node: n},
 		reqIDGen: idutil.NewGenerator(0, time.Time{}),
 	}
@@ -757,7 +757,7 @@ func TestSync(t *testing.T) {
 // after timeout
 func TestSyncTimeout(t *testing.T) {
 	n := newProposalBlockerRecorder()
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		r:        raftNode{Node: n},
 		reqIDGen: idutil.NewGenerator(0, time.Time{}),
 	}
@@ -788,7 +788,7 @@ func TestSyncTimeout(t *testing.T) {
 func TestSyncTrigger(t *testing.T) {
 	n := newReadyNode()
 	st := make(chan time.Time, 1)
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg: &ServerConfig{TickMs: 1},
 		r: raftNode{
 			Node:        n,
@@ -846,7 +846,7 @@ func TestSnapshot(t *testing.T) {
 	s.Append([]raftpb.Entry{{Index: 1}})
 	st := mockstore.NewRecorderStream()
 	p := mockstorage.NewStorageRecorderStream("")
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg: &ServerConfig{},
 		r: raftNode{
 			Node:        newNodeNop(),
@@ -900,7 +900,7 @@ func TestTriggerSnap(t *testing.T) {
 	snapc := 10
 	st := mockstore.NewRecorder()
 	p := mockstorage.NewStorageRecorderStream("")
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg:       &ServerConfig{TickMs: 1},
 		snapCount: uint64(snapc),
 		r: raftNode{
@@ -966,7 +966,7 @@ func TestConcurrentApplyAndSnapshotV3(t *testing.T) {
 
 	rs := raft.NewMemoryStorage()
 	tr, snapDoneC := rafthttp.NewSnapTransporter(testdir)
-	s := &EtcdServer{
+	s := &CsfServer{
 		Cfg: &ServerConfig{
 			DataDir: testdir,
 		},
@@ -1050,7 +1050,7 @@ func TestAddMember(t *testing.T) {
 	cl := newTestCluster(nil)
 	st := store.New()
 	cl.SetStore(st)
-	s := &EtcdServer{
+	s := &CsfServer{
 		r: raftNode{
 			Node:        n,
 			raftStorage: raft.NewMemoryStorage(),
@@ -1090,7 +1090,7 @@ func TestRemoveMember(t *testing.T) {
 	st := store.New()
 	cl.SetStore(store.New())
 	cl.AddMember(&membership.Member{ID: 1234})
-	s := &EtcdServer{
+	s := &CsfServer{
 		r: raftNode{
 			Node:        n,
 			raftStorage: raft.NewMemoryStorage(),
@@ -1129,7 +1129,7 @@ func TestUpdateMember(t *testing.T) {
 	st := store.New()
 	cl.SetStore(st)
 	cl.AddMember(&membership.Member{ID: 1234})
-	s := &EtcdServer{
+	s := &CsfServer{
 		r: raftNode{
 			Node:        n,
 			raftStorage: raft.NewMemoryStorage(),
@@ -1166,7 +1166,7 @@ func TestPublish(t *testing.T) {
 	// simulate that request has gone through consensus
 	ch <- Response{}
 	w := wait.NewWithResponse(ch)
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		readych:    make(chan struct{}),
 		Cfg:        &ServerConfig{TickMs: 1},
 		id:         1,
@@ -1208,7 +1208,7 @@ func TestPublish(t *testing.T) {
 
 // TestPublishStopped tests that publish will be stopped if server is stopped.
 func TestPublishStopped(t *testing.T) {
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg: &ServerConfig{TickMs: 1},
 		r: raftNode{
 			Node:      newNodeNop(),
@@ -1228,7 +1228,7 @@ func TestPublishStopped(t *testing.T) {
 // TestPublishRetry tests that publish will keep retry until success.
 func TestPublishRetry(t *testing.T) {
 	n := newNodeRecorderStream()
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		Cfg:      &ServerConfig{TickMs: 1},
 		r:        raftNode{Node: n},
 		w:        mockwait.NewNop(),
@@ -1264,7 +1264,7 @@ func TestUpdateVersion(t *testing.T) {
 	// simulate that request has gone through consensus
 	ch <- Response{}
 	w := wait.NewWithResponse(ch)
-	srv := &EtcdServer{
+	srv := &CsfServer{
 		id:         1,
 		Cfg:        &ServerConfig{TickMs: 1},
 		r:          raftNode{Node: n},
@@ -1299,7 +1299,7 @@ func TestUpdateVersion(t *testing.T) {
 }
 
 func TestStopNotify(t *testing.T) {
-	s := &EtcdServer{
+	s := &CsfServer{
 		stop: make(chan struct{}),
 		done: make(chan struct{}),
 	}

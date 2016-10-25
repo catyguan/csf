@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/version"
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/version"
 )
 
 func TestDecideClusterVersion(t *testing.T) {

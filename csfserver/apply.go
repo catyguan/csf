@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"bytes"
@@ -20,11 +20,15 @@ import (
 	"sort"
 	"time"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/lease"
-	"github.com/coreos/etcd/mvcc"
-	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/coreos/etcd/pkg/types"
+	alpb "github.com/catyguan/csf/alarm/alarmpb"
+	apb "github.com/catyguan/csf/auth/authpb"
+	bpb "github.com/catyguan/csf/basepb"
+	cpb "github.com/catyguan/csf/compactor/compactorpb"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/lease"
+	"github.com/catyguan/csf/mvcc"
+	"github.com/catyguan/csf/mvcc/mvccpb"
+	"github.com/catyguan/csf/pkg/types"
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/net/context"
 )
@@ -55,38 +59,38 @@ type applierV3 interface {
 	Range(txnID int64, r *pb.RangeRequest) (*pb.RangeResponse, error)
 	DeleteRange(txnID int64, dr *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error)
 	Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error)
-	Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, error)
+	Compaction(compaction *cpb.CompactionRequest) (*cpb.CompactionResponse, <-chan struct{}, error)
 
 	LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error)
 	LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error)
 
-	Alarm(*pb.AlarmRequest) (*pb.AlarmResponse, error)
+	Alarm(*alpb.AlarmRequest) (*alpb.AlarmResponse, error)
 
-	Authenticate(r *pb.InternalAuthenticateRequest) (*pb.AuthenticateResponse, error)
+	Authenticate(r *pb.InternalAuthenticateRequest) (*apb.AuthenticateResponse, error)
 
 	AuthEnable() (*pb.AuthEnableResponse, error)
 	AuthDisable() (*pb.AuthDisableResponse, error)
 
-	UserAdd(ua *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse, error)
-	UserDelete(ua *pb.AuthUserDeleteRequest) (*pb.AuthUserDeleteResponse, error)
-	UserChangePassword(ua *pb.AuthUserChangePasswordRequest) (*pb.AuthUserChangePasswordResponse, error)
-	UserGrantRole(ua *pb.AuthUserGrantRoleRequest) (*pb.AuthUserGrantRoleResponse, error)
-	UserGet(ua *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse, error)
-	UserRevokeRole(ua *pb.AuthUserRevokeRoleRequest) (*pb.AuthUserRevokeRoleResponse, error)
-	RoleAdd(ua *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse, error)
-	RoleGrantPermission(ua *pb.AuthRoleGrantPermissionRequest) (*pb.AuthRoleGrantPermissionResponse, error)
-	RoleGet(ua *pb.AuthRoleGetRequest) (*pb.AuthRoleGetResponse, error)
-	RoleRevokePermission(ua *pb.AuthRoleRevokePermissionRequest) (*pb.AuthRoleRevokePermissionResponse, error)
-	RoleDelete(ua *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDeleteResponse, error)
-	UserList(ua *pb.AuthUserListRequest) (*pb.AuthUserListResponse, error)
-	RoleList(ua *pb.AuthRoleListRequest) (*pb.AuthRoleListResponse, error)
+	UserAdd(ua *apb.AuthUserAddRequest) (*apb.AuthUserAddResponse, error)
+	UserDelete(ua *apb.AuthUserDeleteRequest) (*apb.AuthUserDeleteResponse, error)
+	UserChangePassword(ua *apb.AuthUserChangePasswordRequest) (*apb.AuthUserChangePasswordResponse, error)
+	UserGrantRole(ua *apb.AuthUserGrantRoleRequest) (*apb.AuthUserGrantRoleResponse, error)
+	UserGet(ua *apb.AuthUserGetRequest) (*apb.AuthUserGetResponse, error)
+	UserRevokeRole(ua *apb.AuthUserRevokeRoleRequest) (*apb.AuthUserRevokeRoleResponse, error)
+	RoleAdd(ua *apb.AuthRoleAddRequest) (*apb.AuthRoleAddResponse, error)
+	RoleGrantPermission(ua *apb.AuthRoleGrantPermissionRequest) (*apb.AuthRoleGrantPermissionResponse, error)
+	RoleGet(ua *apb.AuthRoleGetRequest) (*apb.AuthRoleGetResponse, error)
+	RoleRevokePermission(ua *apb.AuthRoleRevokePermissionRequest) (*apb.AuthRoleRevokePermissionResponse, error)
+	RoleDelete(ua *apb.AuthRoleDeleteRequest) (*apb.AuthRoleDeleteResponse, error)
+	UserList(ua *apb.AuthUserListRequest) (*apb.AuthUserListResponse, error)
+	RoleList(ua *apb.AuthRoleListRequest) (*apb.AuthRoleListResponse, error)
 }
 
 type applierV3backend struct {
-	s *EtcdServer
+	s *CsfServer
 }
 
-func (s *EtcdServer) newApplierV3() applierV3 {
+func (s *CsfServer) newApplierV3() applierV3 {
 	return newAuthApplierV3(
 		s.AuthStore(),
 		newQuotaApplierV3(s, &applierV3backend{s}),
@@ -154,7 +158,7 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 
 func (a *applierV3backend) Put(txnID int64, p *pb.PutRequest) (*pb.PutResponse, error) {
 	resp := &pb.PutResponse{}
-	resp.Header = &pb.ResponseHeader{}
+	resp.Header = &bpb.ResponseHeader{}
 	var (
 		rev int64
 		err error
@@ -198,7 +202,7 @@ func (a *applierV3backend) Put(txnID int64, p *pb.PutRequest) (*pb.PutResponse, 
 
 func (a *applierV3backend) DeleteRange(txnID int64, dr *pb.DeleteRangeRequest) (*pb.DeleteRangeResponse, error) {
 	resp := &pb.DeleteRangeResponse{}
-	resp.Header = &pb.ResponseHeader{}
+	resp.Header = &bpb.ResponseHeader{}
 
 	var (
 		n   int64
@@ -246,7 +250,7 @@ func (a *applierV3backend) DeleteRange(txnID int64, dr *pb.DeleteRangeRequest) (
 
 func (a *applierV3backend) Range(txnID int64, r *pb.RangeRequest) (*pb.RangeResponse, error) {
 	resp := &pb.RangeResponse{}
-	resp.Header = &pb.ResponseHeader{}
+	resp.Header = &bpb.ResponseHeader{}
 
 	var (
 		rr  *mvcc.RangeResult
@@ -386,7 +390,7 @@ func (a *applierV3backend) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {
 	}
 
 	txnResp := &pb.TxnResponse{}
-	txnResp.Header = &pb.ResponseHeader{}
+	txnResp.Header = &bpb.ResponseHeader{}
 	txnResp.Header.Revision = a.s.KV().Rev()
 	txnResp.Responses = resps
 	txnResp.Succeeded = ok
@@ -497,9 +501,9 @@ func (a *applierV3backend) applyUnion(txnID int64, union *pb.RequestOp) *pb.Resp
 
 }
 
-func (a *applierV3backend) Compaction(compaction *pb.CompactionRequest) (*pb.CompactionResponse, <-chan struct{}, error) {
-	resp := &pb.CompactionResponse{}
-	resp.Header = &pb.ResponseHeader{}
+func (a *applierV3backend) Compaction(compaction *cpb.CompactionRequest) (*cpb.CompactionResponse, <-chan struct{}, error) {
+	resp := &cpb.CompactionResponse{}
+	resp.Header = &bpb.ResponseHeader{}
 	ch, err := a.s.KV().Compact(compaction.Revision)
 	if err != nil {
 		return nil, ch, err
@@ -516,7 +520,7 @@ func (a *applierV3backend) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantR
 	if err == nil {
 		resp.ID = int64(l.ID)
 		resp.TTL = l.TTL()
-		resp.Header = &pb.ResponseHeader{Revision: a.s.KV().Rev()}
+		resp.Header = &bpb.ResponseHeader{Revision: a.s.KV().Rev()}
 	}
 
 	return resp, err
@@ -524,17 +528,17 @@ func (a *applierV3backend) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantR
 
 func (a *applierV3backend) LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
 	err := a.s.lessor.Revoke(lease.LeaseID(lc.ID))
-	return &pb.LeaseRevokeResponse{Header: &pb.ResponseHeader{Revision: a.s.KV().Rev()}}, err
+	return &pb.LeaseRevokeResponse{Header: &bpb.ResponseHeader{Revision: a.s.KV().Rev()}}, err
 }
 
-func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error) {
-	resp := &pb.AlarmResponse{}
+func (a *applierV3backend) Alarm(ar *alpb.AlarmRequest) (*alpb.AlarmResponse, error) {
+	resp := &alpb.AlarmResponse{}
 	oldCount := len(a.s.alarmStore.Get(ar.Alarm))
 
 	switch ar.Action {
-	case pb.AlarmRequest_GET:
+	case alpb.GET:
 		resp.Alarms = a.s.alarmStore.Get(ar.Alarm)
-	case pb.AlarmRequest_ACTIVATE:
+	case alpb.ACTIVATE:
 		m := a.s.alarmStore.Activate(types.ID(ar.MemberID), ar.Alarm)
 		if m == nil {
 			break
@@ -546,13 +550,13 @@ func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error)
 		}
 
 		switch m.Alarm {
-		case pb.AlarmType_NOSPACE:
+		case alpb.NOSPACE:
 			plog.Warningf("alarm raised %+v", m)
 			a.s.applyV3 = newApplierV3Capped(a)
 		default:
 			plog.Errorf("unimplemented alarm activation (%+v)", m)
 		}
-	case pb.AlarmRequest_DEACTIVATE:
+	case alpb.DEACTIVATE:
 		m := a.s.alarmStore.Deactivate(types.ID(ar.MemberID), ar.Alarm)
 		if m == nil {
 			break
@@ -564,7 +568,7 @@ func (a *applierV3backend) Alarm(ar *pb.AlarmRequest) (*pb.AlarmResponse, error)
 		}
 
 		switch m.Alarm {
-		case pb.AlarmType_NOSPACE:
+		case alpb.NOSPACE:
 			plog.Infof("alarm disarmed %+v", ar)
 			a.s.applyV3 = a.s.newApplierV3()
 		default:
@@ -613,60 +617,60 @@ func (a *applierV3backend) AuthDisable() (*pb.AuthDisableResponse, error) {
 	return &pb.AuthDisableResponse{}, nil
 }
 
-func (a *applierV3backend) Authenticate(r *pb.InternalAuthenticateRequest) (*pb.AuthenticateResponse, error) {
+func (a *applierV3backend) Authenticate(r *pb.InternalAuthenticateRequest) (*apb.AuthenticateResponse, error) {
 	ctx := context.WithValue(context.WithValue(context.TODO(), "index", a.s.consistIndex.ConsistentIndex()), "simpleToken", r.SimpleToken)
 	return a.s.AuthStore().Authenticate(ctx, r.Name, r.Password)
 }
 
-func (a *applierV3backend) UserAdd(r *pb.AuthUserAddRequest) (*pb.AuthUserAddResponse, error) {
+func (a *applierV3backend) UserAdd(r *apb.AuthUserAddRequest) (*apb.AuthUserAddResponse, error) {
 	return a.s.AuthStore().UserAdd(r)
 }
 
-func (a *applierV3backend) UserDelete(r *pb.AuthUserDeleteRequest) (*pb.AuthUserDeleteResponse, error) {
+func (a *applierV3backend) UserDelete(r *apb.AuthUserDeleteRequest) (*apb.AuthUserDeleteResponse, error) {
 	return a.s.AuthStore().UserDelete(r)
 }
 
-func (a *applierV3backend) UserChangePassword(r *pb.AuthUserChangePasswordRequest) (*pb.AuthUserChangePasswordResponse, error) {
+func (a *applierV3backend) UserChangePassword(r *apb.AuthUserChangePasswordRequest) (*apb.AuthUserChangePasswordResponse, error) {
 	return a.s.AuthStore().UserChangePassword(r)
 }
 
-func (a *applierV3backend) UserGrantRole(r *pb.AuthUserGrantRoleRequest) (*pb.AuthUserGrantRoleResponse, error) {
+func (a *applierV3backend) UserGrantRole(r *apb.AuthUserGrantRoleRequest) (*apb.AuthUserGrantRoleResponse, error) {
 	return a.s.AuthStore().UserGrantRole(r)
 }
 
-func (a *applierV3backend) UserGet(r *pb.AuthUserGetRequest) (*pb.AuthUserGetResponse, error) {
+func (a *applierV3backend) UserGet(r *apb.AuthUserGetRequest) (*apb.AuthUserGetResponse, error) {
 	return a.s.AuthStore().UserGet(r)
 }
 
-func (a *applierV3backend) UserRevokeRole(r *pb.AuthUserRevokeRoleRequest) (*pb.AuthUserRevokeRoleResponse, error) {
+func (a *applierV3backend) UserRevokeRole(r *apb.AuthUserRevokeRoleRequest) (*apb.AuthUserRevokeRoleResponse, error) {
 	return a.s.AuthStore().UserRevokeRole(r)
 }
 
-func (a *applierV3backend) RoleAdd(r *pb.AuthRoleAddRequest) (*pb.AuthRoleAddResponse, error) {
+func (a *applierV3backend) RoleAdd(r *apb.AuthRoleAddRequest) (*apb.AuthRoleAddResponse, error) {
 	return a.s.AuthStore().RoleAdd(r)
 }
 
-func (a *applierV3backend) RoleGrantPermission(r *pb.AuthRoleGrantPermissionRequest) (*pb.AuthRoleGrantPermissionResponse, error) {
+func (a *applierV3backend) RoleGrantPermission(r *apb.AuthRoleGrantPermissionRequest) (*apb.AuthRoleGrantPermissionResponse, error) {
 	return a.s.AuthStore().RoleGrantPermission(r)
 }
 
-func (a *applierV3backend) RoleGet(r *pb.AuthRoleGetRequest) (*pb.AuthRoleGetResponse, error) {
+func (a *applierV3backend) RoleGet(r *apb.AuthRoleGetRequest) (*apb.AuthRoleGetResponse, error) {
 	return a.s.AuthStore().RoleGet(r)
 }
 
-func (a *applierV3backend) RoleRevokePermission(r *pb.AuthRoleRevokePermissionRequest) (*pb.AuthRoleRevokePermissionResponse, error) {
+func (a *applierV3backend) RoleRevokePermission(r *apb.AuthRoleRevokePermissionRequest) (*apb.AuthRoleRevokePermissionResponse, error) {
 	return a.s.AuthStore().RoleRevokePermission(r)
 }
 
-func (a *applierV3backend) RoleDelete(r *pb.AuthRoleDeleteRequest) (*pb.AuthRoleDeleteResponse, error) {
+func (a *applierV3backend) RoleDelete(r *apb.AuthRoleDeleteRequest) (*apb.AuthRoleDeleteResponse, error) {
 	return a.s.AuthStore().RoleDelete(r)
 }
 
-func (a *applierV3backend) UserList(r *pb.AuthUserListRequest) (*pb.AuthUserListResponse, error) {
+func (a *applierV3backend) UserList(r *apb.AuthUserListRequest) (*apb.AuthUserListResponse, error) {
 	return a.s.AuthStore().UserList(r)
 }
 
-func (a *applierV3backend) RoleList(r *pb.AuthRoleListRequest) (*pb.AuthRoleListResponse, error) {
+func (a *applierV3backend) RoleList(r *apb.AuthRoleListRequest) (*apb.AuthRoleListResponse, error) {
 	return a.s.AuthStore().RoleList(r)
 }
 
@@ -675,7 +679,7 @@ type quotaApplierV3 struct {
 	q Quota
 }
 
-func newQuotaApplierV3(s *EtcdServer, app applierV3) applierV3 {
+func newQuotaApplierV3(s *CsfServer, app applierV3) applierV3 {
 	return &quotaApplierV3{app, NewBackendQuota(s)}
 }
 

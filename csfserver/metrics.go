@@ -12,48 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"time"
 
-	"github.com/coreos/etcd/pkg/runtime"
+	"github.com/catyguan/csf/pkg/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
 	hasLeader = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "has_leader",
 		Help:      "Whether or not a leader exists. 1 is existence, 0 is not.",
 	})
 	leaderChanges = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "leader_changes_seen_total",
 		Help:      "The number of leader changes seen.",
 	})
 	proposalsCommitted = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "proposals_committed_total",
 		Help:      "The total number of consensus proposals committed.",
 	})
 	proposalsApplied = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "proposals_applied_total",
 		Help:      "The total number of consensus proposals applied.",
 	})
 	proposalsPending = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "proposals_pending",
 		Help:      "The current number of pending proposals to commit.",
 	})
 	proposalsFailed = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "etcd",
+		Namespace: "csf",
 		Subsystem: "server",
 		Name:      "proposals_failed_total",
 		Help:      "The total number of failed proposals seen.",

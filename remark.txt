@@ -1,0 +1,42 @@
+pkg/crc
+pkg/testutil
+pkg/pbutil
+pkg/capnslog
+pkg/ioutil
+pkg/fileutil
+pkg/httputil
+pkg/schedule
+pkg/types
+pkg/netutil
+pkg/transport
+pkg/tlsutil
+pkg/pathutil
+pkg/contention
+pkg/idutil
+pkg/runtime
+pkg/wait
+pkg/logutil
+pkg/mock/mockstore
+pkg/mock/mockstorage
+pkg/mock/mockwait
+
+
+github.com/prometheus/client_golang/prometheus
+github.com/boltdb/bolt
+github.com/google/btree
+github.com/jonboulle/clockwork
+github.com/stretchr/testify/assert
+github.com/ugorji/go/codec
+github.com/xiang90/probing
+
+google.golang.org/grpc/metadata
+
+
+go get github.com/gogo/protobuf/proto
+go get github.com/gogo/protobuf/jsonpb
+go get github.com/gogo/protobuf/protoc-gen-gogo
+go get github.com/gogo/protobuf/gogoproto
+
+protoc -I=C:/GoPath/src/github.com/gogo/protobuf;C:/GoPath/src/github.com/gogo/protobuf/protobuf;C:/GoPath/src;. --gogo_out=. rpc.proto 
+
+import _ "github.com/gogo/protobuf/gogoproto"

@@ -17,9 +17,9 @@ package api
 import (
 	"sync"
 
-	"github.com/coreos/etcd/version"
-	"github.com/coreos/go-semver/semver"
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/version"
 )
 
 type Capability string
@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver/api")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "csfserver/api")
 
 	// capabilityMaps is a static map of version to capability map.
 	// the base capabilities is the set of capability 2.0 supports.

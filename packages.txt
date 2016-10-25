@@ -1,0 +1,37 @@
+---------------------------
+alarm -- 报警管理
+	alarm/alarmpb
+	mvcc/backend
+
+csfserver/stats -- 集群统计数据
+
+lease
+	lease/leasepb
+	mvcc/backend
+	
+leasehttp
+	csfserver/csfserverpb
+	lease
+	lease/leasepb
+
+rafthttp -- 
+	raft
+	raft/raftpb
+	snap
+	csfserver/stats
+	
+csfserver
+	rafthttp
+	auth
+	csfserver/csfserverpb
+	csfserver/membership
+	lease
+	lease/leasehttp
+	lease/leasepb
+	mvcc
+	mvcc/backend
+	raft
+	raft/raftpb
+	snap
+	wal
+	wal/walpb

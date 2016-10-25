@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"sync"
 
-	"github.com/coreos/etcd/auth"
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/catyguan/csf/auth"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 )
 
 type authApplierV3 struct {

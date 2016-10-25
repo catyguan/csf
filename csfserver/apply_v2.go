@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcdserver
+package csfserver
 
 import (
 	"encoding/json"
 	"path"
 	"time"
 
-	"github.com/coreos/etcd/etcdserver/api"
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/pkg/pbutil"
-	"github.com/coreos/etcd/store"
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/csfserver/api"
+	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/pkg/pbutil"
+	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/store"
 )
 
 // ApplierV2 is the interface for processing V2 raft messages
@@ -107,7 +107,7 @@ func (a *applierV2store) Sync(r *pb.Request) Response {
 
 // applyV2Request interprets r as a call to store.X and returns a Response interpreted
 // from store.Event
-func (s *EtcdServer) applyV2Request(r *pb.Request) Response {
+func (s *CsfServer) applyV2Request(r *pb.Request) Response {
 	toTTLOptions(r)
 	switch r.Method {
 	case "POST":

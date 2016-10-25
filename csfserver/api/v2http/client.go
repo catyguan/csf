@@ -28,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	etcdErr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
+	"github.com/catyguan/csf/csfserver"
+	etcdErr "github.com/catyguan/csf/error"
 	"github.com/coreos/etcd/etcdserver/api"
 	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
 	"github.com/coreos/etcd/etcdserver/auth"

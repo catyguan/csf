@@ -30,7 +30,9 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	// os.Rename("C:\\Users\\CATYG_~1\\AppData\\Local\\Temp\\waltest489810615.tmp", "C:\\Users\\CATYG_~1\\AppData\\Local\\Temp\\waltest489810615")
 	p, err := ioutil.TempDir(os.TempDir(), "waltest")
+	p += ".aaa"
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,6 +155,8 @@ func TestOpenAtIndex(t *testing.T) {
 // TODO: split it into smaller tests for better readability
 func TestCut(t *testing.T) {
 	p, err := ioutil.TempDir(os.TempDir(), "waltest")
+	p += ".aaa"
+	plog.Infof("test cut - %v", p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,6 +219,7 @@ func TestCut(t *testing.T) {
 
 func TestSaveWithCut(t *testing.T) {
 	p, err := ioutil.TempDir(os.TempDir(), "waltest")
+	p += ".aaa"
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,6 +283,7 @@ func TestSaveWithCut(t *testing.T) {
 
 func TestRecover(t *testing.T) {
 	p, err := ioutil.TempDir(os.TempDir(), "waltest")
+	p += ".aaa"
 	if err != nil {
 		t.Fatal(err)
 	}

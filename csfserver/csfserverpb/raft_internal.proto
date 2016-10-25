@@ -4,6 +4,9 @@ package csfserverpb;
 import "gogoproto/gogo.proto";
 import "csfserver.proto";
 import "rpc.proto";
+import "github.com/catyguan/csf/auth/authpb/auth.proto";
+import "github.com/catyguan/csf/compactor/compactorpb/compactor.proto";
+import "github.com/catyguan/csf/alarm/alarmpb/alarm.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -30,32 +33,32 @@ message InternalRaftRequest {
   PutRequest put = 4;
   DeleteRangeRequest delete_range = 5;
   TxnRequest txn = 6;
-  CompactionRequest compaction = 7;
+  compactorpb.CompactionRequest compaction = 7;
 
   LeaseGrantRequest lease_grant = 8;
   LeaseRevokeRequest lease_revoke = 9;
 
-  AlarmRequest alarm = 10;
+  alarmpb.AlarmRequest alarm = 10;
 
   AuthEnableRequest auth_enable = 1000;
   AuthDisableRequest auth_disable = 1011;
 
   InternalAuthenticateRequest authenticate = 1012;
 
-  AuthUserAddRequest auth_user_add = 1100;
-  AuthUserDeleteRequest auth_user_delete = 1101;
-  AuthUserGetRequest auth_user_get = 1102;
-  AuthUserChangePasswordRequest auth_user_change_password = 1103;
-  AuthUserGrantRoleRequest auth_user_grant_role = 1104;
-  AuthUserRevokeRoleRequest auth_user_revoke_role = 1105;
-  AuthUserListRequest auth_user_list = 1106;
-  AuthRoleListRequest auth_role_list = 1107;
+  authpb.AuthUserAddRequest auth_user_add = 1100;
+  authpb.AuthUserDeleteRequest auth_user_delete = 1101;
+  authpb.AuthUserGetRequest auth_user_get = 1102;
+  authpb.AuthUserChangePasswordRequest auth_user_change_password = 1103;
+  authpb.AuthUserGrantRoleRequest auth_user_grant_role = 1104;
+  authpb.AuthUserRevokeRoleRequest auth_user_revoke_role = 1105;
+  authpb.AuthUserListRequest auth_user_list = 1106;
+  authpb.AuthRoleListRequest auth_role_list = 1107;
 
-  AuthRoleAddRequest auth_role_add = 1200;
-  AuthRoleDeleteRequest auth_role_delete = 1201;
-  AuthRoleGetRequest auth_role_get = 1202;
-  AuthRoleGrantPermissionRequest auth_role_grant_permission = 1203;
-  AuthRoleRevokePermissionRequest auth_role_revoke_permission = 1204;
+  authpb.AuthRoleAddRequest auth_role_add = 1200;
+  authpb.AuthRoleDeleteRequest auth_role_delete = 1201;
+  authpb.AuthRoleGetRequest auth_role_get = 1202;
+  authpb.AuthRoleGrantPermissionRequest auth_role_grant_permission = 1203;
+  authpb.AuthRoleRevokePermissionRequest auth_role_revoke_permission = 1204;
 }
 
 message EmptyResponse {
