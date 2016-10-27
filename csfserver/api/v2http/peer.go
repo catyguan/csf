@@ -18,10 +18,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/api"
-	"github.com/coreos/etcd/lease/leasehttp"
-	"github.com/coreos/etcd/rafthttp"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/api"
+	"github.com/catyguan/csf/lease/leasehttp"
+	"github.com/catyguan/csf/rafthttp"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 )
 
 // NewPeerHandler generates an http.Handler to handle etcd peer requests.
-func NewPeerHandler(s *etcdserver.EtcdServer) http.Handler {
+func NewPeerHandler(s *csfserver.CsfServer) http.Handler {
 	var lh http.Handler
 	if l := s.Lessor(); l != nil {
 		lh = leasehttp.NewHandler(l)
@@ -63,7 +63,7 @@ func (h *peerMembersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r.Method, "GET") {
 		return
 	}
-	w.Header().Set("X-Etcd-Cluster-ID", h.cluster.ID().String())
+	w.Header().Set("X-CSF-Cluster-ID", h.cluster.ID().String())
 
 	if r.URL.Path != peerMembersPrefix {
 		http.Error(w, "bad path", http.StatusBadRequest)

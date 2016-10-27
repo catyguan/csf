@@ -83,7 +83,7 @@ service Lease {
   // LeaseGrant creates a lease which expires if the server does not receive a keepAlive
   // within a given time to live period. All keys attached to the lease will be expired and
   // deleted if the lease expires. Each expired key generates a delete event in the event history.
-  rpc LeaseGrant(LeaseGrantRequest) returns (LeaseGrantResponse) {
+  rpc LeaseGrant(leasepb.LeaseGrantRequest) returns (leasepb.LeaseGrantResponse) {
       //option (google.api.http) = {
       //  post: "/v3alpha/lease/grant"
       //  body: "*"
@@ -91,7 +91,7 @@ service Lease {
   }
 
   // LeaseRevoke revokes a lease. All keys attached to the lease will expire and be deleted.
-  rpc LeaseRevoke(LeaseRevokeRequest) returns (LeaseRevokeResponse) {
+  rpc LeaseRevoke(leasepb.LeaseRevokeRequest) returns (leasepb.LeaseRevokeResponse) {
       //option (google.api.http) = {
       //  post: "/v3alpha/kv/lease/revoke"
       //  body: "*"
@@ -100,7 +100,7 @@ service Lease {
 
   // LeaseKeepAlive keeps the lease alive by streaming keep alive requests from the client
   // to the server and streaming keep alive responses from the server to the client.
-  rpc LeaseKeepAlive(stream LeaseKeepAliveRequest) returns (stream LeaseKeepAliveResponse) {
+  rpc LeaseKeepAlive(stream leasepb.LeaseKeepAliveRequest) returns (stream leasepb.LeaseKeepAliveResponse) {
       //option (google.api.http) = {
       //  post: "/v3alpha/lease/keepalive"
       //  body: "*"
@@ -624,44 +624,6 @@ message WatchResponse {
   int64 compact_revision  = 5;
 
   repeated mvccpb.Event events = 11;
-}
-
-message LeaseGrantRequest {
-  // TTL is the advisory time-to-live in seconds.
-  int64 TTL = 1;
-  // ID is the requested ID for the lease. If ID is set to 0, the lessor chooses an ID.
-  int64 ID = 2;
-}
-
-message LeaseGrantResponse {
-  basepb.ResponseHeader header = 1;
-  // ID is the lease ID for the granted lease.
-  int64 ID = 2;
-  // TTL is the server chosen lease time-to-live in seconds.
-  int64 TTL = 3;
-  string error = 4;
-}
-
-message LeaseRevokeRequest {
-  // ID is the lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
-  int64 ID = 1;
-}
-
-message LeaseRevokeResponse {
-  basepb.ResponseHeader header = 1;
-}
-
-message LeaseKeepAliveRequest {
-  // ID is the lease ID for the lease to keep alive.
-  int64 ID = 1;
-}
-
-message LeaseKeepAliveResponse {
-  basepb.ResponseHeader header = 1;
-  // ID is the lease ID from the keep alive request.
-  int64 ID = 2;
-  // TTL is the new time-to-live for the lease.
-  int64 TTL = 3;
 }
 
 message Member {

@@ -1,4 +1,6 @@
+pkg/adt
 pkg/crc
+pkg/cors
 pkg/testutil
 pkg/pbutil
 pkg/capnslog
@@ -16,6 +18,8 @@ pkg/idutil
 pkg/runtime
 pkg/wait
 pkg/logutil
+pkg/flag
+pkg/osutil
 pkg/mock/mockstore
 pkg/mock/mockstorage
 pkg/mock/mockwait
@@ -28,15 +32,23 @@ github.com/jonboulle/clockwork
 github.com/stretchr/testify/assert
 github.com/ugorji/go/codec
 github.com/xiang90/probing
+github.com/ghodss/yaml
+github.com/cockroachdb/cmux
+github.com/spf13/pflag
+
+golang.org/x/crypto
+golang.org/x/*
 
 google.golang.org/grpc/metadata
 
+v2http.NewPeerHandler(e.Server)
+v2http.NewClientHandler(e.Server, e.Server.Cfg.ReqTimeout())
 
 go get github.com/gogo/protobuf/proto
 go get github.com/gogo/protobuf/jsonpb
 go get github.com/gogo/protobuf/protoc-gen-gogo
 go get github.com/gogo/protobuf/gogoproto
 
-protoc -I=C:/GoPath/src/github.com/gogo/protobuf;C:/GoPath/src/github.com/gogo/protobuf/protobuf;C:/GoPath/src;. --gogo_out=. rpc.proto 
+protoc -I=C:/GoPath/src/github.com/gogo/protobuf;C:/GoPath/src/github.com/gogo/protobuf/protobuf;C:/GoPath/src;. --gogo_out=. raft_internal.proto 
 
 import _ "github.com/gogo/protobuf/gogoproto"

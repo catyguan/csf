@@ -19,11 +19,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/capnslog"
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "pkg/osutil")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "pkg/osutil")
 )
 
 func Unsetenv(key string) error {

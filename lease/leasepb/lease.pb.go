@@ -12,6 +12,12 @@
 		Lease
 		LeaseTimeToLiveRequest
 		LeaseInternalRequest
+		LeaseGrantRequest
+		LeaseGrantResponse
+		LeaseRevokeRequest
+		LeaseRevokeResponse
+		LeaseKeepAliveRequest
+		LeaseKeepAliveResponse
 		LeaseTimeToLiveResponse
 		LeaseInternalResponse
 */
@@ -67,6 +73,74 @@ func (m *LeaseInternalRequest) String() string            { return proto.Compact
 func (*LeaseInternalRequest) ProtoMessage()               {}
 func (*LeaseInternalRequest) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{2} }
 
+type LeaseGrantRequest struct {
+	// TTL is the advisory time-to-live in seconds.
+	TTL int64 `protobuf:"varint,1,opt,name=TTL,json=tTL,proto3" json:"TTL,omitempty"`
+	// ID is the requested ID for the lease. If ID is set to 0, the lessor chooses an ID.
+	ID int64 `protobuf:"varint,2,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+}
+
+func (m *LeaseGrantRequest) Reset()                    { *m = LeaseGrantRequest{} }
+func (m *LeaseGrantRequest) String() string            { return proto.CompactTextString(m) }
+func (*LeaseGrantRequest) ProtoMessage()               {}
+func (*LeaseGrantRequest) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{3} }
+
+type LeaseGrantResponse struct {
+	Header *basepb.ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+	// ID is the lease ID for the granted lease.
+	ID int64 `protobuf:"varint,2,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+	// TTL is the server chosen lease time-to-live in seconds.
+	TTL   int64  `protobuf:"varint,3,opt,name=TTL,json=tTL,proto3" json:"TTL,omitempty"`
+	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+}
+
+func (m *LeaseGrantResponse) Reset()                    { *m = LeaseGrantResponse{} }
+func (m *LeaseGrantResponse) String() string            { return proto.CompactTextString(m) }
+func (*LeaseGrantResponse) ProtoMessage()               {}
+func (*LeaseGrantResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{4} }
+
+type LeaseRevokeRequest struct {
+	// ID is the lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
+	ID int64 `protobuf:"varint,1,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+}
+
+func (m *LeaseRevokeRequest) Reset()                    { *m = LeaseRevokeRequest{} }
+func (m *LeaseRevokeRequest) String() string            { return proto.CompactTextString(m) }
+func (*LeaseRevokeRequest) ProtoMessage()               {}
+func (*LeaseRevokeRequest) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{5} }
+
+type LeaseRevokeResponse struct {
+	Header *basepb.ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+}
+
+func (m *LeaseRevokeResponse) Reset()                    { *m = LeaseRevokeResponse{} }
+func (m *LeaseRevokeResponse) String() string            { return proto.CompactTextString(m) }
+func (*LeaseRevokeResponse) ProtoMessage()               {}
+func (*LeaseRevokeResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{6} }
+
+type LeaseKeepAliveRequest struct {
+	// ID is the lease ID for the lease to keep alive.
+	ID int64 `protobuf:"varint,1,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+}
+
+func (m *LeaseKeepAliveRequest) Reset()                    { *m = LeaseKeepAliveRequest{} }
+func (m *LeaseKeepAliveRequest) String() string            { return proto.CompactTextString(m) }
+func (*LeaseKeepAliveRequest) ProtoMessage()               {}
+func (*LeaseKeepAliveRequest) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{7} }
+
+type LeaseKeepAliveResponse struct {
+	Header *basepb.ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+	// ID is the lease ID from the keep alive request.
+	ID int64 `protobuf:"varint,2,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+	// TTL is the new time-to-live for the lease.
+	TTL int64 `protobuf:"varint,3,opt,name=TTL,json=tTL,proto3" json:"TTL,omitempty"`
+}
+
+func (m *LeaseKeepAliveResponse) Reset()                    { *m = LeaseKeepAliveResponse{} }
+func (m *LeaseKeepAliveResponse) String() string            { return proto.CompactTextString(m) }
+func (*LeaseKeepAliveResponse) ProtoMessage()               {}
+func (*LeaseKeepAliveResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{8} }
+
 type LeaseTimeToLiveResponse struct {
 	Header *basepb.ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
 	// ID is the lease ID from the keep alive request.
@@ -82,7 +156,7 @@ type LeaseTimeToLiveResponse struct {
 func (m *LeaseTimeToLiveResponse) Reset()                    { *m = LeaseTimeToLiveResponse{} }
 func (m *LeaseTimeToLiveResponse) String() string            { return proto.CompactTextString(m) }
 func (*LeaseTimeToLiveResponse) ProtoMessage()               {}
-func (*LeaseTimeToLiveResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{3} }
+func (*LeaseTimeToLiveResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{9} }
 
 type LeaseInternalResponse struct {
 	LeaseTimeToLiveResponse *LeaseTimeToLiveResponse `protobuf:"bytes,1,opt,name=LeaseTimeToLiveResponse,json=leaseTimeToLiveResponse" json:"LeaseTimeToLiveResponse,omitempty"`
@@ -91,12 +165,18 @@ type LeaseInternalResponse struct {
 func (m *LeaseInternalResponse) Reset()                    { *m = LeaseInternalResponse{} }
 func (m *LeaseInternalResponse) String() string            { return proto.CompactTextString(m) }
 func (*LeaseInternalResponse) ProtoMessage()               {}
-func (*LeaseInternalResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{4} }
+func (*LeaseInternalResponse) Descriptor() ([]byte, []int) { return fileDescriptorLease, []int{10} }
 
 func init() {
 	proto.RegisterType((*Lease)(nil), "leasepb.Lease")
 	proto.RegisterType((*LeaseTimeToLiveRequest)(nil), "leasepb.LeaseTimeToLiveRequest")
 	proto.RegisterType((*LeaseInternalRequest)(nil), "leasepb.LeaseInternalRequest")
+	proto.RegisterType((*LeaseGrantRequest)(nil), "leasepb.LeaseGrantRequest")
+	proto.RegisterType((*LeaseGrantResponse)(nil), "leasepb.LeaseGrantResponse")
+	proto.RegisterType((*LeaseRevokeRequest)(nil), "leasepb.LeaseRevokeRequest")
+	proto.RegisterType((*LeaseRevokeResponse)(nil), "leasepb.LeaseRevokeResponse")
+	proto.RegisterType((*LeaseKeepAliveRequest)(nil), "leasepb.LeaseKeepAliveRequest")
+	proto.RegisterType((*LeaseKeepAliveResponse)(nil), "leasepb.LeaseKeepAliveResponse")
 	proto.RegisterType((*LeaseTimeToLiveResponse)(nil), "leasepb.LeaseTimeToLiveResponse")
 	proto.RegisterType((*LeaseInternalResponse)(nil), "leasepb.LeaseInternalResponse")
 }
@@ -189,6 +269,190 @@ func (m *LeaseInternalRequest) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
+func (m *LeaseGrantRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseGrantRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.TTL != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintLease(data, i, uint64(m.TTL))
+	}
+	if m.ID != 0 {
+		data[i] = 0x10
+		i++
+		i = encodeVarintLease(data, i, uint64(m.ID))
+	}
+	return i, nil
+}
+
+func (m *LeaseGrantResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseGrantResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintLease(data, i, uint64(m.Header.Size()))
+		n2, err := m.Header.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	if m.ID != 0 {
+		data[i] = 0x10
+		i++
+		i = encodeVarintLease(data, i, uint64(m.ID))
+	}
+	if m.TTL != 0 {
+		data[i] = 0x18
+		i++
+		i = encodeVarintLease(data, i, uint64(m.TTL))
+	}
+	if len(m.Error) > 0 {
+		data[i] = 0x22
+		i++
+		i = encodeVarintLease(data, i, uint64(len(m.Error)))
+		i += copy(data[i:], m.Error)
+	}
+	return i, nil
+}
+
+func (m *LeaseRevokeRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseRevokeRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintLease(data, i, uint64(m.ID))
+	}
+	return i, nil
+}
+
+func (m *LeaseRevokeResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseRevokeResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintLease(data, i, uint64(m.Header.Size()))
+		n3, err := m.Header.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	return i, nil
+}
+
+func (m *LeaseKeepAliveRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseKeepAliveRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintLease(data, i, uint64(m.ID))
+	}
+	return i, nil
+}
+
+func (m *LeaseKeepAliveResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaseKeepAliveResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintLease(data, i, uint64(m.Header.Size()))
+		n4, err := m.Header.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
+	}
+	if m.ID != 0 {
+		data[i] = 0x10
+		i++
+		i = encodeVarintLease(data, i, uint64(m.ID))
+	}
+	if m.TTL != 0 {
+		data[i] = 0x18
+		i++
+		i = encodeVarintLease(data, i, uint64(m.TTL))
+	}
+	return i, nil
+}
+
 func (m *LeaseTimeToLiveResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -208,11 +472,11 @@ func (m *LeaseTimeToLiveResponse) MarshalTo(data []byte) (int, error) {
 		data[i] = 0xa
 		i++
 		i = encodeVarintLease(data, i, uint64(m.Header.Size()))
-		n2, err := m.Header.MarshalTo(data[i:])
+		n5, err := m.Header.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n2
+		i += n5
 	}
 	if m.ID != 0 {
 		data[i] = 0x10
@@ -259,11 +523,11 @@ func (m *LeaseInternalResponse) MarshalTo(data []byte) (int, error) {
 		data[i] = 0xa
 		i++
 		i = encodeVarintLease(data, i, uint64(m.LeaseTimeToLiveResponse.Size()))
-		n3, err := m.LeaseTimeToLiveResponse.MarshalTo(data[i:])
+		n6, err := m.LeaseTimeToLiveResponse.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n3
+		i += n6
 	}
 	return i, nil
 }
@@ -325,6 +589,82 @@ func (m *LeaseInternalRequest) Size() (n int) {
 	if m.LeaseTimeToLiveRequest != nil {
 		l = m.LeaseTimeToLiveRequest.Size()
 		n += 1 + l + sovLease(uint64(l))
+	}
+	return n
+}
+
+func (m *LeaseGrantRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.TTL != 0 {
+		n += 1 + sovLease(uint64(m.TTL))
+	}
+	if m.ID != 0 {
+		n += 1 + sovLease(uint64(m.ID))
+	}
+	return n
+}
+
+func (m *LeaseGrantResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovLease(uint64(l))
+	}
+	if m.ID != 0 {
+		n += 1 + sovLease(uint64(m.ID))
+	}
+	if m.TTL != 0 {
+		n += 1 + sovLease(uint64(m.TTL))
+	}
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovLease(uint64(l))
+	}
+	return n
+}
+
+func (m *LeaseRevokeRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovLease(uint64(m.ID))
+	}
+	return n
+}
+
+func (m *LeaseRevokeResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovLease(uint64(l))
+	}
+	return n
+}
+
+func (m *LeaseKeepAliveRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovLease(uint64(m.ID))
+	}
+	return n
+}
+
+func (m *LeaseKeepAliveResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovLease(uint64(l))
+	}
+	if m.ID != 0 {
+		n += 1 + sovLease(uint64(m.ID))
+	}
+	if m.TTL != 0 {
+		n += 1 + sovLease(uint64(m.TTL))
 	}
 	return n
 }
@@ -616,6 +956,586 @@ func (m *LeaseInternalRequest) Unmarshal(data []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseGrantRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseGrantRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseGrantRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.TTL |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.ID |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseGrantResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseGrantResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseGrantResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLease
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &basepb.ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.ID |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.TTL |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthLease
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(data[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseRevokeRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseRevokeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseRevokeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.ID |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseRevokeResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseRevokeResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseRevokeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLease
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &basepb.ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseKeepAliveRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseKeepAliveRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseKeepAliveRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.ID |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLease(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLease
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseKeepAliveResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLease
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseKeepAliveResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseKeepAliveResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLease
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &basepb.ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.ID |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLease
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.TTL |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipLease(data[iNdEx:])
@@ -997,26 +1917,31 @@ var (
 func init() { proto.RegisterFile("lease.proto", fileDescriptorLease) }
 
 var fileDescriptorLease = []byte{
-	// 321 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x74, 0x52, 0xcd, 0x6a, 0xc2, 0x40,
-	0x10, 0x36, 0x89, 0xda, 0x32, 0x96, 0x52, 0x82, 0x55, 0xf1, 0x90, 0x4a, 0x4e, 0x7a, 0xd9, 0x40,
-	0x7b, 0xed, 0xa9, 0x78, 0xa8, 0x90, 0xd3, 0x12, 0x28, 0xf4, 0xb6, 0xd1, 0x69, 0x0c, 0x8d, 0x59,
-	0x9b, 0x5d, 0x0b, 0x3e, 0x4d, 0x5f, 0xc7, 0xa3, 0x8f, 0x50, 0x7d, 0x92, 0xe2, 0x64, 0x95, 0xe2,
-	0xcf, 0x69, 0x67, 0xbf, 0x9f, 0xd9, 0x99, 0x8f, 0x85, 0x46, 0x86, 0x42, 0x21, 0x9b, 0x17, 0x52,
-	0x4b, 0xf7, 0x8a, 0x2e, 0xf3, 0xb8, 0xdb, 0x4c, 0x64, 0x22, 0x09, 0x0b, 0x76, 0x55, 0x49, 0x77,
-	0x07, 0x49, 0xaa, 0xa7, 0x8b, 0x98, 0x8d, 0xe5, 0x2c, 0x18, 0x0b, 0xbd, 0x4c, 0x16, 0x22, 0x0f,
-	0xc6, 0xea, 0x23, 0x88, 0xc9, 0x45, 0x47, 0x29, 0xf5, 0x07, 0x50, 0x0b, 0x77, 0xbd, 0xdc, 0x5b,
-	0xb0, 0x47, 0xc3, 0x8e, 0xd5, 0xb3, 0xfa, 0x0e, 0xb7, 0xd3, 0xa1, 0x7b, 0x07, 0x4e, 0x14, 0x85,
-	0x1d, 0x9b, 0x00, 0x47, 0x47, 0xa1, 0xff, 0x0c, 0x2d, 0x92, 0x46, 0xe9, 0x0c, 0x23, 0x19, 0xa6,
-	0xdf, 0xc8, 0xf1, 0x6b, 0x81, 0x4a, 0x9f, 0x78, 0x5d, 0xa8, 0x7e, 0xe2, 0x52, 0x91, 0xf9, 0x9a,
-	0x53, 0xed, 0x4b, 0x68, 0x92, 0x7b, 0x94, 0x6b, 0x2c, 0x72, 0x91, 0xed, 0xbd, 0x6f, 0x97, 0xba,
-	0x52, 0xbf, 0xc6, 0xe3, 0x03, 0x33, 0xbb, 0xb2, 0xf3, 0x32, 0xde, 0xca, 0xce, 0xe2, 0xfe, 0x8f,
-	0x05, 0xed, 0x13, 0x8b, 0x9a, 0xcb, 0x5c, 0xa1, 0xcb, 0xa0, 0x3e, 0x45, 0x31, 0xc1, 0xc2, 0x3c,
-	0xd2, 0x62, 0x65, 0x32, 0x6c, 0xaf, 0x78, 0x25, 0x96, 0x1b, 0x95, 0x59, 0xd0, 0x3e, 0x0e, 0xc7,
-	0x39, 0x84, 0xe3, 0x7a, 0x00, 0x49, 0x21, 0x72, 0x8d, 0x93, 0x1d, 0x51, 0x25, 0xe2, 0x1f, 0x72,
-	0x88, 0xa4, 0xd6, 0x73, 0xfa, 0x37, 0x26, 0x12, 0x05, 0xf7, 0x47, 0x91, 0x98, 0xf1, 0xde, 0x2f,
-	0x4e, 0x6e, 0xe6, 0xed, 0x5d, 0x0e, 0xa5, 0xd4, 0xf1, 0x76, 0x76, 0x9e, 0x78, 0x69, 0xae, 0x36,
-	0x5e, 0x65, 0xbd, 0xf1, 0x2a, 0xab, 0xad, 0x67, 0xad, 0xb7, 0x9e, 0xf5, 0xbb, 0xf5, 0xac, 0xb8,
-	0x4e, 0xbf, 0xe1, 0xe9, 0x2f, 0x00, 0x00, 0xff, 0xff, 0x82, 0xcb, 0xcb, 0x20, 0x66, 0x02, 0x00,
-	0x00,
+	// 410 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xb4, 0x53, 0xc1, 0xce, 0xd2, 0x40,
+	0x10, 0x66, 0x5b, 0x40, 0x1d, 0x8c, 0xd1, 0x5a, 0x81, 0x70, 0xa8, 0xcd, 0xc6, 0x44, 0xb8, 0xb4,
+	0x89, 0xc6, 0x9b, 0x17, 0x0d, 0x46, 0x89, 0x3d, 0x6d, 0x9a, 0x98, 0x78, 0x6b, 0x61, 0x2c, 0x95,
+	0xd2, 0xad, 0x6d, 0x21, 0x21, 0xf1, 0x5d, 0x7c, 0x1d, 0x8e, 0x3c, 0x82, 0xf0, 0x24, 0xa6, 0xdb,
+	0x2d, 0xe0, 0x0f, 0xbd, 0xfc, 0x09, 0xa7, 0xee, 0xce, 0x7c, 0xdf, 0xcc, 0xb7, 0xf3, 0x4d, 0xa1,
+	0x13, 0xa1, 0x97, 0xa1, 0x95, 0xa4, 0x3c, 0xe7, 0xda, 0x03, 0x71, 0x49, 0xfc, 0x81, 0x1e, 0xf0,
+	0x80, 0x8b, 0x98, 0x5d, 0x9c, 0xca, 0xf4, 0x60, 0x14, 0x84, 0xf9, 0x7c, 0xe5, 0x5b, 0x53, 0xbe,
+	0xb4, 0xa7, 0x5e, 0xbe, 0x09, 0x56, 0x5e, 0x6c, 0x4f, 0xb3, 0x1f, 0xb6, 0x2f, 0x58, 0xe2, 0x53,
+	0x42, 0xe9, 0x08, 0x5a, 0x4e, 0x51, 0x4b, 0x7b, 0x02, 0xca, 0x64, 0xdc, 0x27, 0x26, 0x19, 0xaa,
+	0x4c, 0x09, 0xc7, 0xda, 0x53, 0x50, 0x5d, 0xd7, 0xe9, 0x2b, 0x22, 0xa0, 0xe6, 0xae, 0x43, 0xdf,
+	0x43, 0x57, 0x40, 0xdd, 0x70, 0x89, 0x2e, 0x77, 0xc2, 0x35, 0x32, 0xfc, 0xb5, 0xc2, 0x2c, 0xbf,
+	0xe0, 0x6a, 0xd0, 0x5c, 0xe0, 0x26, 0x13, 0xe4, 0x87, 0x4c, 0x9c, 0x29, 0x07, 0x5d, 0xb0, 0x27,
+	0x71, 0x8e, 0x69, 0xec, 0x45, 0x15, 0xf7, 0x5b, 0x5d, 0x55, 0x51, 0xaf, 0xf3, 0xe6, 0xa5, 0x25,
+	0xdf, 0x6a, 0x5d, 0x87, 0xb1, 0x6e, 0x74, 0x35, 0x4e, 0xdf, 0xc1, 0x33, 0xc1, 0xf8, 0x9c, 0x7a,
+	0x71, 0x5e, 0x75, 0x93, 0xaf, 0x22, 0xc7, 0x57, 0x49, 0xed, 0x4a, 0xa5, 0x9d, 0xfe, 0x06, 0xed,
+	0x9c, 0x96, 0x25, 0x3c, 0xce, 0x50, 0xb3, 0xa0, 0x3d, 0x47, 0x6f, 0x86, 0xa9, 0x54, 0xd5, 0xb5,
+	0xca, 0x51, 0x5a, 0x15, 0xe2, 0x8b, 0xc8, 0x32, 0x89, 0xba, 0x5b, 0xb5, 0xea, 0xab, 0x9e, 0xfa,
+	0xea, 0xd0, 0xc2, 0x34, 0xe5, 0x69, 0xbf, 0x69, 0x92, 0xe1, 0x23, 0x56, 0x5e, 0xe8, 0x2b, 0xd9,
+	0x9d, 0xe1, 0x9a, 0x2f, 0xea, 0xe6, 0x4b, 0x3f, 0xc1, 0xf3, 0xff, 0x50, 0xf7, 0x13, 0x49, 0x5f,
+	0xc3, 0x0b, 0x51, 0xe6, 0x2b, 0x62, 0xf2, 0x21, 0xaa, 0xf7, 0x93, 0xfe, 0x94, 0x1e, 0x9d, 0x01,
+	0x6f, 0x35, 0x17, 0xfa, 0x87, 0x40, 0xef, 0xc2, 0xe9, 0x9b, 0xb9, 0x60, 0x00, 0x04, 0x85, 0xd1,
+	0x38, 0x2b, 0x12, 0x4d, 0x91, 0x38, 0x8b, 0x1c, 0x37, 0xb9, 0x65, 0xaa, 0xc3, 0xc7, 0x72, 0x93,
+	0x33, 0x39, 0xb6, 0xd3, 0x26, 0x4b, 0x79, 0xdf, 0x6b, 0x95, 0x4b, 0xbd, 0x66, 0xfd, 0x2e, 0x97,
+	0x38, 0xd6, 0x8b, 0xae, 0x27, 0x3e, 0xea, 0xdb, 0xbd, 0xd1, 0xd8, 0xed, 0x8d, 0xc6, 0xf6, 0x60,
+	0x90, 0xdd, 0xc1, 0x20, 0x7f, 0x0f, 0x06, 0xf1, 0xdb, 0xe2, 0x27, 0x7e, 0xfb, 0x2f, 0x00, 0x00,
+	0xff, 0xff, 0x4e, 0x5a, 0x8f, 0xc3, 0x1d, 0x04, 0x00, 0x00,
 }

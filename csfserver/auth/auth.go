@@ -25,11 +25,11 @@ import (
 	"strings"
 	"time"
 
-	etcderr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	etcderr "github.com/catyguan/csf/error"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/types"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 )
@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver/auth")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "csfserver/auth")
 )
 
 var rootRole = Role{
@@ -70,7 +70,7 @@ var guestRole = Role{
 }
 
 type doer interface {
-	Do(context.Context, etcdserverpb.Request) (etcdserver.Response, error)
+	Do(context.Context, csfserverpb.Request) (csfserver.Response, error)
 }
 
 type Store interface {

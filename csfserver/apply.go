@@ -26,6 +26,7 @@ import (
 	cpb "github.com/catyguan/csf/compactor/compactorpb"
 	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 	"github.com/catyguan/csf/lease"
+	"github.com/catyguan/csf/lease/leasepb"
 	"github.com/catyguan/csf/mvcc"
 	"github.com/catyguan/csf/mvcc/mvccpb"
 	"github.com/catyguan/csf/pkg/types"
@@ -61,8 +62,8 @@ type applierV3 interface {
 	Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error)
 	Compaction(compaction *cpb.CompactionRequest) (*cpb.CompactionResponse, <-chan struct{}, error)
 
-	LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error)
-	LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error)
+	LeaseGrant(lc *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error)
+	LeaseRevoke(lc *leasepb.LeaseRevokeRequest) (*leasepb.LeaseRevokeResponse, error)
 
 	Alarm(*alpb.AlarmRequest) (*alpb.AlarmResponse, error)
 
@@ -514,9 +515,9 @@ func (a *applierV3backend) Compaction(compaction *cpb.CompactionRequest) (*cpb.C
 	return resp, ch, err
 }
 
-func (a *applierV3backend) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
+func (a *applierV3backend) LeaseGrant(lc *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error) {
 	l, err := a.s.lessor.Grant(lease.LeaseID(lc.ID), lc.TTL)
-	resp := &pb.LeaseGrantResponse{}
+	resp := &leasepb.LeaseGrantResponse{}
 	if err == nil {
 		resp.ID = int64(l.ID)
 		resp.TTL = l.TTL()
@@ -526,9 +527,9 @@ func (a *applierV3backend) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantR
 	return resp, err
 }
 
-func (a *applierV3backend) LeaseRevoke(lc *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
+func (a *applierV3backend) LeaseRevoke(lc *leasepb.LeaseRevokeRequest) (*leasepb.LeaseRevokeResponse, error) {
 	err := a.s.lessor.Revoke(lease.LeaseID(lc.ID))
-	return &pb.LeaseRevokeResponse{Header: &bpb.ResponseHeader{Revision: a.s.KV().Rev()}}, err
+	return &leasepb.LeaseRevokeResponse{Header: &bpb.ResponseHeader{Revision: a.s.KV().Rev()}}, err
 }
 
 func (a *applierV3backend) Alarm(ar *alpb.AlarmRequest) (*alpb.AlarmResponse, error) {
@@ -600,7 +601,7 @@ func (a *applierV3Capped) Txn(r *pb.TxnRequest) (*pb.TxnResponse, error) {
 	return a.applierV3.Txn(r)
 }
 
-func (a *applierV3Capped) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
+func (a *applierV3Capped) LeaseGrant(lc *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error) {
 	return nil, ErrNoSpace
 }
 
@@ -701,7 +702,7 @@ func (a *quotaApplierV3) Txn(rt *pb.TxnRequest) (*pb.TxnResponse, error) {
 	return resp, err
 }
 
-func (a *quotaApplierV3) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
+func (a *quotaApplierV3) LeaseGrant(lc *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error) {
 	ok := a.q.Available(lc)
 	resp, err := a.applierV3.LeaseGrant(lc)
 	if err == nil && !ok {

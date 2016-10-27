@@ -84,7 +84,7 @@ func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("X-Etcd-Cluster-ID", h.cid.String())
+	w.Header().Set("X-CSF-Cluster-ID", h.cid.String())
 
 	if err := checkClusterCompatibilityFromHeader(r.Header, h.cid); err != nil {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)
@@ -256,7 +256,7 @@ func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("X-Server-Version", version.Version)
-	w.Header().Set("X-Etcd-Cluster-ID", h.cid.String())
+	w.Header().Set("X-CSF-Cluster-ID", h.cid.String())
 
 	if err := checkClusterCompatibilityFromHeader(r.Header, h.cid); err != nil {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)

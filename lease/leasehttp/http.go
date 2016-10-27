@@ -22,7 +22,6 @@ import (
 	"time"
 
 	bpb "github.com/catyguan/csf/basepb"
-	pb "github.com/catyguan/csf/csfserver/csfserverpb"
 	"github.com/catyguan/csf/lease"
 	"github.com/catyguan/csf/lease/leasepb"
 	"github.com/catyguan/csf/pkg/httputil"
@@ -56,7 +55,7 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var v []byte
 	switch r.URL.Path {
 	case LeasePrefix:
-		lreq := pb.LeaseKeepAliveRequest{}
+		lreq := leasepb.LeaseKeepAliveRequest{}
 		if err := lreq.Unmarshal(b); err != nil {
 			http.Error(w, "error unmarshalling request", http.StatusBadRequest)
 			return
@@ -72,7 +71,7 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// TODO: fill out ResponseHeader
-		resp := &pb.LeaseKeepAliveResponse{ID: lreq.ID, TTL: ttl}
+		resp := &leasepb.LeaseKeepAliveResponse{ID: lreq.ID, TTL: ttl}
 		v, err = resp.Marshal()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,7 +127,7 @@ func (h *leaseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // TODO: Batch request in future?
 func RenewHTTP(id lease.LeaseID, url string, rt http.RoundTripper, timeout time.Duration) (int64, error) {
 	// will post lreq protobuf to leader
-	lreq, err := (&pb.LeaseKeepAliveRequest{ID: int64(id)}).Marshal()
+	lreq, err := (&leasepb.LeaseKeepAliveRequest{ID: int64(id)}).Marshal()
 	if err != nil {
 		return -1, err
 	}
@@ -153,7 +152,7 @@ func RenewHTTP(id lease.LeaseID, url string, rt http.RoundTripper, timeout time.
 		return -1, fmt.Errorf("lease: unknown error(%s)", string(b))
 	}
 
-	lresp := &pb.LeaseKeepAliveResponse{}
+	lresp := &leasepb.LeaseKeepAliveResponse{}
 	if err := lresp.Unmarshal(b); err != nil {
 		return -1, fmt.Errorf(`lease: %v. data = "%s"`, err, string(b))
 	}

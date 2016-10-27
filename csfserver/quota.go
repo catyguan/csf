@@ -16,6 +16,7 @@ package csfserver
 
 import (
 	pb "github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/lease/leasepb"
 	"github.com/catyguan/csf/mvcc/backend"
 )
 
@@ -77,7 +78,7 @@ func (b *backendQuota) Cost(v interface{}) int {
 		return costPut(r)
 	case *pb.TxnRequest:
 		return costTxn(r)
-	case *pb.LeaseGrantRequest:
+	case *leasepb.LeaseGrantRequest:
 		return leaseOverhead
 	default:
 		panic("unexpected cost")

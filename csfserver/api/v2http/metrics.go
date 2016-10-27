@@ -20,17 +20,17 @@ import (
 
 	"net/http"
 
-	etcdErr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	etcdErr "github.com/catyguan/csf/error"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
 	incomingEvents = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "etcd",
+			Namespace: "csf",
 			Subsystem: "http",
 			Name:      "received_total",
 			Help:      "Counter of requests received into the system (successfully parsed and authd).",
@@ -38,7 +38,7 @@ var (
 
 	failedEvents = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "etcd",
+			Namespace: "csf",
 			Subsystem: "http",
 			Name:      "failed_total",
 			Help:      "Counter of handle failures of requests (non-watches), by method (GET/PUT etc.) and code (400, 500 etc.).",
@@ -46,7 +46,7 @@ var (
 
 	successfulEventsHandlingTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "etcd",
+			Namespace: "csf",
 			Subsystem: "http",
 			Name:      "successful_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of successfully handled requests (non-watches), by method (GET/PUT etc.).",
@@ -60,21 +60,21 @@ func init() {
 	prometheus.MustRegister(successfulEventsHandlingTime)
 }
 
-func reportRequestReceived(request etcdserverpb.Request) {
+func reportRequestReceived(request csfserverpb.Request) {
 	incomingEvents.WithLabelValues(methodFromRequest(request)).Inc()
 }
 
-func reportRequestCompleted(request etcdserverpb.Request, response etcdserver.Response, startTime time.Time) {
+func reportRequestCompleted(request csfserverpb.Request, response csfserver.Response, startTime time.Time) {
 	method := methodFromRequest(request)
 	successfulEventsHandlingTime.WithLabelValues(method).Observe(time.Since(startTime).Seconds())
 }
 
-func reportRequestFailed(request etcdserverpb.Request, err error) {
+func reportRequestFailed(request csfserverpb.Request, err error) {
 	method := methodFromRequest(request)
 	failedEvents.WithLabelValues(method, strconv.Itoa(codeFromError(err))).Inc()
 }
 
-func methodFromRequest(request etcdserverpb.Request) string {
+func methodFromRequest(request csfserverpb.Request) string {
 	if request.Method == "GET" && request.Quorum {
 		return "QGET"
 	}

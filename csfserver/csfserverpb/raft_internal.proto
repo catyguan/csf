@@ -7,6 +7,7 @@ import "rpc.proto";
 import "github.com/catyguan/csf/auth/authpb/auth.proto";
 import "github.com/catyguan/csf/compactor/compactorpb/compactor.proto";
 import "github.com/catyguan/csf/alarm/alarmpb/alarm.proto";
+import "github.com/catyguan/csf/lease/leasepb/lease.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -35,8 +36,8 @@ message InternalRaftRequest {
   TxnRequest txn = 6;
   compactorpb.CompactionRequest compaction = 7;
 
-  LeaseGrantRequest lease_grant = 8;
-  LeaseRevokeRequest lease_revoke = 9;
+  leasepb.LeaseGrantRequest lease_grant = 8;
+  leasepb.LeaseRevokeRequest lease_revoke = 9;
 
   alarmpb.AlarmRequest alarm = 10;
 

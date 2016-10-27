@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	etcdErr "github.com/catyguan/csf/error"
+	csfErr "github.com/catyguan/csf/error"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 )
@@ -270,8 +270,8 @@ func TestStoreCreateFailsIfExists(t *testing.T) {
 
 	// create /foo as dir again
 	e, _err := s.Create("/foo", true, "", false, TTLOptionSet{ExpireTime: Permanent})
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeNodeExist, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeNodeExist, "")
 	assert.Equal(t, err.Message, "Key already exists", "")
 	assert.Equal(t, err.Cause, "/foo", "")
 	assert.Equal(t, err.Index, uint64(1), "")
@@ -331,8 +331,8 @@ func TestStoreUpdateFailsIfDirectory(t *testing.T) {
 	s := newStore()
 	s.Create("/foo", true, "", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.Update("/foo", "baz", TTLOptionSet{ExpireTime: Permanent})
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeNotFile, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeNotFile, "")
 	assert.Equal(t, err.Message, "Not a file", "")
 	assert.Equal(t, err.Cause, "/foo", "")
 	assert.Nil(t, e, "")
@@ -354,7 +354,7 @@ func TestStoreUpdateValueTTL(t *testing.T) {
 	s.DeleteExpiredKeys(fc.Now())
 	e, err = s.Get("/foo", false, false)
 	assert.Nil(t, e, "")
-	assert.Equal(t, err.(*etcdErr.Error).ErrorCode, etcdErr.EcodeKeyNotFound, "")
+	assert.Equal(t, err.(*csfErr.Error).ErrorCode, csfErr.EcodeKeyNotFound, "")
 }
 
 // Ensure that the store can update the TTL on a directory.
@@ -377,7 +377,7 @@ func TestStoreUpdateDirTTL(t *testing.T) {
 	s.DeleteExpiredKeys(fc.Now())
 	e, err = s.Get("/foo/bar", false, false)
 	assert.Nil(t, e, "")
-	assert.Equal(t, err.(*etcdErr.Error).ErrorCode, etcdErr.EcodeKeyNotFound, "")
+	assert.Equal(t, err.(*csfErr.Error).ErrorCode, csfErr.EcodeKeyNotFound, "")
 }
 
 // Ensure that the store can delete a value.
@@ -435,8 +435,8 @@ func TestStoreDeleteDiretoryFailsIfNonRecursiveAndDir(t *testing.T) {
 	s := newStore()
 	s.Create("/foo", true, "", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.Delete("/foo", false, false)
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeNotFile, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeNotFile, "")
 	assert.Equal(t, err.Message, "Not a file", "")
 	assert.Nil(t, e, "")
 }
@@ -485,8 +485,8 @@ func TestStoreCompareAndDeletePrevValueFailsIfNotMatch(t *testing.T) {
 	var eidx uint64 = 1
 	s.Create("/foo", false, "bar", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.CompareAndDelete("/foo", "baz", 0)
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeTestFailed, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeTestFailed, "")
 	assert.Equal(t, err.Message, "Compare failed", "")
 	assert.Nil(t, e, "")
 	e, _ = s.Get("/foo", false, false)
@@ -516,8 +516,8 @@ func TestStoreCompareAndDeletePrevIndexFailsIfNotMatch(t *testing.T) {
 	s.Create("/foo", false, "bar", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.CompareAndDelete("/foo", "", 100)
 	assert.NotNil(t, _err, "")
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeTestFailed, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeTestFailed, "")
 	assert.Equal(t, err.Message, "Compare failed", "")
 	assert.Nil(t, e, "")
 	e, _ = s.Get("/foo", false, false)
@@ -531,8 +531,8 @@ func TestStoreCompareAndDeleteDiretoryFail(t *testing.T) {
 	s.Create("/foo", true, "", false, TTLOptionSet{ExpireTime: Permanent})
 	_, _err := s.CompareAndDelete("/foo", "", 0)
 	assert.NotNil(t, _err, "")
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeNotFile, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeNotFile, "")
 }
 
 // Ensure that the store can conditionally update a key if it has a previous value.
@@ -562,8 +562,8 @@ func TestStoreCompareAndSwapPrevValueFailsIfNotMatch(t *testing.T) {
 	var eidx uint64 = 1
 	s.Create("/foo", false, "bar", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.CompareAndSwap("/foo", "wrong_value", 0, "baz", TTLOptionSet{ExpireTime: Permanent})
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeTestFailed, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeTestFailed, "")
 	assert.Equal(t, err.Message, "Compare failed", "")
 	assert.Nil(t, e, "")
 	e, _ = s.Get("/foo", false, false)
@@ -599,8 +599,8 @@ func TestStoreCompareAndSwapPrevIndexFailsIfNotMatch(t *testing.T) {
 	var eidx uint64 = 1
 	s.Create("/foo", false, "bar", false, TTLOptionSet{ExpireTime: Permanent})
 	e, _err := s.CompareAndSwap("/foo", "", 100, "baz", TTLOptionSet{ExpireTime: Permanent})
-	err := _err.(*etcdErr.Error)
-	assert.Equal(t, err.ErrorCode, etcdErr.EcodeTestFailed, "")
+	err := _err.(*csfErr.Error)
+	assert.Equal(t, err.ErrorCode, csfErr.EcodeTestFailed, "")
 	assert.Equal(t, err.Message, "Compare failed", "")
 	assert.Nil(t, e, "")
 	e, _ = s.Get("/foo", false, false)

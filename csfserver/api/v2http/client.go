@@ -29,18 +29,18 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/csfserver"
-	etcdErr "github.com/catyguan/csf/error"
-	"github.com/coreos/etcd/etcdserver/api"
-	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
-	"github.com/coreos/etcd/etcdserver/auth"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/etcdserver/stats"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft"
-	"github.com/coreos/etcd/store"
-	"github.com/coreos/etcd/version"
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/csfserver/api"
+	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
+	"github.com/catyguan/csf/csfserver/auth"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	"github.com/catyguan/csf/csfserver/stats"
+	csfErr "github.com/catyguan/csf/error"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft"
+	"github.com/catyguan/csf/store"
+	"github.com/catyguan/csf/version"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
@@ -61,7 +61,7 @@ const (
 )
 
 // NewClientHandler generates a muxed http.Handler with the given parameters to serve etcd client requests.
-func NewClientHandler(server *etcdserver.EtcdServer, timeout time.Duration) http.Handler {
+func NewClientHandler(server *csfserver.CsfServer, timeout time.Duration) http.Handler {
 	sec := auth.NewStore(server, timeout)
 
 	kh := &keysHandler{
@@ -135,9 +135,9 @@ func NewClientHandler(server *etcdserver.EtcdServer, timeout time.Duration) http
 
 type keysHandler struct {
 	sec                   auth.Store
-	server                etcdserver.Server
+	server                csfserver.Server
 	cluster               api.Cluster
-	timer                 etcdserver.RaftTimer
+	timer                 csfserver.RaftTimer
 	timeout               time.Duration
 	clientCertAuthEnabled bool
 }
@@ -168,7 +168,7 @@ func (h *keysHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.server.Do(ctx, rr)
 	if err != nil {
-		err = trimErrorPrefix(err, etcdserver.StoreKeysPrefix)
+		err = trimErrorPrefix(err, csfserver.StoreKeysPrefix)
 		writeKeyError(w, err)
 		reportRequestFailed(rr, err)
 		return
@@ -203,7 +203,7 @@ func (h *deprecatedMachinesHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 type membersHandler struct {
 	sec                   auth.Store
-	server                etcdserver.Server
+	server                csfserver.Server
 	cluster               api.Cluster
 	timeout               time.Duration
 	clock                 clockwork.Clock
@@ -218,7 +218,7 @@ func (h *membersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeNoAuth(w, r)
 		return
 	}
-	w.Header().Set("X-Etcd-Cluster-ID", h.cluster.ID().String())
+	w.Header().Set("X-CSF-Cluster-ID", h.cluster.ID().String())
 
 	ctx, cancel := context.WithTimeout(context.Background(), h.timeout)
 	defer cancel()
@@ -367,7 +367,7 @@ func serveVars(w http.ResponseWriter, r *http.Request) {
 
 // TODO: change etcdserver to raft interface when we have it.
 //       add test for healthHandler when we have the interface ready.
-func healthHandler(server *etcdserver.EtcdServer) http.HandlerFunc {
+func healthHandler(server *csfserver.CsfServer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !allowMethod(w, r.Method, "GET") {
 			return
@@ -449,97 +449,97 @@ func logHandleFunc(w http.ResponseWriter, r *http.Request) {
 // parseKeyRequest converts a received http.Request on keysPrefix to
 // a server Request, performing validation of supplied fields as appropriate.
 // If any validation fails, an empty Request and non-nil error is returned.
-func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Request, bool, error) {
+func parseKeyRequest(r *http.Request, clock clockwork.Clock) (csfserverpb.Request, bool, error) {
 	noValueOnSuccess := false
-	emptyReq := etcdserverpb.Request{}
+	emptyReq := csfserverpb.Request{}
 
 	err := r.ParseForm()
 	if err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidForm,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidForm,
 			err.Error(),
 		)
 	}
 
 	if !strings.HasPrefix(r.URL.Path, keysPrefix) {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidForm,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidForm,
 			"incorrect key prefix",
 		)
 	}
-	p := path.Join(etcdserver.StoreKeysPrefix, r.URL.Path[len(keysPrefix):])
+	p := path.Join(csfserver.StoreKeysPrefix, r.URL.Path[len(keysPrefix):])
 
 	var pIdx, wIdx uint64
 	if pIdx, err = getUint64(r.Form, "prevIndex"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeIndexNaN,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeIndexNaN,
 			`invalid value for "prevIndex"`,
 		)
 	}
 	if wIdx, err = getUint64(r.Form, "waitIndex"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeIndexNaN,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeIndexNaN,
 			`invalid value for "waitIndex"`,
 		)
 	}
 
 	var rec, sort, wait, dir, quorum, stream bool
 	if rec, err = getBool(r.Form, "recursive"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "recursive"`,
 		)
 	}
 	if sort, err = getBool(r.Form, "sorted"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "sorted"`,
 		)
 	}
 	if wait, err = getBool(r.Form, "wait"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "wait"`,
 		)
 	}
 	// TODO(jonboulle): define what parameters dir is/isn't compatible with?
 	if dir, err = getBool(r.Form, "dir"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "dir"`,
 		)
 	}
 	if quorum, err = getBool(r.Form, "quorum"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "quorum"`,
 		)
 	}
 	if stream, err = getBool(r.Form, "stream"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "stream"`,
 		)
 	}
 
 	if wait && r.Method != "GET" {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`"wait" can only be used with GET requests`,
 		)
 	}
 
 	pV := r.FormValue("prevValue")
 	if _, ok := r.Form["prevValue"]; ok && pV == "" {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodePrevValueRequired,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodePrevValueRequired,
 			`"prevValue" cannot be empty`,
 		)
 	}
 
 	if noValueOnSuccess, err = getBool(r.Form, "noValueOnSuccess"); err != nil {
-		return emptyReq, false, etcdErr.NewRequestError(
-			etcdErr.EcodeInvalidField,
+		return emptyReq, false, csfErr.NewRequestError(
+			csfErr.EcodeInvalidField,
 			`invalid value for "noValueOnSuccess"`,
 		)
 	}
@@ -550,8 +550,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if len(r.FormValue("ttl")) > 0 {
 		i, err := getUint64(r.Form, "ttl")
 		if err != nil {
-			return emptyReq, false, etcdErr.NewRequestError(
-				etcdErr.EcodeTTLNaN,
+			return emptyReq, false, csfErr.NewRequestError(
+				csfErr.EcodeTTLNaN,
 				`invalid value for "ttl"`,
 			)
 		}
@@ -563,8 +563,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if _, ok := r.Form["prevExist"]; ok {
 		bv, err := getBool(r.Form, "prevExist")
 		if err != nil {
-			return emptyReq, false, etcdErr.NewRequestError(
-				etcdErr.EcodeInvalidField,
+			return emptyReq, false, csfErr.NewRequestError(
+				csfErr.EcodeInvalidField,
 				"invalid value for prevExist",
 			)
 		}
@@ -576,8 +576,8 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 	if _, ok := r.Form["refresh"]; ok {
 		bv, err := getBool(r.Form, "refresh")
 		if err != nil {
-			return emptyReq, false, etcdErr.NewRequestError(
-				etcdErr.EcodeInvalidField,
+			return emptyReq, false, csfErr.NewRequestError(
+				csfErr.EcodeInvalidField,
 				"invalid value for refresh",
 			)
 		}
@@ -585,21 +585,21 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 		if refresh != nil && *refresh {
 			val := r.FormValue("value")
 			if _, ok := r.Form["value"]; ok && val != "" {
-				return emptyReq, false, etcdErr.NewRequestError(
-					etcdErr.EcodeRefreshValue,
+				return emptyReq, false, csfErr.NewRequestError(
+					csfErr.EcodeRefreshValue,
 					`A value was provided on a refresh`,
 				)
 			}
 			if ttl == nil {
-				return emptyReq, false, etcdErr.NewRequestError(
-					etcdErr.EcodeRefreshTTLRequired,
+				return emptyReq, false, csfErr.NewRequestError(
+					csfErr.EcodeRefreshTTLRequired,
 					`No TTL value set`,
 				)
 			}
 		}
 	}
 
-	rr := etcdserverpb.Request{
+	rr := csfserverpb.Request{
 		Method:    r.Method,
 		Path:      p,
 		Val:       r.FormValue("value"),
@@ -635,12 +635,12 @@ func parseKeyRequest(r *http.Request, clock clockwork.Clock) (etcdserverpb.Reque
 // writeKeyEvent trims the prefix of key path in a single Event under
 // StoreKeysPrefix, serializes it and writes the resulting JSON to the given
 // ResponseWriter, along with the appropriate headers.
-func writeKeyEvent(w http.ResponseWriter, ev *store.Event, noValueOnSuccess bool, rt etcdserver.RaftTimer) error {
+func writeKeyEvent(w http.ResponseWriter, ev *store.Event, noValueOnSuccess bool, rt csfserver.RaftTimer) error {
 	if ev == nil {
 		return errors.New("cannot write empty Event!")
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("X-Etcd-Index", fmt.Sprint(ev.EtcdIndex))
+	w.Header().Set("X-Etcd-Index", fmt.Sprint(ev.CsfIndex))
 	w.Header().Set("X-Raft-Index", fmt.Sprint(rt.Index()))
 	w.Header().Set("X-Raft-Term", fmt.Sprint(rt.Term()))
 
@@ -648,7 +648,7 @@ func writeKeyEvent(w http.ResponseWriter, ev *store.Event, noValueOnSuccess bool
 		w.WriteHeader(http.StatusCreated)
 	}
 
-	ev = trimEventPrefix(ev, etcdserver.StoreKeysPrefix)
+	ev = trimEventPrefix(ev, csfserver.StoreKeysPrefix)
 	if noValueOnSuccess &&
 		(ev.Action == store.Set || ev.Action == store.CompareAndSwap ||
 			ev.Action == store.Create || ev.Action == store.Update) {
@@ -659,32 +659,32 @@ func writeKeyEvent(w http.ResponseWriter, ev *store.Event, noValueOnSuccess bool
 }
 
 func writeKeyNoAuth(w http.ResponseWriter) {
-	e := etcdErr.NewError(etcdErr.EcodeUnauthorized, "Insufficient credentials", 0)
+	e := csfErr.NewError(csfErr.EcodeUnauthorized, "Insufficient credentials", 0)
 	e.WriteTo(w)
 }
 
 // writeKeyError logs and writes the given Error to the ResponseWriter.
-// If Error is not an etcdErr, the error will be converted to an etcd error.
+// If Error is not an csfErr, the error will be converted to an etcd error.
 func writeKeyError(w http.ResponseWriter, err error) {
 	if err == nil {
 		return
 	}
 	switch e := err.(type) {
-	case *etcdErr.Error:
+	case *csfErr.Error:
 		e.WriteTo(w)
 	default:
 		switch err {
-		case etcdserver.ErrTimeoutDueToLeaderFail, etcdserver.ErrTimeoutDueToConnectionLost:
+		case csfserver.ErrTimeoutDueToLeaderFail, csfserver.ErrTimeoutDueToConnectionLost:
 			mlog.MergeError(err)
 		default:
 			mlog.MergeErrorf("got unexpected response error (%v)", err)
 		}
-		ee := etcdErr.NewError(etcdErr.EcodeRaftInternal, err.Error(), 0)
+		ee := csfErr.NewError(csfErr.EcodeRaftInternal, err.Error(), 0)
 		ee.WriteTo(w)
 	}
 }
 
-func handleKeyWatch(ctx context.Context, w http.ResponseWriter, wa store.Watcher, stream bool, rt etcdserver.RaftTimer) {
+func handleKeyWatch(ctx context.Context, w http.ResponseWriter, wa store.Watcher, stream bool, rt csfserver.RaftTimer) {
 	defer wa.Remove()
 	ech := wa.EventChan()
 	var nch <-chan bool
@@ -716,7 +716,7 @@ func handleKeyWatch(ctx context.Context, w http.ResponseWriter, wa store.Watcher
 				// send to the client in time. Then we simply end streaming.
 				return
 			}
-			ev = trimEventPrefix(ev, etcdserver.StoreKeysPrefix)
+			ev = trimEventPrefix(ev, csfserver.StoreKeysPrefix)
 			if err := json.NewEncoder(w).Encode(ev); err != nil {
 				// Should never be reached
 				plog.Warningf("error writing event (%v)", err)
@@ -753,7 +753,7 @@ func trimNodeExternPrefix(n *store.NodeExtern, prefix string) {
 }
 
 func trimErrorPrefix(err error, prefix string) error {
-	if e, ok := err.(*etcdErr.Error); ok {
+	if e, ok := err.(*csfErr.Error); ok {
 		e.Cause = strings.TrimPrefix(e.Cause, prefix)
 	}
 	return err

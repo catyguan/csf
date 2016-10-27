@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"path"
 
-	etcderr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	etcderr "github.com/catyguan/csf/error"
 	"golang.org/x/net/context"
 )
 
@@ -32,7 +32,7 @@ func (s *store) ensureAuthDirectories() error {
 		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 		defer cancel()
 		pe := false
-		rr := etcdserverpb.Request{
+		rr := csfserverpb.Request{
 			Method:    "PUT",
 			Path:      res,
 			Dir:       true,
@@ -52,7 +52,7 @@ func (s *store) ensureAuthDirectories() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	pe := false
-	rr := etcdserverpb.Request{
+	rr := csfserverpb.Request{
 		Method:    "PUT",
 		Path:      StorePermsPrefix + "/enabled",
 		Val:       "false",
@@ -105,11 +105,11 @@ func (s *store) detectAuth() bool {
 	return u
 }
 
-func (s *store) requestResource(res string, dir bool) (etcdserver.Response, error) {
+func (s *store) requestResource(res string, dir bool) (csfserver.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	p := path.Join(StorePermsPrefix, res)
-	rr := etcdserverpb.Request{
+	rr := csfserverpb.Request{
 		Method: "GET",
 		Path:   p,
 		Dir:    dir,
@@ -117,25 +117,25 @@ func (s *store) requestResource(res string, dir bool) (etcdserver.Response, erro
 	return s.server.Do(ctx, rr)
 }
 
-func (s *store) updateResource(res string, value interface{}) (etcdserver.Response, error) {
+func (s *store) updateResource(res string, value interface{}) (csfserver.Response, error) {
 	return s.setResource(res, value, true)
 }
-func (s *store) createResource(res string, value interface{}) (etcdserver.Response, error) {
+func (s *store) createResource(res string, value interface{}) (csfserver.Response, error) {
 	return s.setResource(res, value, false)
 }
-func (s *store) setResource(res string, value interface{}, prevexist bool) (etcdserver.Response, error) {
+func (s *store) setResource(res string, value interface{}, prevexist bool) (csfserver.Response, error) {
 	err := s.ensureAuthDirectories()
 	if err != nil {
-		return etcdserver.Response{}, err
+		return csfserver.Response{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	data, err := json.Marshal(value)
 	if err != nil {
-		return etcdserver.Response{}, err
+		return csfserver.Response{}, err
 	}
 	p := path.Join(StorePermsPrefix, res)
-	rr := etcdserverpb.Request{
+	rr := csfserverpb.Request{
 		Method:    "PUT",
 		Path:      p,
 		Val:       string(data),
@@ -144,16 +144,16 @@ func (s *store) setResource(res string, value interface{}, prevexist bool) (etcd
 	return s.server.Do(ctx, rr)
 }
 
-func (s *store) deleteResource(res string) (etcdserver.Response, error) {
+func (s *store) deleteResource(res string) (csfserver.Response, error) {
 	err := s.ensureAuthDirectories()
 	if err != nil {
-		return etcdserver.Response{}, err
+		return csfserver.Response{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	pex := true
 	p := path.Join(StorePermsPrefix, res)
-	rr := etcdserverpb.Request{
+	rr := csfserverpb.Request{
 		Method:    "DELETE",
 		Path:      p,
 		PrevExist: &pex,

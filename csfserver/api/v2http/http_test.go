@@ -21,13 +21,13 @@ import (
 	"sort"
 	"testing"
 
-	etcdErr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	etcdErr "github.com/catyguan/csf/error"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/semver"
 	"golang.org/x/net/context"
 )
 
@@ -61,8 +61,8 @@ func (fs *errServer) Start()           {}
 func (fs *errServer) Stop()            {}
 func (fs *errServer) ID() types.ID     { return types.ID(1) }
 func (fs *errServer) Leader() types.ID { return types.ID(1) }
-func (fs *errServer) Do(ctx context.Context, r etcdserverpb.Request) (etcdserver.Response, error) {
-	return etcdserver.Response{}, fs.err
+func (fs *errServer) Do(ctx context.Context, r csfserverpb.Request) (csfserver.Response, error) {
+	return csfserver.Response{}, fs.err
 }
 func (fs *errServer) Process(ctx context.Context, m raftpb.Message) error {
 	return fs.err

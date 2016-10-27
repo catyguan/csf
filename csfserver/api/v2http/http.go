@@ -20,13 +20,13 @@ import (
 	"strings"
 	"time"
 
-	etcdErr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
+	etcdErr "github.com/catyguan/csf/error"
 
-	"github.com/coreos/etcd/etcdserver/auth"
-	"github.com/coreos/etcd/pkg/logutil"
-	"github.com/coreos/pkg/capnslog"
+	"github.com/catyguan/csf/csfserver/auth"
+	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/logutil"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver/api/v2http")
+	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "csfserver/api/v2http")
 	mlog = logutil.NewMergeLogger(plog)
 )
 
@@ -60,7 +60,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		}
 	default:
 		switch err {
-		case etcdserver.ErrTimeoutDueToLeaderFail, etcdserver.ErrTimeoutDueToConnectionLost, etcdserver.ErrNotEnoughStartedMembers, etcdserver.ErrUnhealthy:
+		case csfserver.ErrTimeoutDueToLeaderFail, csfserver.ErrTimeoutDueToConnectionLost, csfserver.ErrNotEnoughStartedMembers, csfserver.ErrUnhealthy:
 			mlog.MergeError(err)
 		default:
 			mlog.MergeErrorf("got unexpected response error (%v)", err)

@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	etcdErr "github.com/catyguan/csf/error"
+	csfErr "github.com/catyguan/csf/error"
 	"github.com/catyguan/csf/pkg/types"
 	"github.com/jonboulle/clockwork"
 )
@@ -117,7 +117,7 @@ func (s *store) Index() uint64 {
 // If recursive is true, it will return all the content under the node path.
 // If sorted is true, it will sort the content by keys.
 func (s *store) Get(nodePath string, recursive, sorted bool) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.RLock()
 	defer s.worldLock.RUnlock()
@@ -147,7 +147,7 @@ func (s *store) Get(nodePath string, recursive, sorted bool) (*Event, error) {
 	}
 
 	e := newEvent(Get, nodePath, n.ModifiedIndex, n.CreatedIndex)
-	e.EtcdIndex = s.CurrentIndex
+	e.CsfIndex = s.CurrentIndex
 	e.Node.loadInternalNode(n, recursive, sorted, s.clock)
 
 	return e, nil
@@ -157,7 +157,7 @@ func (s *store) Get(nodePath string, recursive, sorted bool) (*Event, error) {
 // If the node has already existed, create will fail.
 // If any node on the path is a file, create will fail.
 func (s *store) Create(nodePath string, dir bool, value string, unique bool, expireOpts TTLOptionSet) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -178,7 +178,7 @@ func (s *store) Create(nodePath string, dir bool, value string, unique bool, exp
 		return nil, err
 	}
 
-	e.EtcdIndex = s.CurrentIndex
+	e.CsfIndex = s.CurrentIndex
 	s.WatcherHub.notify(e)
 
 	return e, nil
@@ -186,7 +186,7 @@ func (s *store) Create(nodePath string, dir bool, value string, unique bool, exp
 
 // Set creates or replace the node at nodePath.
 func (s *store) Set(nodePath string, dir bool, value string, expireOpts TTLOptionSet) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -204,7 +204,7 @@ func (s *store) Set(nodePath string, dir bool, value string, expireOpts TTLOptio
 
 	// Get prevNode value
 	n, getErr := s.internalGet(nodePath)
-	if getErr != nil && getErr.ErrorCode != etcdErr.EcodeKeyNotFound {
+	if getErr != nil && getErr.ErrorCode != csfErr.EcodeKeyNotFound {
 		err = getErr
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (s *store) Set(nodePath string, dir bool, value string, expireOpts TTLOptio
 	if err != nil {
 		return nil, err
 	}
-	e.EtcdIndex = s.CurrentIndex
+	e.CsfIndex = s.CurrentIndex
 
 	// Put prevNode into event
 	if getErr == nil {
@@ -257,7 +257,7 @@ func getCompareFailCause(n *node, which int, prevValue string, prevIndex uint64)
 func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint64,
 	value string, expireOpts TTLOptionSet) (*Event, error) {
 
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -276,7 +276,7 @@ func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint
 	nodePath = path.Clean(path.Join("/", nodePath))
 	// we do not allow the user to change "/"
 	if s.readonlySet.Contains(nodePath) {
-		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, "/", s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeRootROnly, "/", s.CurrentIndex)
 	}
 
 	n, err := s.internalGet(nodePath)
@@ -284,7 +284,7 @@ func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint
 		return nil, err
 	}
 	if n.IsDir() { // can only compare and swap file
-		err = etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, s.CurrentIndex)
+		err = csfErr.NewError(csfErr.EcodeNotFile, nodePath, s.CurrentIndex)
 		return nil, err
 	}
 
@@ -292,7 +292,7 @@ func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint
 	// Command will be executed, only if both of the tests are successful.
 	if ok, which := n.Compare(prevValue, prevIndex); !ok {
 		cause := getCompareFailCause(n, which, prevValue, prevIndex)
-		err = etcdErr.NewError(etcdErr.EcodeTestFailed, cause, s.CurrentIndex)
+		err = csfErr.NewError(csfErr.EcodeTestFailed, cause, s.CurrentIndex)
 		return nil, err
 	}
 
@@ -304,7 +304,7 @@ func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint
 	s.CurrentIndex++
 
 	e := newEvent(CompareAndSwap, nodePath, s.CurrentIndex, n.CreatedIndex)
-	e.EtcdIndex = s.CurrentIndex
+	e.CsfIndex = s.CurrentIndex
 	e.PrevNode = n.Repr(false, false, s.clock)
 	eNode := e.Node
 
@@ -330,7 +330,7 @@ func (s *store) CompareAndSwap(nodePath string, prevValue string, prevIndex uint
 // Delete deletes the node at the given path.
 // If the node is a directory, recursive must be true to delete it.
 func (s *store) Delete(nodePath string, dir, recursive bool) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -349,7 +349,7 @@ func (s *store) Delete(nodePath string, dir, recursive bool) (*Event, error) {
 	nodePath = path.Clean(path.Join("/", nodePath))
 	// we do not allow the user to change "/"
 	if s.readonlySet.Contains(nodePath) {
-		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, "/", s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeRootROnly, "/", s.CurrentIndex)
 	}
 
 	// recursive implies dir
@@ -364,7 +364,7 @@ func (s *store) Delete(nodePath string, dir, recursive bool) (*Event, error) {
 
 	nextIndex := s.CurrentIndex + 1
 	e := newEvent(Delete, nodePath, nextIndex, n.CreatedIndex)
-	e.EtcdIndex = nextIndex
+	e.CsfIndex = nextIndex
 	e.PrevNode = n.Repr(false, false, s.clock)
 	eNode := e.Node
 
@@ -391,7 +391,7 @@ func (s *store) Delete(nodePath string, dir, recursive bool) (*Event, error) {
 }
 
 func (s *store) CompareAndDelete(nodePath string, prevValue string, prevIndex uint64) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -414,21 +414,21 @@ func (s *store) CompareAndDelete(nodePath string, prevValue string, prevIndex ui
 		return nil, err
 	}
 	if n.IsDir() { // can only compare and delete file
-		return nil, etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeNotFile, nodePath, s.CurrentIndex)
 	}
 
 	// If both of the prevValue and prevIndex are given, we will test both of them.
 	// Command will be executed, only if both of the tests are successful.
 	if ok, which := n.Compare(prevValue, prevIndex); !ok {
 		cause := getCompareFailCause(n, which, prevValue, prevIndex)
-		return nil, etcdErr.NewError(etcdErr.EcodeTestFailed, cause, s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeTestFailed, cause, s.CurrentIndex)
 	}
 
 	// update etcd index
 	s.CurrentIndex++
 
 	e := newEvent(CompareAndDelete, nodePath, s.CurrentIndex, n.CreatedIndex)
-	e.EtcdIndex = s.CurrentIndex
+	e.CsfIndex = s.CurrentIndex
 	e.PrevNode = n.Repr(false, false, s.clock)
 
 	callback := func(path string) { // notify function
@@ -464,11 +464,11 @@ func (s *store) Watch(key string, recursive, stream bool, sinceIndex uint64) (Wa
 }
 
 // walk walks all the nodePath and apply the walkFunc on each directory
-func (s *store) walk(nodePath string, walkFunc func(prev *node, component string) (*node, *etcdErr.Error)) (*node, *etcdErr.Error) {
+func (s *store) walk(nodePath string, walkFunc func(prev *node, component string) (*node, *csfErr.Error)) (*node, *csfErr.Error) {
 	components := strings.Split(nodePath, "/")
 
 	curr := s.Root
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	for i := 1; i < len(components); i++ {
 		if len(components[i]) == 0 { // ignore empty string
@@ -488,7 +488,7 @@ func (s *store) walk(nodePath string, walkFunc func(prev *node, component string
 // If the node is a file, the value and the ttl can be updated.
 // If the node is a directory, only the ttl can be updated.
 func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet) (*Event, error) {
-	var err *etcdErr.Error
+	var err *csfErr.Error
 
 	s.worldLock.Lock()
 	defer s.worldLock.Unlock()
@@ -507,7 +507,7 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 	nodePath = path.Clean(path.Join("/", nodePath))
 	// we do not allow the user to change "/"
 	if s.readonlySet.Contains(nodePath) {
-		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, "/", s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeRootROnly, "/", s.CurrentIndex)
 	}
 
 	currIndex, nextIndex := s.CurrentIndex, s.CurrentIndex+1
@@ -518,7 +518,7 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 	}
 	if n.IsDir() && len(newValue) != 0 {
 		// if the node is a directory, we cannot update value to non-empty
-		return nil, etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, currIndex)
+		return nil, csfErr.NewError(csfErr.EcodeNotFile, nodePath, currIndex)
 	}
 
 	if expireOpts.Refresh {
@@ -526,7 +526,7 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 	}
 
 	e := newEvent(Update, nodePath, nextIndex, n.CreatedIndex)
-	e.EtcdIndex = nextIndex
+	e.CsfIndex = nextIndex
 	e.PrevNode = n.Repr(false, false, s.clock)
 	eNode := e.Node
 
@@ -558,7 +558,7 @@ func (s *store) Update(nodePath string, newValue string, expireOpts TTLOptionSet
 }
 
 func (s *store) internalCreate(nodePath string, dir bool, value string, unique, replace bool,
-	expireTime time.Time, action string) (*Event, *etcdErr.Error) {
+	expireTime time.Time, action string) (*Event, *csfErr.Error) {
 
 	currIndex, nextIndex := s.CurrentIndex, s.CurrentIndex+1
 
@@ -570,7 +570,7 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 
 	// we do not allow the user to change "/"
 	if s.readonlySet.Contains(nodePath) {
-		return nil, etcdErr.NewError(etcdErr.EcodeRootROnly, "/", currIndex)
+		return nil, csfErr.NewError(csfErr.EcodeRootROnly, "/", currIndex)
 	}
 
 	// Assume expire times that are way in the past are
@@ -600,13 +600,13 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 	if n != nil {
 		if replace {
 			if n.IsDir() {
-				return nil, etcdErr.NewError(etcdErr.EcodeNotFile, nodePath, currIndex)
+				return nil, csfErr.NewError(csfErr.EcodeNotFile, nodePath, currIndex)
 			}
 			e.PrevNode = n.Repr(false, false, s.clock)
 
 			n.Remove(false, false, nil)
 		} else {
-			return nil, etcdErr.NewError(etcdErr.EcodeNodeExist, nodePath, currIndex)
+			return nil, csfErr.NewError(csfErr.EcodeNodeExist, nodePath, currIndex)
 		}
 	}
 
@@ -639,13 +639,13 @@ func (s *store) internalCreate(nodePath string, dir bool, value string, unique, 
 }
 
 // InternalGet gets the node of the given nodePath.
-func (s *store) internalGet(nodePath string) (*node, *etcdErr.Error) {
+func (s *store) internalGet(nodePath string) (*node, *csfErr.Error) {
 	nodePath = path.Clean(path.Join("/", nodePath))
 
-	walkFunc := func(parent *node, name string) (*node, *etcdErr.Error) {
+	walkFunc := func(parent *node, name string) (*node, *csfErr.Error) {
 
 		if !parent.IsDir() {
-			err := etcdErr.NewError(etcdErr.EcodeNotDir, parent.Path, s.CurrentIndex)
+			err := csfErr.NewError(csfErr.EcodeNotDir, parent.Path, s.CurrentIndex)
 			return nil, err
 		}
 
@@ -654,7 +654,7 @@ func (s *store) internalGet(nodePath string) (*node, *etcdErr.Error) {
 			return child, nil
 		}
 
-		return nil, etcdErr.NewError(etcdErr.EcodeKeyNotFound, path.Join(parent.Path, name), s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeKeyNotFound, path.Join(parent.Path, name), s.CurrentIndex)
 	}
 
 	f, err := s.walk(nodePath, walkFunc)
@@ -678,7 +678,7 @@ func (s *store) DeleteExpiredKeys(cutoff time.Time) {
 
 		s.CurrentIndex++
 		e := newEvent(Expire, node.Path, s.CurrentIndex, node.CreatedIndex)
-		e.EtcdIndex = s.CurrentIndex
+		e.CsfIndex = s.CurrentIndex
 		e.PrevNode = node.Repr(false, false, s.clock)
 
 		callback := func(path string) { // notify function
@@ -701,7 +701,7 @@ func (s *store) DeleteExpiredKeys(cutoff time.Time) {
 // If it is a directory, this function will return the pointer to that node.
 // If it does not exist, this function will create a new directory and return the pointer to that node.
 // If it is a file, this function will return error.
-func (s *store) checkDir(parent *node, dirName string) (*node, *etcdErr.Error) {
+func (s *store) checkDir(parent *node, dirName string) (*node, *csfErr.Error) {
 	node, ok := parent.Children[dirName]
 
 	if ok {
@@ -709,7 +709,7 @@ func (s *store) checkDir(parent *node, dirName string) (*node, *etcdErr.Error) {
 			return node, nil
 		}
 
-		return nil, etcdErr.NewError(etcdErr.EcodeNotDir, node.Path, s.CurrentIndex)
+		return nil, csfErr.NewError(csfErr.EcodeNotDir, node.Path, s.CurrentIndex)
 	}
 
 	n := newDir(s, path.Join(parent.Path, dirName), s.CurrentIndex+1, parent, Permanent)

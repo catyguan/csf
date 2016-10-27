@@ -26,6 +26,44 @@ message LeaseInternalRequest {
   LeaseTimeToLiveRequest LeaseTimeToLiveRequest = 1;
 }
 
+message LeaseGrantRequest {
+  // TTL is the advisory time-to-live in seconds.
+  int64 TTL = 1;
+  // ID is the requested ID for the lease. If ID is set to 0, the lessor chooses an ID.
+  int64 ID = 2;
+}
+
+message LeaseGrantResponse {
+  basepb.ResponseHeader header = 1;
+  // ID is the lease ID for the granted lease.
+  int64 ID = 2;
+  // TTL is the server chosen lease time-to-live in seconds.
+  int64 TTL = 3;
+  string error = 4;
+}
+
+message LeaseRevokeRequest {
+  // ID is the lease ID to revoke. When the ID is revoked, all associated keys will be deleted.
+  int64 ID = 1;
+}
+
+message LeaseRevokeResponse {
+  basepb.ResponseHeader header = 1;
+}
+
+message LeaseKeepAliveRequest {
+  // ID is the lease ID for the lease to keep alive.
+  int64 ID = 1;
+}
+
+message LeaseKeepAliveResponse {
+  basepb.ResponseHeader header = 1;
+  // ID is the lease ID from the keep alive request.
+  int64 ID = 2;
+  // TTL is the new time-to-live for the lease.
+  int64 TTL = 3;
+}
+
 message LeaseTimeToLiveResponse {
   basepb.ResponseHeader header = 1;
   // ID is the lease ID from the keep alive request.

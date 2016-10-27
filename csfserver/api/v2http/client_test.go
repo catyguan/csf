@@ -28,17 +28,17 @@ import (
 	"testing"
 	"time"
 
-	etcdErr "github.com/coreos/etcd/error"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
-	"github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/etcdserver/membership"
-	"github.com/coreos/etcd/pkg/testutil"
-	"github.com/coreos/etcd/pkg/types"
-	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/coreos/etcd/store"
-	"github.com/coreos/etcd/version"
-	"github.com/coreos/go-semver/semver"
+	"github.com/catyguan/csf/csfserver"
+	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
+	"github.com/catyguan/csf/csfserver/csfserverpb"
+	"github.com/catyguan/csf/csfserver/membership"
+	etcdErr "github.com/catyguan/csf/error"
+	"github.com/catyguan/csf/pkg/testutil"
+	"github.com/catyguan/csf/pkg/types"
+	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/semver"
+	"github.com/catyguan/csf/store"
+	"github.com/catyguan/csf/version"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/net/context"
 )
@@ -96,9 +96,9 @@ func (s *serverRecorder) Start()           {}
 func (s *serverRecorder) Stop()            {}
 func (s *serverRecorder) Leader() types.ID { return types.ID(1) }
 func (s *serverRecorder) ID() types.ID     { return types.ID(1) }
-func (s *serverRecorder) Do(_ context.Context, r etcdserverpb.Request) (etcdserver.Response, error) {
+func (s *serverRecorder) Do(_ context.Context, r csfserverpb.Request) (csfserver.Response, error) {
 	s.actions = append(s.actions, action{name: "Do", params: []interface{}{r}})
-	return etcdserver.Response{}, nil
+	return csfserver.Response{}, nil
 }
 func (s *serverRecorder) Process(_ context.Context, m raftpb.Message) error {
 	s.actions = append(s.actions, action{name: "Process", params: []interface{}{m}})
@@ -139,14 +139,14 @@ func (fr *flushingRecorder) Flush() {
 // resServer implements the etcd.Server interface for testing.
 // It returns the given response from any Do calls, and nil error
 type resServer struct {
-	res etcdserver.Response
+	res csfserver.Response
 }
 
 func (rs *resServer) Start()           {}
 func (rs *resServer) Stop()            {}
 func (rs *resServer) ID() types.ID     { return types.ID(1) }
 func (rs *resServer) Leader() types.ID { return types.ID(1) }
-func (rs *resServer) Do(_ context.Context, _ etcdserverpb.Request) (etcdserver.Response, error) {
+func (rs *resServer) Do(_ context.Context, _ csfserverpb.Request) (csfserver.Response, error) {
 	return rs.res, nil
 }
 func (rs *resServer) Process(_ context.Context, _ raftpb.Message) error         { return nil }
@@ -210,7 +210,7 @@ func TestBadRefreshRequest(t *testing.T) {
 			t.Errorf("#%d: code=%d, want %v", i, ee.ErrorCode, tt.wcode)
 			t.Logf("cause: %#v", ee.Cause)
 		}
-		if !reflect.DeepEqual(got, etcdserverpb.Request{}) {
+		if !reflect.DeepEqual(got, csfserverpb.Request{}) {
 			t.Errorf("#%d: unexpected non-empty Request: %#v", i, got)
 		}
 	}
@@ -374,7 +374,7 @@ func TestBadParseRequest(t *testing.T) {
 			t.Errorf("#%d: code=%d, want %v", i, ee.ErrorCode, tt.wcode)
 			t.Logf("cause: %#v", ee.Cause)
 		}
-		if !reflect.DeepEqual(got, etcdserverpb.Request{}) {
+		if !reflect.DeepEqual(got, csfserverpb.Request{}) {
 			t.Errorf("#%d: unexpected non-empty Request: %#v", i, got)
 		}
 	}
@@ -385,15 +385,15 @@ func TestGoodParseRequest(t *testing.T) {
 	fc.Advance(1111)
 	tests := []struct {
 		in      *http.Request
-		w       etcdserverpb.Request
+		w       csfserverpb.Request
 		noValue bool
 	}{
 		{
 			// good prefix, all other values default
 			mustNewRequest(t, "foo"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "GET",
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -404,10 +404,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"value": []string{"some_value"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "PUT",
 				Val:    "some_value",
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -418,10 +418,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"prevIndex": []string{"98765"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevIndex: 98765,
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -432,10 +432,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"recursive": []string{"true"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				Recursive: true,
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -446,10 +446,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"sorted": []string{"true"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "PUT",
 				Sorted: true,
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -460,29 +460,29 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"quorum": []string{"true"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "PUT",
 				Quorum: true,
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
 		{
 			// wait specified
 			mustNewRequest(t, "foo?wait=true"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "GET",
 				Wait:   true,
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
 		{
 			// empty TTL specified
 			mustNewRequest(t, "foo?ttl="),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:     "GET",
-				Path:       path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:       path.Join(csfserver.StoreKeysPrefix, "/foo"),
 				Expiration: 0,
 			},
 			false,
@@ -490,9 +490,9 @@ func TestGoodParseRequest(t *testing.T) {
 		{
 			// non-empty TTL specified
 			mustNewRequest(t, "foo?ttl=5678"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:     "GET",
-				Path:       path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:       path.Join(csfserver.StoreKeysPrefix, "/foo"),
 				Expiration: fc.Now().Add(5678 * time.Second).UnixNano(),
 			},
 			false,
@@ -500,9 +500,9 @@ func TestGoodParseRequest(t *testing.T) {
 		{
 			// zero TTL specified
 			mustNewRequest(t, "foo?ttl=0"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:     "GET",
-				Path:       path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:       path.Join(csfserver.StoreKeysPrefix, "/foo"),
 				Expiration: fc.Now().UnixNano(),
 			},
 			false,
@@ -510,20 +510,20 @@ func TestGoodParseRequest(t *testing.T) {
 		{
 			// dir specified
 			mustNewRequest(t, "foo?dir=true"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "GET",
 				Dir:    true,
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
 		{
 			// dir specified negatively
 			mustNewRequest(t, "foo?dir=false"),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "GET",
 				Dir:    false,
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -534,10 +534,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"prevExist": []string{"true"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevExist: boolp(true),
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -548,10 +548,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"prevExist": []string{"false"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevExist: boolp(false),
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -566,12 +566,12 @@ func TestGoodParseRequest(t *testing.T) {
 					"prevValue": []string{"previous value"},
 				},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevExist: boolp(true),
 				PrevValue: "previous value",
 				Val:       "some value",
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -582,10 +582,10 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo?prevValue=woof",
 				url.Values{},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevValue: "woof",
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -598,10 +598,10 @@ func TestGoodParseRequest(t *testing.T) {
 					"prevValue": []string{"miaow"},
 				},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method:    "PUT",
 				PrevValue: "miaow",
-				Path:      path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:      path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			false,
 		},
@@ -612,9 +612,9 @@ func TestGoodParseRequest(t *testing.T) {
 				"foo",
 				url.Values{"noValueOnSuccess": []string{"true"}},
 			),
-			etcdserverpb.Request{
+			csfserverpb.Request{
 				Method: "PUT",
-				Path:   path.Join(etcdserver.StoreKeysPrefix, "/foo"),
+				Path:   path.Join(csfserver.StoreKeysPrefix, "/foo"),
 			},
 			true,
 		},
@@ -869,7 +869,7 @@ func TestServeMembersUpdate(t *testing.T) {
 func TestServeMembersFail(t *testing.T) {
 	tests := []struct {
 		req    *http.Request
-		server etcdserver.Server
+		server csfserver.Server
 
 		wcode int
 	}{
@@ -928,7 +928,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusBadRequest,
 		},
 		{
-			// etcdserver.AddMember error
+			// csfserver.AddMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, membersPrefix),
 				Method: "POST",
@@ -942,7 +942,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusInternalServerError,
 		},
 		{
-			// etcdserver.AddMember error
+			// csfserver.AddMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, membersPrefix),
 				Method: "POST",
@@ -956,7 +956,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusConflict,
 		},
 		{
-			// etcdserver.AddMember error
+			// csfserver.AddMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, membersPrefix),
 				Method: "POST",
@@ -970,7 +970,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusConflict,
 		},
 		{
-			// etcdserver.RemoveMember error with arbitrary server error
+			// csfserver.RemoveMember error with arbitrary server error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "1")),
 				Method: "DELETE",
@@ -982,7 +982,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusInternalServerError,
 		},
 		{
-			// etcdserver.RemoveMember error with previously removed ID
+			// csfserver.RemoveMember error with previously removed ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "0")),
 				Method: "DELETE",
@@ -994,7 +994,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusGone,
 		},
 		{
-			// etcdserver.RemoveMember error with nonexistent ID
+			// csfserver.RemoveMember error with nonexistent ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "0")),
 				Method: "DELETE",
@@ -1006,7 +1006,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusNotFound,
 		},
 		{
-			// etcdserver.RemoveMember error with badly formed ID
+			// csfserver.RemoveMember error with badly formed ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "bad_id")),
 				Method: "DELETE",
@@ -1016,7 +1016,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusNotFound,
 		},
 		{
-			// etcdserver.RemoveMember with no ID
+			// csfserver.RemoveMember with no ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, membersPrefix),
 				Method: "DELETE",
@@ -1062,7 +1062,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusBadRequest,
 		},
 		{
-			// etcdserver.UpdateMember error
+			// csfserver.UpdateMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "0")),
 				Method: "PUT",
@@ -1076,7 +1076,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusInternalServerError,
 		},
 		{
-			// etcdserver.UpdateMember error
+			// csfserver.UpdateMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "0")),
 				Method: "PUT",
@@ -1090,7 +1090,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusConflict,
 		},
 		{
-			// etcdserver.UpdateMember error
+			// csfserver.UpdateMember error
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "0")),
 				Method: "PUT",
@@ -1104,7 +1104,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusNotFound,
 		},
 		{
-			// etcdserver.UpdateMember error with badly formed ID
+			// csfserver.UpdateMember error with badly formed ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, path.Join(membersPrefix, "bad_id")),
 				Method: "PUT",
@@ -1114,7 +1114,7 @@ func TestServeMembersFail(t *testing.T) {
 			http.StatusNotFound,
 		},
 		{
-			// etcdserver.UpdateMember with no ID
+			// csfserver.UpdateMember with no ID
 			&http.Request{
 				URL:    testutil.MustNewURL(t, membersPrefix),
 				Method: "PUT",
@@ -1448,7 +1448,7 @@ func TestServeVersionFails(t *testing.T) {
 func TestBadServeKeys(t *testing.T) {
 	testBadCases := []struct {
 		req    *http.Request
-		server etcdserver.Server
+		server csfserver.Server
 
 		wcode int
 		wbody string
@@ -1485,7 +1485,7 @@ func TestBadServeKeys(t *testing.T) {
 			`{"errorCode":210,"message":"Invalid POST form","cause":"missing form body","index":0}`,
 		},
 		{
-			// etcdserver.Server error
+			// csfserver.Server error
 			mustNewRequest(t, "foo"),
 			&errServer{
 				errors.New("Internal Server Error"),
@@ -1495,7 +1495,7 @@ func TestBadServeKeys(t *testing.T) {
 			`{"errorCode":300,"message":"Raft Internal Error","cause":"Internal Server Error","index":0}`,
 		},
 		{
-			// etcdserver.Server etcd error
+			// csfserver.Server etcd error
 			mustNewRequest(t, "foo"),
 			&errServer{
 				etcdErr.NewError(etcdErr.EcodeKeyNotFound, "/1/pant", 0),
@@ -1505,10 +1505,10 @@ func TestBadServeKeys(t *testing.T) {
 			`{"errorCode":100,"message":"Key not found","cause":"/pant","index":0}`,
 		},
 		{
-			// non-event/watcher response from etcdserver.Server
+			// non-event/watcher response from csfserver.Server
 			mustNewRequest(t, "foo"),
 			&resServer{
-				etcdserver.Response{},
+				csfserver.Response{},
 			},
 
 			http.StatusInternalServerError,
@@ -1566,7 +1566,7 @@ func TestServeKeysGood(t *testing.T) {
 		},
 	}
 	server := &resServer{
-		etcdserver.Response{
+		csfserver.Response{
 			Event: &store.Event{
 				Action: store.Get,
 				Node:   &store.NodeExtern{},
@@ -1591,13 +1591,13 @@ func TestServeKeysGood(t *testing.T) {
 func TestServeKeysEvent(t *testing.T) {
 	tests := []struct {
 		req   *http.Request
-		rsp   etcdserver.Response
+		rsp   csfserver.Response
 		wcode int
 		event *store.Event
 	}{
 		{
 			mustNewRequest(t, "foo"),
-			etcdserver.Response{
+			csfserver.Response{
 				Event: &store.Event{
 					Action: store.Get,
 					Node:   &store.NodeExtern{},
@@ -1615,7 +1615,7 @@ func TestServeKeysEvent(t *testing.T) {
 				"foo",
 				url.Values{"noValueOnSuccess": []string{"true"}},
 			),
-			etcdserver.Response{
+			csfserver.Response{
 				Event: &store.Event{
 					Action: store.CompareAndSwap,
 					Node:   &store.NodeExtern{},
@@ -1669,7 +1669,7 @@ func TestServeKeysWatch(t *testing.T) {
 		echan: ec,
 	}
 	server := &resServer{
-		etcdserver.Response{
+		csfserver.Response{
 			Watcher: dw,
 		},
 	}

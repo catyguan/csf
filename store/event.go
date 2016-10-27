@@ -26,11 +26,11 @@ const (
 )
 
 type Event struct {
-	Action    string      `json:"action"`
-	Node      *NodeExtern `json:"node,omitempty"`
-	PrevNode  *NodeExtern `json:"prevNode,omitempty"`
-	EtcdIndex uint64      `json:"-"`
-	Refresh   bool        `json:"refresh,omitempty"`
+	Action   string      `json:"action"`
+	Node     *NodeExtern `json:"node,omitempty"`
+	PrevNode *NodeExtern `json:"prevNode,omitempty"`
+	CsfIndex uint64      `json:"-"`
+	Refresh  bool        `json:"refresh,omitempty"`
 }
 
 func newEvent(action string, key string, modifiedIndex, createdIndex uint64) *Event {
@@ -59,10 +59,10 @@ func (e *Event) Index() uint64 {
 
 func (e *Event) Clone() *Event {
 	return &Event{
-		Action:    e.Action,
-		EtcdIndex: e.EtcdIndex,
-		Node:      e.Node.Clone(),
-		PrevNode:  e.PrevNode.Clone(),
+		Action:   e.Action,
+		CsfIndex: e.CsfIndex,
+		Node:     e.Node.Clone(),
+		PrevNode: e.PrevNode.Clone(),
 	}
 }
 

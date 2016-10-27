@@ -39,6 +39,7 @@ import (
 	"github.com/catyguan/csf/csfserver/stats"
 	"github.com/catyguan/csf/discovery"
 	"github.com/catyguan/csf/lease"
+	"github.com/catyguan/csf/lease/leasepb"
 	"github.com/catyguan/csf/mvcc"
 	"github.com/catyguan/csf/mvcc/backend"
 	"github.com/catyguan/csf/pkg/capnslog"
@@ -709,7 +710,7 @@ func (s *CsfServer) run() {
 					}
 					lid := lease.ID
 					s.goAttach(func() {
-						s.LeaseRevoke(context.TODO(), &pb.LeaseRevokeRequest{ID: int64(lid)})
+						s.LeaseRevoke(context.TODO(), &leasepb.LeaseRevokeRequest{ID: int64(lid)})
 						<-c
 					})
 				}

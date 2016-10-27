@@ -16,7 +16,7 @@ package store
 
 type Watcher interface {
 	EventChan() chan *Event
-	StartIndex() uint64 // The EtcdIndex at which the Watcher was created
+	StartIndex() uint64 // The CsfIndex at which the Watcher was created
 	Remove()
 }
 

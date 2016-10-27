@@ -67,9 +67,9 @@ type RaftKV interface {
 
 type Lessor interface {
 	// LeaseGrant sends LeaseGrant request to raft and apply it after committed.
-	LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error)
+	LeaseGrant(ctx context.Context, r *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error)
 	// LeaseRevoke sends LeaseRevoke request to raft and apply it after committed.
-	LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error)
+	LeaseRevoke(ctx context.Context, r *leasepb.LeaseRevokeRequest) (*leasepb.LeaseRevokeResponse, error)
 
 	// LeaseRenew renews the lease with given ID. The renewed TTL is returned. Or an error
 	// is returned.
@@ -282,7 +282,7 @@ func (s *CsfServer) Compact(ctx context.Context, r *cpb.CompactionRequest) (*cpb
 	return resp, nil
 }
 
-func (s *CsfServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*pb.LeaseGrantResponse, error) {
+func (s *CsfServer) LeaseGrant(ctx context.Context, r *leasepb.LeaseGrantRequest) (*leasepb.LeaseGrantResponse, error) {
 	// no id given? choose one
 	for r.ID == int64(lease.NoLease) {
 		// only use positive int64 id's
@@ -295,10 +295,10 @@ func (s *CsfServer) LeaseGrant(ctx context.Context, r *pb.LeaseGrantRequest) (*p
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.LeaseGrantResponse), nil
+	return result.resp.(*leasepb.LeaseGrantResponse), nil
 }
 
-func (s *CsfServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (*pb.LeaseRevokeResponse, error) {
+func (s *CsfServer) LeaseRevoke(ctx context.Context, r *leasepb.LeaseRevokeRequest) (*leasepb.LeaseRevokeResponse, error) {
 	result, err := s.processInternalRaftRequestOnce(ctx, pb.InternalRaftRequest{LeaseRevoke: r})
 	if err != nil {
 		return nil, err
@@ -306,7 +306,7 @@ func (s *CsfServer) LeaseRevoke(ctx context.Context, r *pb.LeaseRevokeRequest) (
 	if result.err != nil {
 		return nil, result.err
 	}
-	return result.resp.(*pb.LeaseRevokeResponse), nil
+	return result.resp.(*leasepb.LeaseRevokeResponse), nil
 }
 
 func (s *CsfServer) LeaseRenew(id lease.LeaseID) (int64, error) {

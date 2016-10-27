@@ -18,8 +18,8 @@ import (
 	"os"
 	"testing"
 
-	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
-	"github.com/coreos/etcd/mvcc/backend"
+	apb "github.com/catyguan/csf/auth/authpb"
+	"github.com/catyguan/csf/mvcc/backend"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 )
@@ -34,7 +34,7 @@ func TestUserAdd(t *testing.T) {
 	}()
 
 	as := NewAuthStore(b)
-	ua := &pb.AuthUserAddRequest{Name: "foo"}
+	ua := &apb.AuthUserAddRequest{Name: "foo"}
 	_, err := as.UserAdd(ua) // add a non-existing user
 	if err != nil {
 		t.Fatal(err)
@@ -49,17 +49,17 @@ func TestUserAdd(t *testing.T) {
 }
 
 func enableAuthAndCreateRoot(as *authStore) error {
-	_, err := as.UserAdd(&pb.AuthUserAddRequest{Name: "root", Password: "root"})
+	_, err := as.UserAdd(&apb.AuthUserAddRequest{Name: "root", Password: "root"})
 	if err != nil {
 		return err
 	}
 
-	_, err = as.RoleAdd(&pb.AuthRoleAddRequest{Name: "root"})
+	_, err = as.RoleAdd(&apb.AuthRoleAddRequest{Name: "root"})
 	if err != nil {
 		return err
 	}
 
-	_, err = as.UserGrantRole(&pb.AuthUserGrantRoleRequest{User: "root", Role: "root"})
+	_, err = as.UserGrantRole(&apb.AuthUserGrantRoleRequest{User: "root", Role: "root"})
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func TestCheckPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ua := &pb.AuthUserAddRequest{Name: "foo", Password: "bar"}
+	ua := &apb.AuthUserAddRequest{Name: "foo", Password: "bar"}
 	_, err = as.UserAdd(ua)
 	if err != nil {
 		t.Fatal(err)
@@ -124,14 +124,14 @@ func TestUserDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ua := &pb.AuthUserAddRequest{Name: "foo"}
+	ua := &apb.AuthUserAddRequest{Name: "foo"}
 	_, err = as.UserAdd(ua)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// delete an existing user
-	ud := &pb.AuthUserDeleteRequest{Name: "foo"}
+	ud := &apb.AuthUserDeleteRequest{Name: "foo"}
 	_, err = as.UserDelete(ud)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestUserChangePassword(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = as.UserAdd(&pb.AuthUserAddRequest{Name: "foo"})
+	_, err = as.UserAdd(&apb.AuthUserAddRequest{Name: "foo"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestUserChangePassword(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = as.UserChangePassword(&pb.AuthUserChangePasswordRequest{Name: "foo", Password: "bar"})
+	_, err = as.UserChangePassword(&apb.AuthUserChangePasswordRequest{Name: "foo", Password: "bar"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestUserChangePassword(t *testing.T) {
 	}
 
 	// change a non-existing user
-	_, err = as.UserChangePassword(&pb.AuthUserChangePasswordRequest{Name: "foo-test", Password: "bar"})
+	_, err = as.UserChangePassword(&apb.AuthUserChangePasswordRequest{Name: "foo-test", Password: "bar"})
 	if err == nil {
 		t.Fatalf("expected %v, got %v", ErrUserNotFound, err)
 	}
@@ -206,7 +206,7 @@ func TestRoleAdd(t *testing.T) {
 	}
 
 	// adds a new role
-	_, err = as.RoleAdd(&pb.AuthRoleAddRequest{Name: "role-test"})
+	_, err = as.RoleAdd(&apb.AuthRoleAddRequest{Name: "role-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,25 +225,25 @@ func TestUserGrant(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = as.UserAdd(&pb.AuthUserAddRequest{Name: "foo"})
+	_, err = as.UserAdd(&apb.AuthUserAddRequest{Name: "foo"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// adds a new role
-	_, err = as.RoleAdd(&pb.AuthRoleAddRequest{Name: "role-test"})
+	_, err = as.RoleAdd(&apb.AuthRoleAddRequest{Name: "role-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// grants a role to the user
-	_, err = as.UserGrantRole(&pb.AuthUserGrantRoleRequest{User: "foo", Role: "role-test"})
+	_, err = as.UserGrantRole(&apb.AuthUserGrantRoleRequest{User: "foo", Role: "role-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// grants a role to a non-existing user
-	_, err = as.UserGrantRole(&pb.AuthUserGrantRoleRequest{User: "foo-test", Role: "role-test"})
+	_, err = as.UserGrantRole(&apb.AuthUserGrantRoleRequest{User: "foo-test", Role: "role-test"})
 	if err == nil {
 		t.Fatalf("expected %v, got %v", ErrUserNotFound, err)
 	}
