@@ -28,12 +28,10 @@ import (
 
 // ServerConfig holds the configuration of etcd as taken from the command line or discovery.
 type ServerConfig struct {
-	Name           string
-	DiscoveryURL   string
-	DiscoveryProxy string
-	ClientURLs     types.URLs
-	PeerURLs       types.URLs
-	DataDir        string
+	Name       string
+	ClientURLs types.URLs
+	PeerURLs   types.URLs
+	DataDir    string
 	// DedicatedWALDir config will make the etcd to write the WAL to the WALDir
 	// rather than the dataDir/member/wal.
 	DedicatedWALDir     string
@@ -70,8 +68,8 @@ func (c *ServerConfig) VerifyBootstrap() error {
 	if checkDuplicateURL(c.InitialPeerURLsMap) {
 		return fmt.Errorf("initial cluster %s has duplicate url", c.InitialPeerURLsMap)
 	}
-	if c.InitialPeerURLsMap.String() == "" && c.DiscoveryURL == "" {
-		return fmt.Errorf("initial cluster unset and no discovery URL found")
+	if c.InitialPeerURLsMap.String() == "" {
+		return fmt.Errorf("initial cluster unset found")
 	}
 	return nil
 }

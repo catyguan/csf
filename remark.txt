@@ -35,6 +35,8 @@ github.com/xiang90/probing
 github.com/ghodss/yaml
 github.com/cockroachdb/cmux
 github.com/spf13/pflag
+github.com/urfave/cli
+github.com/bgentry/speakeasy
 
 golang.org/x/crypto
 golang.org/x/*
@@ -48,6 +50,13 @@ go get github.com/gogo/protobuf/proto
 go get github.com/gogo/protobuf/jsonpb
 go get github.com/gogo/protobuf/protoc-gen-gogo
 go get github.com/gogo/protobuf/gogoproto
+
+c:\GoPath\bin\csfctl
+	version
+	put foo bar
+	get foo
+	-w table member list
+c:\GoPath\bin\etcdlike -C=configs/node1.csf
 
 protoc -I=C:/GoPath/src/github.com/gogo/protobuf;C:/GoPath/src/github.com/gogo/protobuf/protobuf;C:/GoPath/src;. --gogo_out=. raft_internal.proto 
 

@@ -1,0 +1,12 @@
+# [member]
+name: N2
+data-dir: datas/n2
+listen-peer-urls: http://127.0.0.1:2480
+initial-advertise-peer-urls: http://127.0.0.1:2480
+listen-client-urls: http://127.0.0.1:2479
+advertise-client-urls: http://127.0.0.1:2479
+
+#[cluster]
+initial-cluster: N1=http://127.0.0.1:2380,N2=http://127.0.0.1:2480,N3=http://127.0.0.1:2580
+initial-cluster-state: new
+initial-cluster-token: csf-cluster
