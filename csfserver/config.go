@@ -86,9 +86,6 @@ func (c *ServerConfig) VerifyJoinExisting() error {
 	if checkDuplicateURL(c.InitialPeerURLsMap) {
 		return fmt.Errorf("initial cluster %s has duplicate url", c.InitialPeerURLsMap)
 	}
-	if c.DiscoveryURL != "" {
-		return fmt.Errorf("discovery URL should not be set when joining existing initial cluster")
-	}
 	return nil
 }
 
@@ -126,8 +123,6 @@ func (c *ServerConfig) WALDir() string {
 
 func (c *ServerConfig) SnapDir() string { return path.Join(c.MemberDir(), "snap") }
 
-func (c *ServerConfig) ShouldDiscover() bool { return c.DiscoveryURL != "" }
-
 // ReqTimeout returns timeout for request to finish.
 func (c *ServerConfig) ReqTimeout() time.Duration {
 	// 5s for queue waiting, computation and disk IO delay
@@ -162,12 +157,7 @@ func (c *ServerConfig) print(initial bool) {
 	plog.Infof("heartbeat = %dms", c.TickMs)
 	plog.Infof("election = %dms", c.ElectionTicks*int(c.TickMs))
 	plog.Infof("snapshot count = %d", c.SnapCount)
-	if len(c.DiscoveryURL) != 0 {
-		plog.Infof("discovery URL= %s", c.DiscoveryURL)
-		if len(c.DiscoveryProxy) != 0 {
-			plog.Infof("discovery proxy = %s", c.DiscoveryProxy)
-		}
-	}
+
 	plog.Infof("advertise client URLs = %s", c.ClientURLs)
 	if initial {
 		plog.Infof("initial advertise peer URLs = %s", c.PeerURLs)

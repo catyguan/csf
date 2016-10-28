@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/catyguan/csf/csfserver"
-	"github.com/catyguan/csf/discovery"
 	"github.com/catyguan/csf/pkg/cors"
 	"github.com/catyguan/csf/pkg/netutil"
 	"github.com/catyguan/csf/pkg/transport"
@@ -45,8 +44,6 @@ const (
 )
 
 var (
-	ErrConflictBootstrapFlags = fmt.Errorf("multiple discovery or bootstrap flags are set. " +
-		"Choose one of \"initial-cluster\", \"discovery\" or \"discovery-srv\"")
 	ErrUnsetAdvertiseClientURLsFlag = fmt.Errorf("--advertise-client-urls is required when --listen-client-urls is set explicitly")
 
 	DefaultListenPeerURLs           = "http://localhost:2380"
@@ -95,9 +92,6 @@ type Config struct {
 
 	APUrls, ACUrls      []url.URL
 	ClusterState        string `json:"initial-cluster-state"`
-	DNSCluster          string `json:"discovery-srv"`
-	Dproxy              string `json:"discovery-proxy"`
-	Durl                string `json:"discovery"`
 	InitialCluster      string `json:"initial-cluster"`
 	InitialClusterToken string `json:"initial-cluster-token"`
 	StrictReconfigCheck bool   `json:"strict-reconfig-check"`
@@ -261,20 +255,8 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
-	// Check if conflicting flags are passed.
-	nSet := 0
-	for _, v := range []bool{cfg.Durl != "", cfg.InitialCluster != "", cfg.DNSCluster != ""} {
-		if v {
-			nSet++
-		}
-	}
-
 	if cfg.ClusterState != ClusterStateFlagNew && cfg.ClusterState != ClusterStateFlagExisting {
 		return fmt.Errorf("unexpected clusterState %q", cfg.ClusterState)
-	}
-
-	if nSet > 1 {
-		return ErrConflictBootstrapFlags
 	}
 
 	if 5*cfg.TickMs > cfg.ElectionMs {
@@ -295,29 +277,6 @@ func (cfg *Config) Validate() error {
 // PeerURLsMapAndToken sets up an initial peer URLsMap and cluster token for bootstrap or discovery.
 func (cfg *Config) PeerURLsMapAndToken(which string) (urlsmap types.URLsMap, token string, err error) {
 	switch {
-	case cfg.Durl != "":
-		urlsmap = types.URLsMap{}
-		// If using discovery, generate a temporary cluster based on
-		// self's advertised peer URLs
-		urlsmap[cfg.Name] = cfg.APUrls
-		token = cfg.Durl
-	case cfg.DNSCluster != "":
-		var clusterStr string
-		clusterStr, token, err = discovery.SRVGetCluster(cfg.Name, cfg.DNSCluster, cfg.InitialClusterToken, cfg.APUrls)
-		if err != nil {
-			return nil, "", err
-		}
-		if strings.Contains(clusterStr, "https://") && cfg.PeerTLSInfo.CAFile == "" {
-			cfg.PeerTLSInfo.ServerName = cfg.DNSCluster
-		}
-		urlsmap, err = types.NewURLsMap(clusterStr)
-		// only etcd member must belong to the discovered cluster.
-		// proxy does not need to belong to the discovered cluster.
-		if which == "csf" {
-			if _, ok := urlsmap[cfg.Name]; !ok {
-				return nil, "", fmt.Errorf("cannot find local CSF member %q in SRV records", cfg.Name)
-			}
-		}
 	default:
 		// We're statically configured, and cluster has appropriately been set.
 		urlsmap, err = types.NewURLsMap(cfg.InitialCluster)

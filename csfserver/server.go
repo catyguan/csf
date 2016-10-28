@@ -31,7 +31,6 @@ import (
 	"github.com/catyguan/csf/alarm"
 	alpb "github.com/catyguan/csf/alarm/alarmpb"
 	"github.com/catyguan/csf/auth"
-	"github.com/catyguan/csf/bak/discovery"
 	"github.com/catyguan/csf/compactor"
 	"github.com/catyguan/csf/csfserver/api"
 	"github.com/catyguan/csf/csfserver/api/v2http/httptypes"
@@ -324,24 +323,7 @@ func NewServer(cfg *ServerConfig) (srv *CsfServer, err error) {
 		if isMemberBootstrapped(cl, cfg.Name, prt, cfg.bootstrapTimeout()) {
 			return nil, fmt.Errorf("member %s has already been bootstrapped", m.ID)
 		}
-		if cfg.ShouldDiscover() {
-			var str string
-			str, err = discovery.JoinCluster(cfg.DiscoveryURL, cfg.DiscoveryProxy, m.ID, cfg.InitialPeerURLsMap.String())
-			if err != nil {
-				return nil, &DiscoveryError{Op: "join", Err: err}
-			}
-			var urlsmap types.URLsMap
-			urlsmap, err = types.NewURLsMap(str)
-			if err != nil {
-				return nil, err
-			}
-			if checkDuplicateURL(urlsmap) {
-				return nil, fmt.Errorf("discovery cluster %s has duplicate url", urlsmap)
-			}
-			if cl, err = membership.NewClusterFromURLsMap(cfg.InitialClusterToken, urlsmap); err != nil {
-				return nil, err
-			}
-		}
+
 		cl.SetStore(st)
 		cl.SetBackend(be)
 		cfg.PrintWithInitial()
@@ -355,9 +337,6 @@ func NewServer(cfg *ServerConfig) (srv *CsfServer, err error) {
 			return nil, fmt.Errorf("cannot write to WAL directory: %v", err)
 		}
 
-		if cfg.ShouldDiscover() {
-			plog.Warningf("discovery token ignored since a cluster has already been initialized. Valid log found at %q", cfg.WALDir())
-		}
 		snapshot, err = ss.Load()
 		if err != nil && err != snap.ErrNoSnapshot {
 			return nil, err
