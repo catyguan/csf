@@ -169,7 +169,7 @@ func (h *snapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("X-Etcd-Cluster-ID", h.cid.String())
+	w.Header().Set("X-CSF-Cluster-ID", h.cid.String())
 
 	if err := checkClusterCompatibilityFromHeader(r.Header, h.cid); err != nil {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)
@@ -333,7 +333,7 @@ func checkClusterCompatibilityFromHeader(header http.Header, cid types.ID) error
 		plog.Errorf("request version incompatibility (%v)", err)
 		return errIncompatibleVersion
 	}
-	if gcid := header.Get("X-Etcd-Cluster-ID"); gcid != cid.String() {
+	if gcid := header.Get("X-CSF-Cluster-ID"); gcid != cid.String() {
 		plog.Errorf("request cluster ID mismatch (got %s want %s)", gcid, cid)
 		return errClusterIDMismatch
 	}

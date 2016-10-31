@@ -148,7 +148,7 @@ func TestServeRaftPrefix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("#%d: could not create request: %#v", i, err)
 		}
-		req.Header.Set("X-Etcd-Cluster-ID", tt.clusterID)
+		req.Header.Set("X-CSF-Cluster-ID", tt.clusterID)
 		req.Header.Set("X-Server-Version", version.Version)
 		rw := httptest.NewRecorder()
 		h := newPipelineHandler(NewNopTransporter(), tt.p, types.ID(0))
@@ -305,7 +305,7 @@ func TestServeRaftStreamPrefixBad(t *testing.T) {
 		if err != nil {
 			t.Fatalf("#%d: could not create request: %#v", i, err)
 		}
-		req.Header.Set("X-Etcd-Cluster-ID", tt.clusterID)
+		req.Header.Set("X-CSF-Cluster-ID", tt.clusterID)
 		req.Header.Set("X-Server-Version", version.Version)
 		req.Header.Set("X-Raft-To", tt.remote)
 		rw := httptest.NewRecorder()

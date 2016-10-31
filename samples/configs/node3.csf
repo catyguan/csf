@@ -8,5 +8,4 @@ advertise-client-urls: http://127.0.0.1:2579
 
 #[cluster]
 initial-cluster: N1=http://127.0.0.1:2380,N2=http://127.0.0.1:2480,N3=http://127.0.0.1:2580
-initial-cluster-state: new
 initial-cluster-token: csf-cluster

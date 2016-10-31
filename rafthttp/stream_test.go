@@ -129,8 +129,8 @@ func TestStreamReaderDialRequest(t *testing.T) {
 		if w := "GET"; req.Method != w {
 			t.Errorf("#%d: method = %s, want %s", i, req.Method, w)
 		}
-		if g := req.Header.Get("X-Etcd-Cluster-ID"); g != "1" {
-			t.Errorf("#%d: header X-Etcd-Cluster-ID = %s, want 1", i, g)
+		if g := req.Header.Get("X-CSF-Cluster-ID"); g != "1" {
+			t.Errorf("#%d: header X-CSF-Cluster-ID = %s, want 1", i, g)
 		}
 		if g := req.Header.Get("X-Raft-To"); g != "2" {
 			t.Errorf("#%d: header X-Raft-To = %s, want 2", i, g)

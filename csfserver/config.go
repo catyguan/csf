@@ -40,6 +40,7 @@ type ServerConfig struct {
 	MaxWALFiles         uint
 	InitialPeerURLsMap  types.URLsMap
 	InitialClusterToken string
+	AutoCluster         bool
 	NewCluster          bool
 	ForceNewCluster     bool
 	PeerTLSInfo         transport.TLSInfo

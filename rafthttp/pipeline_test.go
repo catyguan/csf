@@ -153,7 +153,7 @@ func TestPipelinePost(t *testing.T) {
 	if g := req.Header.Get("X-Min-Cluster-Version"); g != version.MinClusterVersion {
 		t.Errorf("min version = %s, want %s", g, version.MinClusterVersion)
 	}
-	if g := req.Header.Get("X-Etcd-Cluster-ID"); g != "1" {
+	if g := req.Header.Get("X-CSF-Cluster-ID"); g != "1" {
 		t.Errorf("cluster id = %s, want %s", g, "1")
 	}
 	b, err := ioutil.ReadAll(req.Body)

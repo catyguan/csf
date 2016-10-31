@@ -285,50 +285,66 @@ func NewServer(cfg *ServerConfig) (srv *CsfServer, err error) {
 		snapshot *raftpb.Snapshot
 	)
 
-	switch {
-	case !haveWAL && !cfg.NewCluster:
-		if err = cfg.VerifyJoinExisting(); err != nil {
-			return nil, err
-		}
-		cl, err = membership.NewClusterFromURLsMap(cfg.InitialClusterToken, cfg.InitialPeerURLsMap)
-		if err != nil {
-			return nil, err
-		}
-		existingCluster, gerr := GetClusterFromRemotePeers(getRemotePeerURLs(cl, cfg.Name), prt)
-		if gerr != nil {
-			return nil, fmt.Errorf("cannot fetch cluster info from peer urls: %v", gerr)
-		}
-		if err = membership.ValidateClusterAndAssignIDs(cl, existingCluster); err != nil {
-			return nil, fmt.Errorf("error validating peerURLs %s: %v", existingCluster, err)
-		}
-		if !isCompatibleWithCluster(cl, cl.MemberByName(cfg.Name).ID, prt) {
-			return nil, fmt.Errorf("incompatible with current running cluster")
-		}
+	if !haveWAL {
+		if cfg.AutoCluster || !cfg.NewCluster {
+			if err = cfg.VerifyJoinExisting(); err != nil {
+				return nil, err
+			}
+			cl, err = membership.NewClusterFromURLsMap(cfg.InitialClusterToken, cfg.InitialPeerURLsMap)
+			if err != nil {
+				return nil, err
+			}
+			rplist := getRemotePeerURLs(cl, cfg.Name)
+			if cfg.AutoCluster {
+				plog.Infof("auto search Cluster at %v", rplist)
+			}
+			existingCluster, ferr := func() (*membership.RaftCluster, error) {
+				r, gerr := GetClusterFromRemotePeers(rplist, prt)
+				if gerr != nil {
+					return nil, fmt.Errorf("cannot fetch cluster info from peer urls: %v", gerr)
+				}
+				if gerr = membership.ValidateClusterAndAssignIDs(cl, r); gerr != nil {
+					return nil, fmt.Errorf("error validating peerURLs %s: %v", r, gerr)
+				}
+				if !isCompatibleWithCluster(cl, cl.MemberByName(cfg.Name).ID, prt) {
+					return nil, fmt.Errorf("incompatible with current running cluster")
+				}
+				return r, nil
+			}()
 
-		remotes = existingCluster.Members()
-		cl.SetID(existingCluster.ID())
-		cl.SetStore(st)
-		cl.SetBackend(be)
-		cfg.Print()
-		id, n, s, w = startNode(cfg, cl, nil)
-	case !haveWAL && cfg.NewCluster:
-		if err = cfg.VerifyBootstrap(); err != nil {
-			return nil, err
+			if ferr != nil {
+				if !cfg.AutoCluster {
+					return nil, ferr
+				}
+				cfg.NewCluster = true
+			} else {
+				remotes = existingCluster.Members()
+				cl.SetID(existingCluster.ID())
+				cl.SetStore(st)
+				cl.SetBackend(be)
+				cfg.Print()
+				id, n, s, w = startNode(cfg, cl, nil)
+			}
 		}
-		cl, err = membership.NewClusterFromURLsMap(cfg.InitialClusterToken, cfg.InitialPeerURLsMap)
-		if err != nil {
-			return nil, err
-		}
-		m := cl.MemberByName(cfg.Name)
-		if isMemberBootstrapped(cl, cfg.Name, prt, cfg.bootstrapTimeout()) {
-			return nil, fmt.Errorf("member %s has already been bootstrapped", m.ID)
-		}
+		if cfg.NewCluster {
+			if err = cfg.VerifyBootstrap(); err != nil {
+				return nil, err
+			}
+			cl, err = membership.NewClusterFromURLsMap(cfg.InitialClusterToken, cfg.InitialPeerURLsMap)
+			if err != nil {
+				return nil, err
+			}
+			m := cl.MemberByName(cfg.Name)
+			if isMemberBootstrapped(cl, cfg.Name, prt, cfg.bootstrapTimeout()) {
+				return nil, fmt.Errorf("member %s has already been bootstrapped", m.ID)
+			}
 
-		cl.SetStore(st)
-		cl.SetBackend(be)
-		cfg.PrintWithInitial()
-		id, n, s, w = startNode(cfg, cl, cl.MemberIDs())
-	case haveWAL:
+			cl.SetStore(st)
+			cl.SetBackend(be)
+			cfg.PrintWithInitial()
+			id, n, s, w = startNode(cfg, cl, cl.MemberIDs())
+		}
+	} else {
 		if err = fileutil.IsDirWriteable(cfg.MemberDir()); err != nil {
 			return nil, fmt.Errorf("cannot write to member directory: %v", err)
 		}
@@ -360,9 +376,10 @@ func NewServer(cfg *ServerConfig) (srv *CsfServer, err error) {
 			os.RemoveAll(bepath)
 			return nil, fmt.Errorf("database file (%v) of the backend is missing", bepath)
 		}
-	default:
-		return nil, fmt.Errorf("unsupported bootstrap config")
 	}
+	// default:
+	// 	return nil, fmt.Errorf("unsupported bootstrap config")
+	// }
 
 	if terr := fileutil.TouchDirAll(cfg.MemberDir()); terr != nil {
 		return nil, fmt.Errorf("cannot access member directory: %v", terr)

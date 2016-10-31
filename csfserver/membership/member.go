@@ -76,8 +76,11 @@ func NewMember(name string, peerURLs types.URLs, clusterName string, now *time.T
 // PickPeerURL chooses a random address from a given Member's PeerURLs.
 // It will panic if there is no PeerURLs available in Member.
 func (m *Member) PickPeerURL() string {
-	if len(m.PeerURLs) == 0 {
+	switch len(m.PeerURLs) {
+	case 0:
 		plog.Panicf("member should always have some peer url")
+	case 1:
+		return m.PeerURLs[0]
 	}
 	return m.PeerURLs[rand.Intn(len(m.PeerURLs))]
 }

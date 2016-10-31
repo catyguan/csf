@@ -31,6 +31,7 @@ import (
 )
 
 const (
+	ClusterStateFlagAuto     = "auto"
 	ClusterStateFlagNew      = "new"
 	ClusterStateFlagExisting = "existing"
 
@@ -163,7 +164,7 @@ func NewConfig() *Config {
 		LCUrls:              []url.URL{*lcurl},
 		APUrls:              []url.URL{*apurl},
 		ACUrls:              []url.URL{*acurl},
-		ClusterState:        ClusterStateFlagNew,
+		ClusterState:        ClusterStateFlagAuto,
 		InitialClusterToken: "csf-cluster",
 		StrictReconfigCheck: true,
 	}
@@ -255,7 +256,7 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
-	if cfg.ClusterState != ClusterStateFlagNew && cfg.ClusterState != ClusterStateFlagExisting {
+	if cfg.ClusterState != ClusterStateFlagNew && cfg.ClusterState != ClusterStateFlagExisting && cfg.ClusterState != ClusterStateFlagAuto {
 		return fmt.Errorf("unexpected clusterState %q", cfg.ClusterState)
 	}
 
@@ -299,8 +300,9 @@ func (cfg Config) InitialClusterFromName(name string) (ret string) {
 	return ret[1:]
 }
 
-func (cfg Config) IsNewCluster() bool { return cfg.ClusterState == ClusterStateFlagNew }
-func (cfg Config) ElectionTicks() int { return int(cfg.ElectionMs / cfg.TickMs) }
+func (cfg Config) IsNewCluster() bool  { return cfg.ClusterState == ClusterStateFlagNew }
+func (cfg Config) IsAutoCluster() bool { return cfg.ClusterState == ClusterStateFlagAuto }
+func (cfg Config) ElectionTicks() int  { return int(cfg.ElectionMs / cfg.TickMs) }
 
 // IsDefaultHost returns the default hostname, if used, and the error, if any,
 // from getting the machine's default host.

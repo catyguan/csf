@@ -87,7 +87,7 @@ func getClusterFromRemotePeers(urls []string, timeout time.Duration, logerr bool
 			}
 			continue
 		}
-		id, err := types.IDFromString(resp.Header.Get("X-Etcd-Cluster-ID"))
+		id, err := types.IDFromString(resp.Header.Get("X-CSF-Cluster-ID"))
 		if err != nil {
 			if logerr {
 				plog.Warningf("could not parse the cluster ID from cluster res: %v", err)

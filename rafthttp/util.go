@@ -98,7 +98,7 @@ func createPostRequest(u url.URL, path string, body io.Reader, ct string, urls t
 	req.Header.Set("X-Server-From", from.String())
 	req.Header.Set("X-Server-Version", version.Version)
 	req.Header.Set("X-Min-Cluster-Version", version.MinClusterVersion)
-	req.Header.Set("X-Etcd-Cluster-ID", cid.String())
+	req.Header.Set("X-CSF-Cluster-ID", cid.String())
 	setPeerURLsHeader(req, urls)
 
 	return req
@@ -115,7 +115,7 @@ func checkPostResponse(resp *http.Response, body []byte, req *http.Request, to t
 			return errIncompatibleVersion
 		case errClusterIDMismatch.Error():
 			plog.Errorf("request sent was ignored (cluster ID mismatch: remote[%s]=%s, local=%s)",
-				to, resp.Header.Get("X-Etcd-Cluster-ID"), req.Header.Get("X-Etcd-Cluster-ID"))
+				to, resp.Header.Get("X-CSF-Cluster-ID"), req.Header.Get("X-CSF-Cluster-ID"))
 			return errClusterIDMismatch
 		default:
 			return fmt.Errorf("unhandled error %q when precondition failed", string(body))

@@ -677,7 +677,7 @@ func TestServeMembers(t *testing.T) {
 		if gct := rw.Header().Get("Content-Type"); gct != tt.wct {
 			t.Errorf("#%d: content-type = %s, want %s", i, gct, tt.wct)
 		}
-		gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+		gcid := rw.Header().Get("X-CSF-Cluster-ID")
 		wcid := cluster.ID().String()
 		if gcid != wcid {
 			t.Errorf("#%d: cid = %s, want %s", i, gcid, wcid)
@@ -728,7 +728,7 @@ func TestServeLeader(t *testing.T) {
 		if gct := rw.Header().Get("Content-Type"); gct != tt.wct {
 			t.Errorf("#%d: content-type = %s, want %s", i, gct, tt.wct)
 		}
-		gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+		gcid := rw.Header().Get("X-CSF-Cluster-ID")
 		wcid := cluster.ID().String()
 		if gcid != wcid {
 			t.Errorf("#%d: cid = %s, want %s", i, gcid, wcid)
@@ -766,7 +766,7 @@ func TestServeMembersCreate(t *testing.T) {
 	if gct := rw.Header().Get("Content-Type"); gct != wct {
 		t.Errorf("content-type = %s, want %s", gct, wct)
 	}
-	gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+	gcid := rw.Header().Get("X-CSF-Cluster-ID")
 	wcid := h.cluster.ID().String()
 	if gcid != wcid {
 		t.Errorf("cid = %s, want %s", gcid, wcid)
@@ -809,7 +809,7 @@ func TestServeMembersDelete(t *testing.T) {
 	if rw.Code != wcode {
 		t.Errorf("code=%d, want %d", rw.Code, wcode)
 	}
-	gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+	gcid := rw.Header().Get("X-CSF-Cluster-ID")
 	wcid := h.cluster.ID().String()
 	if gcid != wcid {
 		t.Errorf("cid = %s, want %s", gcid, wcid)
@@ -847,7 +847,7 @@ func TestServeMembersUpdate(t *testing.T) {
 		t.Errorf("code=%d, want %d", rw.Code, wcode)
 	}
 
-	gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+	gcid := rw.Header().Get("X-CSF-Cluster-ID")
 	wcid := h.cluster.ID().String()
 	if gcid != wcid {
 		t.Errorf("cid = %s, want %s", gcid, wcid)
@@ -1136,7 +1136,7 @@ func TestServeMembersFail(t *testing.T) {
 			t.Errorf("#%d: code=%d, want %d", i, rw.Code, tt.wcode)
 		}
 		if rw.Code != http.StatusMethodNotAllowed {
-			gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+			gcid := rw.Header().Get("X-CSF-Cluster-ID")
 			wcid := h.cluster.ID().String()
 			if gcid != wcid {
 				t.Errorf("#%d: cid = %s, want %s", i, gcid, wcid)
@@ -1527,7 +1527,7 @@ func TestBadServeKeys(t *testing.T) {
 			t.Errorf("#%d: got code=%d, want %d", i, rw.Code, tt.wcode)
 		}
 		if rw.Code != http.StatusMethodNotAllowed {
-			gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+			gcid := rw.Header().Get("X-CSF-Cluster-ID")
 			wcid := h.cluster.ID().String()
 			if gcid != wcid {
 				t.Errorf("#%d: cid = %s, want %s", i, gcid, wcid)
@@ -1650,7 +1650,7 @@ func TestServeKeysEvent(t *testing.T) {
 		if rw.Code != tt.wcode {
 			t.Errorf("got code=%d, want %d", rw.Code, tt.wcode)
 		}
-		gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+		gcid := rw.Header().Get("X-CSF-Cluster-ID")
 		wcid := h.cluster.ID().String()
 		if gcid != wcid {
 			t.Errorf("cid = %s, want %s", gcid, wcid)
@@ -1701,7 +1701,7 @@ func TestServeKeysWatch(t *testing.T) {
 	if rw.Code != wcode {
 		t.Errorf("got code=%d, want %d", rw.Code, wcode)
 	}
-	gcid := rw.Header().Get("X-Etcd-Cluster-ID")
+	gcid := rw.Header().Get("X-CSF-Cluster-ID")
 	wcid := h.cluster.ID().String()
 	if gcid != wcid {
 		t.Errorf("cid = %s, want %s", gcid, wcid)

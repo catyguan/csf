@@ -108,6 +108,7 @@ func StartCluster(inCfg *Config) (e *Cluster, err error) {
 		MaxWALFiles:             cfg.MaxWalFiles,
 		InitialPeerURLsMap:      urlsmap,
 		InitialClusterToken:     token,
+		AutoCluster:             cfg.IsAutoCluster(),
 		NewCluster:              cfg.IsNewCluster(),
 		ForceNewCluster:         cfg.ForceNewCluster,
 		PeerTLSInfo:             cfg.PeerTLSInfo,
