@@ -1,0 +1,87 @@
+---------------------------
+alarm -- 报警管理
+	alarm/alarmpb
+	mvcc/backend
+	
+auth -- 提供基于角色访问的授权认证
+	auth/authpb
+	mvcc/backend
+	
+client -- v2的Go客户端
+
+compactor -- 压缩mvvc存储
+	compactor/compactorpb
+	mvcc
+
+discovery -- 集群发现
+	client
+
+lease -- time-limited leases over arbitrary resources(对任意资源的有时限的租约)
+	lease/leasepb
+	mvcc/backend
+	
+leasehttp -- lease的http服务协议实现
+	lease
+	lease/leasepb
+	
+mvcc -- MVCC存储
+	lease
+	mvcc/mvccpb
+	mvcc/backend
+	
+mvcc/backend -- MVCC存储的实现
+	
+raft -- 一致性算法
+	raft/raftpb
+	
+rafthttp -- raft的http服务协议
+	raft
+	raft/raftpb
+	snap
+	csfserver/stats
+	
+snap -- 快照
+	raft
+	raft/raftpb
+	snap/snappb
+	
+store -- 内存KV存储服务
+	
+wal -- 操作日志存储
+	wal/walpb
+	raft/raftpb
+	
+csfserver/membership -- 集群成员
+	mvcc/backend
+	raft
+	raft/raftpb
+	store
+	
+csfserver/stats -- 统计数据
+	raft
+
+csfserver
+	rafthttp
+	auth
+	csfserver/csfserverpb
+	csfserver/membership
+	lease
+	lease/leasehttp
+	lease/leasepb
+	mvcc
+	mvcc/backend
+	raft
+	raft/raftpb
+	snap
+	wal
+	wal/walpb
+	
+csfserver/auth
+	csfserver
+	csfserver/csfserverpb
+	
+csfserver/api/v2http
+	
+embed
+	csfserver
+	discovery
