@@ -347,63 +347,6 @@ func restartNode(cfg *Config, snapshot *raftpb.Snapshot) (types.ID, *membership.
 	return id, cl, n, s, w
 }
 
-func restartAsStandaloneNode(cfg *Config, snapshot *raftpb.Snapshot) (types.ID, *membership.RaftCluster, raft.Node, *raft.MemoryStorage, *wal.WAL) {
-	var walsnap walpb.Snapshot
-	if snapshot != nil {
-		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
-	}
-	w, id, cid, st, ents := readWAL(cfg.WALDir(), walsnap)
-
-	// discard the previously uncommitted entries
-	for i, ent := range ents {
-		if ent.Index > st.Commit {
-			plog.Infof("discarding %d uncommitted WAL entries ", len(ents)-i)
-			ents = ents[:i]
-			break
-		}
-	}
-
-	// // force append the configuration change entries
-	// toAppEnts := createConfigChangeEnts(getIDs(snapshot, ents), uint64(id), st.Term, st.Commit)
-	// ents = append(ents, toAppEnts...)
-
-	// // force commit newly appended entries
-	// err := w.Save(raftpb.HardState{}, toAppEnts)
-	// if err != nil {
-	// 	plog.Fatalf("%v", err)
-	// }
-	if len(ents) != 0 {
-		st.Commit = ents[len(ents)-1].Index
-	}
-
-	plog.Printf("forcing restart of member %s in cluster %s at commit index %d", id, cid, st.Commit)
-
-	ms := make([]*membership.Member, 0)
-	for _, peer := range cfg.ClusterPeers {
-		m := membership.NewMember(cfg.ClusterName, types.ID(peer.ID), peer.Name, peer.PeerURL, peer.ClientURL)
-		ms = append(ms, m)
-	}
-	cl := membership.NewClusterFromMembers(cfg.ClusterName, cfg.ClusterToken, ms, version.Version)
-
-	s := raft.NewMemoryStorage()
-	if snapshot != nil {
-		s.ApplySnapshot(*snapshot)
-	}
-	s.SetHardState(st)
-	s.Append(ents)
-	c := &raft.Config{
-		ID:              uint64(id),
-		ElectionTick:    cfg.ElectionTicks(),
-		HeartbeatTick:   1,
-		Storage:         s,
-		MaxSizePerMsg:   maxSizePerMsg,
-		MaxInflightMsgs: maxInflightMsgs,
-	}
-	n := raft.RestartNode(c)
-	raftStatus = n.Status
-	return id, cl, n, s, w
-}
-
 // getIDs returns an ordered set of IDs included in the given snapshot and
 // the entries. The given snapshot/entries can contain two kinds of
 // ID-related entry:
