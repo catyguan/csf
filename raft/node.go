@@ -170,19 +170,27 @@ type Peer struct {
 
 // StartNode returns a new Node given configuration and a list of raft peers.
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
+func BuildNode(c *Config, peers []Peer) Node {
+	return startNode(c, peers, false)
+}
 func StartNode(c *Config, peers []Peer) Node {
+	return startNode(c, peers, true)
+}
+func startNode(c *Config, peers []Peer, confChange bool) Node {
 	r := newRaft(c)
 	// become the follower at term 1 and apply initial configuration
 	// entries of term 1
 	r.becomeFollower(1, None)
-	for _, peer := range peers {
-		cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
-		d, err := cc.Marshal()
-		if err != nil {
-			panic("unexpected marshal error")
+	if confChange {
+		for _, peer := range peers {
+			cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
+			d, err := cc.Marshal()
+			if err != nil {
+				panic("unexpected marshal error")
+			}
+			e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
+			r.raftLog.append(e)
 		}
-		e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
-		r.raftLog.append(e)
 	}
 	// Mark these initial entries as committed.
 	// TODO(bdarnell): These entries are still unstable; do we need to preserve

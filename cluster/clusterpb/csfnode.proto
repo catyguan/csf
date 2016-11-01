@@ -1,5 +1,5 @@
 syntax = "proto2";
-package csfserverpb;
+package clusterpb;
 
 import "gogoproto/gogo.proto";
 

@@ -500,7 +500,6 @@ func (r *raft) appendEntry(es ...pb.Entry) {
 // tickElection is run by followers and candidates after r.electionTimeout.
 func (r *raft) tickElection() {
 	r.electionElapsed++
-
 	if r.promotable() && r.pastElectionTimeout() {
 		r.electionElapsed = 0
 		r.Step(pb.Message{From: r.id, Type: pb.MsgHup})
@@ -584,7 +583,8 @@ func (r *raft) becomeLeader() {
 
 func (r *raft) campaign(t CampaignType) {
 	r.becomeCandidate()
-	if r.quorum() == r.poll(r.id, true) {
+	granted := r.poll(r.id, true)
+	if r.quorum() == granted {
 		r.becomeLeader()
 		return
 	}

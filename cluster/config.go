@@ -67,17 +67,17 @@ func init() {
 type PeerConfig struct {
 	ID           uint   `json:"id"`
 	Name         string `json:"name"`
-	PeerURL      []url.URL
-	strPeerURL   string `json:"peer-url"`
-	ClientURL    []url.URL
-	strClientURL string `json:"client-url"`
+	PeerURL      types.URLs
+	StrPeerURL   string `json:"peer-url"`
+	ClientURL    types.URLs
+	StrClientURL string `json:"client-url"`
 }
 
 // Config holds the arguments for configuring an etcd server.
 type Config struct {
 	// member
 	CorsInfo                *cors.CORSInfo
-	LPUrls, LCUrls          []url.URL
+	LPUrls, LCUrls          types.URLs
 	Dir                     string `json:"data-dir"`
 	WalDir                  string `json:"wal-dir"`
 	MaxSnapFiles            uint   `json:"max-snapshots"`
@@ -162,8 +162,8 @@ func NewConfig() *Config {
 	peer := &PeerConfig{}
 	peer.ID = 1
 	peer.Name = cfg.Name
-	peer.strPeerURL = DefaultListenPeerURLs
-	peer.strClientURL = DefaultListenClientURLs
+	peer.StrPeerURL = DefaultListenPeerURLs
+	peer.StrClientURL = DefaultListenClientURLs
 	cfg.ClusterPeers = []*PeerConfig{peer}
 	return cfg
 }
@@ -214,19 +214,19 @@ func (cfg *configYAML) configFromFile(path string) error {
 			if cpeer.ID == 0 {
 				plog.Fatalf("invalid '%s' id", cpeer.Name)
 			}
-			if cpeer.strClientURL != "" {
-				u, err := types.NewURLs(strings.Split(cpeer.strClientURL, ","))
+			if cpeer.StrClientURL != "" {
+				u, err := types.NewURLs(strings.Split(cpeer.StrClientURL, ","))
 				if err != nil {
 					plog.Fatalf("unexpected error parse '%s' peer-url: %v", cpeer.Name, err)
 				}
-				cpeer.ClientURL = []url.URL(u)
+				cpeer.ClientURL = u
 			}
-			if cpeer.strPeerURL != "" {
-				u, err := types.NewURLs(strings.Split(cpeer.strPeerURL, ","))
+			if cpeer.StrPeerURL != "" {
+				u, err := types.NewURLs(strings.Split(cpeer.StrPeerURL, ","))
 				if err != nil {
 					plog.Fatalf("unexpected error parse '%s' peer-url: %v", cpeer.Name, err)
 				}
-				cpeer.PeerURL = []url.URL(u)
+				cpeer.PeerURL = u
 			}
 		}
 	}
@@ -244,6 +244,7 @@ func (cfg *configYAML) configFromFile(path string) error {
 	cfg.PeerAutoTLS = cfg.PeerSecurityJSON.AutoTLS
 
 	return cfg.Validate()
+	// return nil
 }
 
 func (cfg *Config) Validate() error {
@@ -252,6 +253,18 @@ func (cfg *Config) Validate() error {
 	}
 	if err := checkBindURLs(cfg.LCUrls); err != nil {
 		return err
+	}
+
+	if cfg.ClusterPeers == nil || len(cfg.ClusterPeers) == 0 {
+		return fmt.Errorf("empty cluster peer")
+	}
+	for _, cpeer := range cfg.ClusterPeers {
+		if cpeer.ID == 0 {
+			return fmt.Errorf("invalid '%s' id", cpeer.Name)
+		}
+		if cpeer.PeerURL == nil || len(cpeer.PeerURL) == 0 {
+			return fmt.Errorf("miss node(%s) peer url", cpeer.Name)
+		}
 	}
 
 	if 5*cfg.TickMs > cfg.ElectionMs {

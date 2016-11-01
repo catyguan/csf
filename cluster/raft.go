@@ -15,14 +15,12 @@
 package cluster
 
 import (
-	"encoding/json"
 	"expvar"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	pb "github.com/catyguan/csf/basepb"
 	"github.com/catyguan/csf/cluster/membership"
 	"github.com/catyguan/csf/pkg/capnslog"
 	"github.com/catyguan/csf/pkg/pbutil"
@@ -30,7 +28,6 @@ import (
 	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/raft/raftpb"
 	"github.com/catyguan/csf/rafthttp"
-	"github.com/catyguan/csf/version"
 	"github.com/catyguan/csf/wal"
 	"github.com/catyguan/csf/wal/walpb"
 )
@@ -266,62 +263,18 @@ func advanceTicksForElection(n raft.Node, electionTicks int) {
 	}
 }
 
-func startNode(cfg *Config, cl *membership.RaftCluster, ids []types.ID) (id types.ID, n raft.Node, s *raft.MemoryStorage, w *wal.WAL) {
-	var err error
-	member := cl.MemberByName(cfg.Name)
-	metadata := pbutil.MustMarshal(
-		&pb.Metadata{
-			NodeID:    uint64(member.ID),
-			ClusterID: uint64(cl.ID()),
-		},
-	)
-	if w, err = wal.Create(cfg.WALDir(), metadata); err != nil {
-		plog.Fatalf("create wal error: %v", err)
-	}
-	peers := make([]raft.Peer, len(ids))
-	for i, id := range ids {
-		ctx, err := json.Marshal((*cl).Member(id))
-		if err != nil {
-			plog.Panicf("marshal member should never fail: %v", err)
-		}
-		peers[i] = raft.Peer{ID: uint64(id), Context: ctx}
-	}
-	id = member.ID
-	plog.Infof("starting member %s in cluster %s", id, cl.ID())
-	s = raft.NewMemoryStorage()
-	c := &raft.Config{
-		ID:              uint64(id),
-		ElectionTick:    cfg.ElectionTicks(),
-		HeartbeatTick:   1,
-		Storage:         s,
-		MaxSizePerMsg:   maxSizePerMsg,
-		MaxInflightMsgs: maxInflightMsgs,
-		CheckQuorum:     true,
-	}
-
-	n = raft.StartNode(c, peers)
-	raftStatusMu.Lock()
-	raftStatus = n.Status
-	raftStatusMu.Unlock()
-	advanceTicksForElection(n, c.ElectionTick)
-	return
-}
-
-func restartNode(cfg *Config, snapshot *raftpb.Snapshot) (types.ID, *membership.RaftCluster, raft.Node, *raft.MemoryStorage, *wal.WAL) {
+func startNode(cfg *Config, cl *membership.RaftCluster, snapshot *raftpb.Snapshot) (types.ID, raft.Node, *raft.MemoryStorage, *wal.WAL) {
 	var walsnap walpb.Snapshot
 	if snapshot != nil {
 		walsnap.Index, walsnap.Term = snapshot.Metadata.Index, snapshot.Metadata.Term
 	}
-	w, id, cid, st, ents := readWAL(cfg.WALDir(), walsnap)
+	w, st, ents := readWAL(cfg.WALDir(), walsnap)
 
-	plog.Infof("restarting member %s in cluster %s at commit index %d", id, cid, st.Commit)
+	self := cl.MemberByName(cfg.Name)
+	id := self.ID
+	cid := cl.ID()
 
-	ms := make([]*membership.Member, 0)
-	for _, peer := range cfg.ClusterPeers {
-		m := membership.NewMember(cfg.ClusterName, types.ID(peer.ID), peer.Name, peer.PeerURL, peer.ClientURL)
-		ms = append(ms, m)
-	}
-	cl := membership.NewClusterFromMembers(cfg.ClusterName, cfg.ClusterToken, ms, version.Version)
+	plog.Infof("starting member %s in cluster %s at commit index %d", id, cid, st.Commit)
 
 	s := raft.NewMemoryStorage()
 	if snapshot != nil {
@@ -339,12 +292,18 @@ func restartNode(cfg *Config, snapshot *raftpb.Snapshot) (types.ID, *membership.
 		CheckQuorum:     true,
 	}
 
-	n := raft.RestartNode(c)
+	ms := cl.Members()
+	ps := make([]raft.Peer, 0, len(ms))
+	for _, m := range ms {
+		ps = append(ps, raft.Peer{ID: uint64(m.ID), Context: []byte(m.Name)})
+	}
+
+	n := raft.BuildNode(c, ps)
 	raftStatusMu.Lock()
 	raftStatus = n.Status
 	raftStatusMu.Unlock()
 	advanceTicksForElection(n, c.ElectionTick)
-	return id, cl, n, s, w
+	return id, n, s, w
 }
 
 // getIDs returns an ordered set of IDs included in the given snapshot and

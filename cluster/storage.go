@@ -17,9 +17,6 @@ package cluster
 import (
 	"io"
 
-	pb "github.com/catyguan/csf/basepb"
-	"github.com/catyguan/csf/pkg/pbutil"
-	"github.com/catyguan/csf/pkg/types"
 	"github.com/catyguan/csf/raft/raftpb"
 	"github.com/catyguan/csf/snap"
 	"github.com/catyguan/csf/wal"
@@ -67,10 +64,9 @@ func (st *storage) SaveSnap(snap raftpb.Snapshot) error {
 	return st.WAL.ReleaseLockTo(snap.Metadata.Index)
 }
 
-func readWAL(waldir string, snap walpb.Snapshot) (w *wal.WAL, id, cid types.ID, st raftpb.HardState, ents []raftpb.Entry) {
+func readWAL(waldir string, snap walpb.Snapshot) (w *wal.WAL, st raftpb.HardState, ents []raftpb.Entry) {
 	var (
-		err       error
-		wmetadata []byte
+		err error
 	)
 
 	repaired := false
@@ -78,7 +74,7 @@ func readWAL(waldir string, snap walpb.Snapshot) (w *wal.WAL, id, cid types.ID, 
 		if w, err = wal.Open(waldir, snap); err != nil {
 			plog.Fatalf("open wal error: %v", err)
 		}
-		if wmetadata, st, ents, err = w.ReadAll(); err != nil {
+		if _, st, ents, err = w.ReadAll(); err != nil {
 			w.Close()
 			// we can only repair ErrUnexpectedEOF and we never repair twice.
 			if repaired || err != io.ErrUnexpectedEOF {
@@ -94,9 +90,5 @@ func readWAL(waldir string, snap walpb.Snapshot) (w *wal.WAL, id, cid types.ID, 
 		}
 		break
 	}
-	var metadata pb.Metadata
-	pbutil.MustUnmarshal(&metadata, wmetadata)
-	id = types.ID(metadata.NodeID)
-	cid = types.ID(metadata.ClusterID)
 	return
 }

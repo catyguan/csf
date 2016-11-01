@@ -1,0 +1,30 @@
+# [member]
+name: N1
+data-dir: datas/n1
+listen-peer-urls: http://127.0.0.1:2380
+listen-client-urls: http://127.0.0.1:2379,http://127.0.0.1:12379
+
+# [cluster]
+cluster-name: C0
+cluster-token: csf-cluster
+cluster-peers:
+- name: N1
+  id: 101
+  peer-url: http://127.0.0.1:2380
+  client-url: http://127.0.0.1:2379
+- name: N2
+  id: 102
+  peer-url: http://127.0.0.1:2480
+  client-url: http://127.0.0.1:2479
+
+# [options]
+wal-dir: ""
+debug: false
+election-timeout: 1000
+heartbeat-interval: 100
+log-package-levels: ""
+max-snapshots: 5
+max-wals: 5
+quota-backend-bytes: 0
+snapshot-count: 10000
+strict-reconfig-check: true

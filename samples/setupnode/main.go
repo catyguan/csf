@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/catyguan/csf/embed"
+	"github.com/catyguan/csf/cluster"
 	"github.com/catyguan/csf/pkg/osutil"
 )
 
@@ -32,41 +32,53 @@ func main() {
 	flag.Parse()
 
 	if configFile == "" {
-		fmt.Errorf("config file -C invalid")
+		fmt.Printf("config file -C invalid")
 		os.Exit(-1)
 	}
 
-	cfg, err := embed.ConfigFromFile(configFile)
+	cfg, err := cluster.ConfigFromFile(configFile)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(3)
 	}
 
-	cl, err := embed.SetupCluster(cfg)
+	node, err := cluster.SetupNode(cfg)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(4)
 	}
-	defer cl.Close()
+	node.Start()
+	defer node.Stop()
 
-	if !cl.OnReady(60 * time.Second) {
-		cl.Server.Stop() // trigger a shutdown
+	if !node.OnReady(60 * time.Second) {
+		node.Stop()
 		log.Printf("Server took too long to start!")
 		os.Exit(5)
 	}
 	log.Printf("Server is ready!")
 
-	stopped := cl.Server.StopNotify()
-	errc := cl.Err()
-
 	osutil.HandleInterrupts()
 
-	select {
-	case lerr := <-errc:
-		// fatal out on listener errors
-		log.Fatal(lerr)
-	case <-stopped:
-	}
+	time.Sleep(60 * time.Second)
+
+	// if !cl.OnReady(60 * time.Second) {
+	// 	cl.Server.Stop() // trigger a shutdown
+	// 	log.Printf("Server took too long to start!")
+	// 	os.Exit(5)
+	// }
+	// log.Printf("Server is ready!")
+
+	// stopped := cl.Server.StopNotify()
+	// errc := cl.Err()
+
+	// osutil.HandleInterrupts()
+
+	// select {
+	// case lerr := <-errc:
+	// 	// fatal out on listener errors
+	// 	log.Fatal(lerr)
+	// case <-stopped:
+	// }
 
 	osutil.Exit(0)
 

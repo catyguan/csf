@@ -87,7 +87,9 @@ func (c *Config) PrintWithInitial() { c.print(true) }
 func (c *Config) Print() { c.print(false) }
 
 func (c *Config) print(initial bool) {
-	plog.Infof("name = %s", c.Name)
+	plog.Infof("cluster = %s", c.ClusterName)
+	plog.Infof("node = %s", c.Name)
+	plog.Infof("peerURL = %s", c.LPUrls.StringSlice())
 
 	plog.Infof("data dir = %s", c.Dir)
 	plog.Infof("member dir = %s", c.MemberDir())

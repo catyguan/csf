@@ -1,0 +1,21 @@
+# [member]
+name: N2
+data-dir: datas/n2
+listen-peer-urls: http://127.0.0.1:2480
+listen-client-urls: http://127.0.0.1:2479
+
+# [cluster]
+cluster-name: C0
+cluster-token: csf-cluster
+cluster-peers:
+- name: N1
+  id: 101
+  peer-url: http://127.0.0.1:2380
+  client-url: http://127.0.0.1:2379
+- name: 2
+  id: 102
+  peer-url: http://127.0.0.1:2480
+  client-url: http://127.0.0.1:2479
+
+# [options]
+debug: false
