@@ -11,6 +11,8 @@
 
 	It has these top-level messages:
 		Metadata
+		ServiceSnapshot
+		ServiceSnapshotPack
 		ResponseHeader
 */
 package basepb
@@ -44,8 +46,31 @@ func (m *Metadata) String() string            { return proto.CompactTextString(m
 func (*Metadata) ProtoMessage()               {}
 func (*Metadata) Descriptor() ([]byte, []int) { return fileDescriptorBase2, []int{0} }
 
+type ServiceSnapshot struct {
+	Data             []byte `protobuf:"bytes,1,opt,name=data" json:"data,omitempty"`
+	Id               string `protobuf:"bytes,2,opt,name=id" json:"id"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *ServiceSnapshot) Reset()                    { *m = ServiceSnapshot{} }
+func (m *ServiceSnapshot) String() string            { return proto.CompactTextString(m) }
+func (*ServiceSnapshot) ProtoMessage()               {}
+func (*ServiceSnapshot) Descriptor() ([]byte, []int) { return fileDescriptorBase2, []int{1} }
+
+type ServiceSnapshotPack struct {
+	Snapshots        []*ServiceSnapshot `protobuf:"bytes,1,rep,name=snapshots" json:"snapshots,omitempty"`
+	XXX_unrecognized []byte             `json:"-"`
+}
+
+func (m *ServiceSnapshotPack) Reset()                    { *m = ServiceSnapshotPack{} }
+func (m *ServiceSnapshotPack) String() string            { return proto.CompactTextString(m) }
+func (*ServiceSnapshotPack) ProtoMessage()               {}
+func (*ServiceSnapshotPack) Descriptor() ([]byte, []int) { return fileDescriptorBase2, []int{2} }
+
 func init() {
 	proto.RegisterType((*Metadata)(nil), "basepb.Metadata")
+	proto.RegisterType((*ServiceSnapshot)(nil), "basepb.ServiceSnapshot")
+	proto.RegisterType((*ServiceSnapshotPack)(nil), "basepb.ServiceSnapshotPack")
 }
 func (m *Metadata) Marshal() (data []byte, err error) {
 	size := m.Size()
@@ -68,6 +93,70 @@ func (m *Metadata) MarshalTo(data []byte) (int, error) {
 	data[i] = 0x10
 	i++
 	i = encodeVarintBase2(data, i, uint64(m.ClusterID))
+	if m.XXX_unrecognized != nil {
+		i += copy(data[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ServiceSnapshot) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *ServiceSnapshot) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Data != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintBase2(data, i, uint64(len(m.Data)))
+		i += copy(data[i:], m.Data)
+	}
+	data[i] = 0x12
+	i++
+	i = encodeVarintBase2(data, i, uint64(len(m.Id)))
+	i += copy(data[i:], m.Id)
+	if m.XXX_unrecognized != nil {
+		i += copy(data[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ServiceSnapshotPack) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *ServiceSnapshotPack) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Snapshots) > 0 {
+		for _, msg := range m.Snapshots {
+			data[i] = 0xa
+			i++
+			i = encodeVarintBase2(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(data[i:], m.XXX_unrecognized)
 	}
@@ -106,6 +195,36 @@ func (m *Metadata) Size() (n int) {
 	_ = l
 	n += 1 + sovBase2(uint64(m.NodeID))
 	n += 1 + sovBase2(uint64(m.ClusterID))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ServiceSnapshot) Size() (n int) {
+	var l int
+	_ = l
+	if m.Data != nil {
+		l = len(m.Data)
+		n += 1 + l + sovBase2(uint64(l))
+	}
+	l = len(m.Id)
+	n += 1 + l + sovBase2(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ServiceSnapshotPack) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Snapshots) > 0 {
+		for _, e := range m.Snapshots {
+			l = e.Size()
+			n += 1 + l + sovBase2(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -192,6 +311,199 @@ func (m *Metadata) Unmarshal(data []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBase2(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthBase2
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, data[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ServiceSnapshot) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBase2
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ServiceSnapshot: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ServiceSnapshot: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBase2
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthBase2
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data[:0], data[iNdEx:postIndex]...)
+			if m.Data == nil {
+				m.Data = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBase2
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthBase2
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = string(data[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipBase2(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthBase2
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, data[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ServiceSnapshotPack) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowBase2
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ServiceSnapshotPack: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ServiceSnapshotPack: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Snapshots", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowBase2
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthBase2
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Snapshots = append(m.Snapshots, &ServiceSnapshot{})
+			if err := m.Snapshots[len(m.Snapshots)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipBase2(data[iNdEx:])
@@ -322,14 +634,19 @@ var (
 func init() { proto.RegisterFile("base2.proto", fileDescriptorBase2) }
 
 var fileDescriptorBase2 = []byte{
-	// 134 bytes of a gzipped FileDescriptorProto
+	// 215 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0xe2, 0x4e, 0x4a, 0x2c, 0x4e,
 	0x35, 0xd2, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x03, 0x71, 0x0a, 0x92, 0xa4, 0x44, 0xd2,
 	0xf3, 0xd3, 0xf3, 0xc1, 0x42, 0xfa, 0x20, 0x16, 0x44, 0x56, 0xc9, 0x87, 0x8b, 0xc3, 0x37, 0xb5,
 	0x24, 0x31, 0x25, 0xb1, 0x24, 0x51, 0x48, 0x86, 0x8b, 0xcd, 0x2f, 0x3f, 0x25, 0xd5, 0xd3, 0x45,
 	0x82, 0x51, 0x81, 0x51, 0x83, 0xc5, 0x89, 0xe5, 0xc4, 0x3d, 0x79, 0x86, 0x20, 0xb6, 0x3c, 0xb0,
 	0x98, 0x90, 0x12, 0x17, 0xa7, 0x73, 0x4e, 0x69, 0x71, 0x49, 0x6a, 0x91, 0xa7, 0x8b, 0x04, 0x13,
-	0x92, 0x02, 0xce, 0x64, 0x98, 0xb0, 0x93, 0xc0, 0x89, 0x87, 0x72, 0x0c, 0x27, 0x1e, 0xc9, 0x31,
-	0x5e, 0x78, 0x24, 0xc7, 0xf8, 0xe0, 0x91, 0x1c, 0x23, 0x20, 0x00, 0x00, 0xff, 0xff, 0xbd, 0x66,
-	0xa1, 0xbc, 0x8b, 0x00, 0x00, 0x00,
+	0x92, 0x02, 0xce, 0x64, 0x98, 0xb0, 0x92, 0x35, 0x17, 0x7f, 0x70, 0x6a, 0x51, 0x59, 0x66, 0x72,
+	0x6a, 0x70, 0x5e, 0x62, 0x41, 0x71, 0x46, 0x7e, 0x89, 0x90, 0x10, 0x17, 0x0b, 0xc8, 0x70, 0xb0,
+	0x91, 0x3c, 0x41, 0x60, 0xb6, 0x90, 0x08, 0x17, 0x53, 0x66, 0x0a, 0xd8, 0x0c, 0x4e, 0xa8, 0x19,
+	0x4c, 0x99, 0x29, 0x4a, 0x3e, 0x5c, 0xc2, 0x68, 0x9a, 0x03, 0x12, 0x93, 0xb3, 0x85, 0x4c, 0xb9,
+	0x38, 0x8b, 0xa1, 0xfc, 0x62, 0x09, 0x46, 0x05, 0x66, 0x0d, 0x6e, 0x23, 0x71, 0x3d, 0x88, 0x9f,
+	0xf4, 0xd0, 0xd4, 0x07, 0x21, 0x54, 0x3a, 0x09, 0x9c, 0x78, 0x28, 0xc7, 0x70, 0xe2, 0x91, 0x1c,
+	0xe3, 0x85, 0x47, 0x72, 0x8c, 0x0f, 0x1e, 0xc9, 0x31, 0x02, 0x02, 0x00, 0x00, 0xff, 0xff, 0xf1,
+	0x62, 0xb1, 0xcc, 0x16, 0x01, 0x00, 0x00,
 }

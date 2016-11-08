@@ -12,3 +12,12 @@ message Metadata {
 	optional uint64 NodeID    = 1 [(gogoproto.nullable) = false];
 	optional uint64 ClusterID = 2 [(gogoproto.nullable) = false];
 }
+
+message ServiceSnapshot {
+	optional bytes  data	= 1;
+	optional string	id 		= 2 [(gogoproto.nullable) = false];
+}
+
+message ServiceSnapshotPack {
+	repeated ServiceSnapshot snapshots = 1;
+}

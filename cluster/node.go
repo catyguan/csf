@@ -18,9 +18,8 @@ import (
 	"expvar"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
-	"os"
-	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,6 +150,15 @@ type CSFNode struct {
 	// wg is used to wait for the go routines that depends on the server state
 	// to exit when stopping the server.
 	wg sync.WaitGroup
+
+	// cluster fields
+	Peers   []net.Listener
+	Clients []net.Listener
+
+	errc  chan error
+	sctxs map[string]*serveCtx
+
+	shub map[string]interfaces.Service
 }
 
 func createMembership(cfg *Config) (*membership.RaftCluster, error) {
@@ -165,7 +173,7 @@ func createMembership(cfg *Config) (*membership.RaftCluster, error) {
 
 // NewServer creates a new CSFNode from the supplied configuration. The
 // configuration is considered static for the lifetime of the CSFNode.
-func SetupNode(cfg *Config) (srv *CSFNode, err error) {
+func doSetupNode(cfg *Config) (srv *CSFNode, err error) {
 
 	var (
 		w  *wal.WAL
@@ -264,6 +272,13 @@ func SetupNode(cfg *Config) (srv *CSFNode, err error) {
 		reqIDGen:         idutil.NewGenerator(uint16(id), time.Now()),
 		forceVersionC:    make(chan struct{}),
 		msgSnapC:         make(chan raftpb.Message, maxInFlightMsgSnap),
+		shub:             make(map[string]interfaces.Service),
+	}
+	for _, sv := range cfg.shub {
+		if _, ok := srv.shub[sv.ServiceID()]; ok {
+			plog.Panicf("duplicate service id(%v)", sv.ServiceID())
+		}
+		srv.shub[sv.ServiceID()] = sv
 	}
 
 	//srv.applyV2 = &applierV2store{store: srv.store, cluster: srv.cluster}
@@ -306,7 +321,7 @@ func SetupNode(cfg *Config) (srv *CSFNode, err error) {
 // Start prepares and starts server in a new goroutine. It is no longer safe to
 // modify a server's fields after it has been sent to Start.
 // It also starts a goroutine to publish its server information.
-func (s *CSFNode) Start() {
+func (s *CSFNode) doStart() {
 	s.start()
 	s.goAttach(s.purgeFile)
 	s.goAttach(func() { monitorFileDescriptor(s.stopping) })
@@ -506,16 +521,33 @@ func (s *CSFNode) applySnapshot(ep *csfProgress, apply *apply) {
 
 	snapfn, err := s.raftNode.storage.DBFilePath(apply.snapshot.Metadata.Index)
 	if err != nil {
-		plog.Panicf("get database snapshot file path error: %v", err)
-	}
-
-	fn := path.Join(s.Cfg.SnapDir(), databaseFilename)
-	// os.MkdirAll(s.Cfg.SnapDir(), os.ModePerm)
-	if err := os.Rename(snapfn, fn); err != nil {
-		plog.Panicf("rename snapshot file error: %v", err)
+		plog.Panicf("get snapshot file path error: %v", err)
 	}
 
 	// SERVICE: Apply Snapshot
+	pbsnap, err2 := snap.Read(snapfn)
+	if err2 != nil {
+		plog.Panicf("read snapshot file error(%s): %v", snapfn, err2)
+	}
+
+	ssp := &basepb.ServiceSnapshotPack{}
+	err3 := ssp.Unmarshal(pbsnap.Data)
+	if err3 != nil {
+		plog.Panicf("Unmarshal snapshot file(%s) error: %v", snapfn, err2)
+	}
+
+	for _, ss := range ssp.Snapshots {
+		sid := ss.Id
+		if sv, ok := s.shub[sid]; ok {
+			plog.Infof("apply snapshot to service(%s)", sid)
+			if err4 := sv.ApplySnapshot(s, ss.Data); err4 != nil {
+				plog.Panicf("apply snapshot to service(%s) error: %v", sid, err2)
+			}
+		} else {
+			plog.Warningf("apply snapshot miss service(%s)", sid)
+		}
+	}
+	// SERVICE: Apply Snapshot - END
 
 	ep.appliedi = apply.snapshot.Metadata.Index
 	ep.snapi = ep.appliedi
@@ -621,7 +653,7 @@ func (s *CSFNode) HardStop() {
 // Stop should be called after a Start(s), otherwise it will block forever.
 // When stopping leader, Stop transfers its leadership to one of its peers
 // before stopping the server.
-func (s *CSFNode) Stop() {
+func (s *CSFNode) doStop() {
 	if err := s.TransferLeadership(); err != nil {
 		plog.Warningf("%s failed to transfer leadership (%v)", s.ID(), err)
 	}

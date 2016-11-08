@@ -9,11 +9,11 @@ cluster-name: C0
 cluster-token: csf-cluster
 cluster-peers:
 - name: N1
-  id: 101
+  id: 256
   peer-url: http://127.0.0.1:2380
   client-url: http://127.0.0.1:2379
 - name: N2
-  id: 102
+  id: 257
   peer-url: http://127.0.0.1:2480
   client-url: http://127.0.0.1:2479
 

@@ -23,10 +23,15 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/cluster"
+	"github.com/catyguan/csf/interfaces"
 	"github.com/catyguan/csf/pkg/osutil"
+	"github.com/catyguan/csf/samples/spcommons"
+	"github.com/catyguan/csf/wal"
 )
 
 func main() {
+	wal.SegmentSizeBytes = 16 * 1024
+
 	var configFile string
 	flag.StringVar(&configFile, "C", "", "Path to the server configuration file")
 	flag.Parse()
@@ -42,16 +47,18 @@ func main() {
 		os.Exit(3)
 	}
 
-	node, err := cluster.SetupNode(cfg)
+	shub := make([]interfaces.Service, 1)
+	shub[0] = &spcommons.Counter{}
+
+	node, err := cluster.StartNode(cfg, shub)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(4)
 	}
-	node.Start()
-	defer node.Stop()
+	defer node.Close()
 
 	if !node.OnReady(60 * time.Second) {
-		node.Stop()
+		node.Close()
 		log.Printf("Server took too long to start!")
 		os.Exit(5)
 	}
@@ -60,6 +67,7 @@ func main() {
 	osutil.HandleInterrupts()
 
 	time.Sleep(60 * time.Second)
+	log.Printf("BYE~~~~~\n")
 
 	// if !cl.OnReady(60 * time.Second) {
 	// 	cl.Server.Stop() // trigger a shutdown

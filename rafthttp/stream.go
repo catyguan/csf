@@ -421,7 +421,7 @@ func (cr *streamReader) dial(t streamType) (io.ReadCloser, error) {
 	req.Header.Set("X-Server-From", cr.tr.ID.String())
 	req.Header.Set("X-Server-Version", version.Version)
 	req.Header.Set("X-Min-Cluster-Version", version.MinClusterVersion)
-	req.Header.Set("X-Etcd-Cluster-ID", cr.tr.ClusterID.String())
+	req.Header.Set("X-CSF-Cluster-ID", cr.tr.ClusterID.String())
 	req.Header.Set("X-Raft-To", cr.peerID.String())
 
 	setPeerURLsHeader(req, cr.tr.URLs)
