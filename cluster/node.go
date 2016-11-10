@@ -411,6 +411,10 @@ func (s *CSFNode) run() {
 	rh := &raftReadyHandler{
 		leadershipUpdate: func() {
 			// SERVICE: NOTICE Service
+			ll := s.isLeader()
+			for _, ser := range s.shub {
+				ser.OnLeadershipUpdate(s, ll)
+			}
 
 			// TODO: remove the nil checking
 			// current test utility does not provide the stats
@@ -450,6 +454,9 @@ func (s *CSFNode) run() {
 		// kv, lessor and backend can be nil if running without v3 enabled
 		// or running unit tests.
 		// SERVICE: Close All Service
+		for _, ser := range s.shub {
+			ser.OnClose(s)
+		}
 
 		close(s.done)
 	}()
@@ -500,7 +507,7 @@ func (s *CSFNode) applyAll(ep *csfProgress, apply *apply) {
 	select {
 	// snapshot requested via send()
 	case m := <-s.msgSnapC:
-		merged := s.createMergedSnapshotMessage(m, ep.appliedi, ep.confState)
+		merged := s.createMergedSnapshotMessage(m, ep.appliedi)
 		s.sendMergedSnap(merged)
 	default:
 	}
@@ -576,12 +583,16 @@ func (s *CSFNode) applyEntries(ep *csfProgress, apply *apply) {
 }
 
 func (s *CSFNode) triggerSnapshot(ep *csfProgress) {
+	if s.snapCount == 0 {
+		// disable snapshot
+		return
+	}
 	if ep.appliedi-ep.snapi <= s.snapCount {
 		return
 	}
 
 	plog.Infof("start to snapshot (applied: %d, lastsnap: %d)", ep.appliedi, ep.snapi)
-	s.snapshot(ep.appliedi, ep.confState)
+	s.snapshot(ep.appliedi)
 	ep.snapi = ep.appliedi
 }
 
@@ -816,39 +827,35 @@ func (s *CSFNode) applyEntryNormal(e *raftpb.Entry) {
 		return
 	}
 
-	// SERVICE: Apply Here
-
-	var raftReq pb.InternalRaftRequest
-	if !pbutil.MaybeUnmarshal(&raftReq, e.Data) { // backward compatible
-		return
-	}
-	if raftReq.V2 != nil {
-		return
-	}
-
-	id := raftReq.ID
-	if id == 0 {
-		id = raftReq.Header.ID
-	}
-
-	var ar *applyResult
-	ar = nil
-	// needResult := s.w.IsRegistered(id)
-	if ar == nil {
-		return
-	}
-
-	// if ar.err != ErrNoSpace {
-	s.w.Trigger(id, ar)
+	req := &pb.Request{}
+	pbutil.MustUnmarshal(req, e.Data)
+	s.w.Trigger(req.ID, s.applyRequest(req))
 }
 
 // TODO: non-blocking snapshot
-func (s *CSFNode) snapshot(snapi uint64, confState raftpb.ConfState) {
-	// SERVICE: make a snapshot
+func (s *CSFNode) snapshot(snapi uint64) {
 	s.goAttach(func() {
-		var d []byte
-		d = nil
-		snap, err := s.raftNode.raftStorage.CreateSnapshot(snapi, &confState, d)
+		// SERVICE: make a snapshot
+		ssp := &basepb.ServiceSnapshotPack{}
+		ssp.Snapshots = make([]*basepb.ServiceSnapshot, 0)
+		for _, ser := range s.shub {
+			ss := &basepb.ServiceSnapshot{}
+			ss.Id = ser.ServiceID()
+			data, err2 := ser.CreateSnapshot(s)
+			if err2 != nil {
+				plog.Panicf("service(%s) create snapshot error %v", ser.ServiceID(), err2)
+			}
+			ss.Data = data
+			ssp.Snapshots = append(ssp.Snapshots, ss)
+		}
+
+		d, err3 := ssp.Marshal()
+		if err3 != nil {
+			plog.Panicf("create snapshot error %v", err3)
+		}
+		// SERVICE: make a snapshot end
+
+		snap, err := s.raftNode.raftStorage.CreateSnapshot(snapi, nil, d)
 		if err != nil {
 			// the snapshot was done asynchronously with the progress of raft.
 			// raft might have already got a newer snapshot.

@@ -12,27 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package httptypes defines how etcd's HTTP API entities are serialized to and
-// deserialized from JSON.
-package clusterapi
-
-import "encoding/json"
-
-type apiMember struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	PeerURLs   []string `json:"peerURLs"`
-	ClientURLs []string `json:"clientURLs"`
-}
-
-type apiMemberCollection []apiMember
-
-func (c *apiMemberCollection) MarshalJSON() ([]byte, error) {
-	d := struct {
-		Members []apiMember `json:"members"`
-	}{
-		Members: []apiMember(*c),
-	}
-
-	return json.Marshal(d)
-}
+// Package command is a set of libraries for csfctl commands.
+package command

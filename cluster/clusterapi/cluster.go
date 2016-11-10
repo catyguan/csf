@@ -27,7 +27,7 @@ type Cluster interface {
 	ID() types.ID
 	// ClientURLs returns an aggregate set of all URLs on which this
 	// cluster is listening for client requests
-	ClientURLs() []string
+	ClientURLs() types.URLs
 	// Members returns a slice of members sorted by their ID
 	Members() []*membership.Member
 	// Member retrieves a particular member based on ID, or nil if the

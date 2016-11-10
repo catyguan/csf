@@ -74,6 +74,8 @@ type PeerConfig struct {
 	StrClientURL string `json:"client-url"`
 }
 
+type ClientHandlerFactory func(server *CSFNode, mux *http.ServeMux) http.Handler
+
 // Config holds the arguments for configuring an etcd server.
 type Config struct {
 	// member
@@ -101,10 +103,11 @@ type Config struct {
 	ClusterPeers        []*PeerConfig `json:"cluster-peers"`
 
 	// security
-	ClientTLSInfo transport.TLSInfo
-	ClientAutoTLS bool
-	PeerTLSInfo   transport.TLSInfo
-	PeerAutoTLS   bool
+	ClientTLSInfo         transport.TLSInfo
+	ClientAutoTLS         bool
+	PeerTLSInfo           transport.TLSInfo
+	PeerAutoTLS           bool
+	ClientCertAuthEnabled bool
 
 	// debug
 	Debug        bool   `json:"debug"`
@@ -119,7 +122,8 @@ type Config struct {
 
 	shub []interfaces.Service `json:"-"`
 
-	ACL interfaces.ACL
+	ACL                  interfaces.ACL
+	ClientHandlerFactory ClientHandlerFactory
 }
 
 // configYAML holds the config suitable for yaml parsing
@@ -174,7 +178,16 @@ func NewConfig() *Config {
 }
 
 func ConfigFromFile(path string) (*Config, error) {
-	cfg := &configYAML{Config: *NewConfig()}
+	pcfg := NewConfig()
+	rcfg, err := BuildConfigFromFile(path, pcfg)
+	if err != nil {
+		return nil, err
+	}
+	return rcfg, nil
+}
+
+func BuildConfigFromFile(path string, pcfg *Config) (*Config, error) {
+	cfg := &configYAML{Config: *pcfg}
 	if err := cfg.configFromFile(path); err != nil {
 		return nil, err
 	}

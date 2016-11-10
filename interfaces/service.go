@@ -15,6 +15,8 @@
 // Package interfaces defines the base interface class use by csfserver and modules.
 package interfaces
 
+import "net/http"
+
 // 权限控制
 type ACL interface {
 	// 是否启用权限控制
@@ -38,8 +40,20 @@ type Service interface {
 	StopService(sm ServiceManager)
 
 	// 本地LeaderShip改变
-	LeadershipUpdate(sm ServiceManager, localIsLeader bool)
+	OnLeadershipUpdate(sm ServiceManager, localIsLeader bool)
+
+	// 本地服务关闭
+	OnClose(sm ServiceManager)
+
+	// 创建快照
+	CreateSnapshot(sm ServiceManager) ([]byte, error)
 
 	// 应用某个数据快照
 	ApplySnapshot(sm ServiceManager, data []byte) error
+
+	// 应用集群行为
+	ApplyAction(sm ServiceManager, action string, data []byte) ([]byte, error)
+
+	// 构建客户端API接口
+	BuildClientHandler(sm ServiceManager, mux *http.ServeMux)
 }

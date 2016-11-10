@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package httptypes defines how etcd's HTTP API entities are serialized to and
-// deserialized from JSON.
-package clusterapi
+package client
 
-import "encoding/json"
+import "fmt"
 
-type apiMember struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	PeerURLs   []string `json:"peerURLs"`
-	ClientURLs []string `json:"clientURLs"`
+type ClusterError struct {
+	Errors []error
 }
 
-type apiMemberCollection []apiMember
-
-func (c *apiMemberCollection) MarshalJSON() ([]byte, error) {
-	d := struct {
-		Members []apiMember `json:"members"`
-	}{
-		Members: []apiMember(*c),
+func (ce *ClusterError) Error() string {
+	s := ErrClusterUnavailable.Error()
+	for i, e := range ce.Errors {
+		s += fmt.Sprintf("; error #%d: %s\n", i, e)
 	}
+	return s
+}
 
-	return json.Marshal(d)
+func (ce *ClusterError) Detail() string {
+	s := ""
+	for i, e := range ce.Errors {
+		s += fmt.Sprintf("error #%d: %s\n", i, e)
+	}
+	return s
 }

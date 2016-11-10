@@ -16,19 +16,17 @@ package clusterapi
 
 import (
 	"net/http"
-	"strings"
+
+	"github.com/catyguan/csf/pkg/capnslog"
 )
 
-// allowMethod verifies that the given method is one of the allowed methods,
-// and if not, it writes an error to w.  A boolean is returned indicating
-// whether or not the method is allowed.
-func AllowMethod(w http.ResponseWriter, m string, ms ...string) bool {
-	for _, meth := range ms {
-		if m == meth {
-			return true
-		}
-	}
-	w.Header().Set("Allow", strings.Join(ms, ","))
-	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-	return false
+var (
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "clusterapi")
+)
+
+func requestLogger(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		plog.Debugf("[%s] %s remote:%s", r.Method, r.RequestURI, r.RemoteAddr)
+		handler.ServeHTTP(w, r)
+	})
 }

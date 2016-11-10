@@ -17,7 +17,7 @@ package cluster
 import "errors"
 
 var (
-	ErrUnknownMethod              = errors.New("csfserver: unknown method")
+	ErrUnknownActions             = errors.New("csfserver: unknown service or action")
 	ErrStopped                    = errors.New("csfserver: server stopped")
 	ErrCanceled                   = errors.New("csfserver: request cancelled")
 	ErrTimeout                    = errors.New("csfserver: request timed out")

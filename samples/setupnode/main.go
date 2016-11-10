@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/cluster"
+	"github.com/catyguan/csf/cluster/clusterapi"
 	"github.com/catyguan/csf/interfaces"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/samples/spcommons"
@@ -41,7 +42,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	cfg, err := cluster.ConfigFromFile(configFile)
+	pcfg := cluster.NewConfig()
+	pcfg.EnablePprof = true
+
+	cfg, err := cluster.BuildConfigFromFile(configFile, pcfg)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(3)
@@ -49,6 +53,7 @@ func main() {
 
 	shub := make([]interfaces.Service, 1)
 	shub[0] = &spcommons.Counter{}
+	cfg.ClientHandlerFactory = clusterapi.NewClientHandler
 
 	node, err := cluster.StartNode(cfg, shub)
 	if err != nil {
@@ -66,27 +71,19 @@ func main() {
 
 	osutil.HandleInterrupts()
 
-	time.Sleep(60 * time.Second)
-	log.Printf("BYE~~~~~\n")
+	stopped := node.StopNotify()
+	errc := node.Err()
 
-	// if !cl.OnReady(60 * time.Second) {
-	// 	cl.Server.Stop() // trigger a shutdown
-	// 	log.Printf("Server took too long to start!")
-	// 	os.Exit(5)
-	// }
-	// log.Printf("Server is ready!")
+	tt := time.NewTicker(60 * time.Minute)
 
-	// stopped := cl.Server.StopNotify()
-	// errc := cl.Err()
-
-	// osutil.HandleInterrupts()
-
-	// select {
-	// case lerr := <-errc:
-	// 	// fatal out on listener errors
-	// 	log.Fatal(lerr)
-	// case <-stopped:
-	// }
+	select {
+	case <-tt.C:
+		log.Printf("BYE~~~~~\n")
+	case lerr := <-errc:
+		// fatal out on listener errors
+		log.Fatal(lerr)
+	case <-stopped:
+	}
 
 	osutil.Exit(0)
 

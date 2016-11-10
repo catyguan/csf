@@ -15,11 +15,23 @@
 // Package interfaces defines the base interface class use by csfserver and modules.
 package interfaces
 
-import "github.com/catyguan/csf/pkg/capnslog"
+import (
+	"context"
+	"time"
+
+	"github.com/catyguan/csf/pkg/capnslog"
+)
 
 var (
 	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "interfaces")
 )
 
 type ServiceManager interface {
+	GetACL() ACL
+
+	ClientCertAuthEnabled() bool
+
+	ClientRequestTime() time.Duration
+
+	DoClusterAction(ctx context.Context, servceId, action string, data []byte) ([]byte, error)
 }

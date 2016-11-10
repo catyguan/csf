@@ -21,24 +21,20 @@ import (
 	"github.com/catyguan/csf/snap"
 )
 
-// createMergedSnapshotMessage creates a snapshot message that contains: raft status (term, conf),
-// a snapshot of v2 store inside raft.Snapshot as []byte, a snapshot of v3 KV in the top level message
-// as ReadCloser.
-func (s *CSFNode) createMergedSnapshotMessage(m raftpb.Message, snapi uint64, confState raftpb.ConfState) snap.Message {
+// createMergedSnapshotMessage creates a snapshot message that contains: raft status (term),
+// all services snapshot as []byte
+func (s *CSFNode) createMergedSnapshotMessage(m raftpb.Message, snapi uint64) snap.Message {
 	snapt, err := s.raftNode.raftStorage.Term(snapi)
 	if err != nil {
 		log.Panicf("get term should never fail: %v", err)
 	}
 
-	// put the []byte snapshot of store into raft snapshot and return the merged snapshot with
-	// KV readCloser snapshot.
 	var d []byte
 	d = nil
 	snapshot := raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
-			Index:     snapi,
-			Term:      snapt,
-			ConfState: confState,
+			Index: snapi,
+			Term:  snapt,
 		},
 		Data: d,
 	}

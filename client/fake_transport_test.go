@@ -12,39 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clusterapi
+package client
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 )
 
-type HTTPError struct {
-	Message string `json:"message"`
-	// Code is the HTTP status code
-	Code int `json:"-"`
-}
-
-func (e HTTPError) Error() string {
-	return e.Message
-}
-
-func (e HTTPError) WriteTo(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(e.Code)
-	b, err := json.Marshal(e)
-	if err != nil {
-		plog.Panicf("marshal HTTPError should never fail (%v)", err)
+func (t *fakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	select {
+	case resp := <-t.respchan:
+		return resp, nil
+	case err := <-t.errchan:
+		return nil, err
+	case <-t.startCancel:
+	case <-req.Cancel:
 	}
-	if _, err := w.Write(b); err != nil {
-		return err
-	}
-	return nil
-}
-
-func NewHTTPError(code int, m string) *HTTPError {
-	return &HTTPError{
-		Message: m,
-		Code:    code,
+	select {
+	// this simulates that the request is finished before cancel effects
+	case resp := <-t.respchan:
+		return resp, nil
+	// wait on finishCancel to simulate taking some amount of
+	// time while calling CancelRequest
+	case <-t.finishCancel:
+		return nil, errors.New("cancelled")
 	}
 }

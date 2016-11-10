@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clusterapi
+package interfaces
 
 import (
 	"net/http"
-
-	"github.com/catyguan/csf/interfaces"
-	"github.com/catyguan/csf_dev/csfserver/auth"
 )
 
 type User struct {
@@ -29,7 +26,7 @@ func (this *User) String() string {
 	return this.Name
 }
 
-func UserFromClientCertificate(sec interfaces.ACL, req *http.Request) *User {
+func UserFromClientCertificate(sec ACL, req *http.Request) *User {
 	if req.TLS == nil {
 		return nil
 	}
@@ -39,14 +36,14 @@ func UserFromClientCertificate(sec interfaces.ACL, req *http.Request) *User {
 			plog.Debugf("auth: found common name %s.\n", chain.Subject.CommonName)
 			user := &User{}
 			user.Name = chain.Subject.CommonName
-			return &user
+			return user
 		}
 	}
 	return nil
 }
 
-func UserFromBasicAuth(sec interfaces.ACL, req *http.Request) *auth.User {
-	username, password, ok := eq.BasicAuth()
+func UserFromBasicAuth(sec ACL, req *http.Request) *User {
+	username, password, ok := req.BasicAuth()
 	if !ok {
 		plog.Warningf("auth: malformed basic auth encoding")
 		return nil
@@ -61,12 +58,16 @@ func UserFromBasicAuth(sec interfaces.ACL, req *http.Request) *auth.User {
 	return user
 }
 
-func HasCSFAccess(sec interfaces.ACL, req *http.Request, clientCertAuthEnabled bool) bool {
-	if r.Method == "GET" || r.Method == "HEAD" {
-		return true
-	}
+func CheckCSFAccess(sm ServiceManager, req *http.Request) bool {
+	return hasCSFAccess(sm.GetACL(), req, sm.ClientCertAuthEnabled())
+}
+
+func hasCSFAccess(sec ACL, req *http.Request, clientCertAuthEnabled bool) bool {
 	if sec == nil {
 		// No store means no auth available, eg, tests.
+		return true
+	}
+	if req.Method == "HEAD" {
 		return true
 	}
 	if !sec.AuthEnabled() {
@@ -74,22 +75,55 @@ func HasCSFAccess(sec interfaces.ACL, req *http.Request, clientCertAuthEnabled b
 	}
 
 	var user *User
-	if r.Header.Get("Authorization") == "" && clientCertAuthEnabled {
-		user = UserFromClientCertificate(sec, r)
+	if req.Header.Get("Authorization") == "" && clientCertAuthEnabled {
+		user = UserFromClientCertificate(sec, req)
 		if user == nil {
 			return false
 		}
 	} else {
-		user = UserFromBasicAuth(sec, r)
+		user = UserFromBasicAuth(sec, req)
 		if user == nil {
 			return false
 		}
 	}
 
-	if sec.HasAccess(user.Name, "//csf/", "r", nil) {
+	if sec.HasAccess(user.Name, "//csf/", "r", "") {
 		return true
 	}
 	plog.Warningf("auth: user %s does not CSFAccess for resource %s.", user, req.URL.Path)
+	return false
+}
+
+func CheckAccess(sm ServiceManager, req *http.Request, res, act, content string) bool {
+	sec := sm.GetACL()
+	if sec == nil {
+		// No store means no auth available, eg, tests.
+		return true
+	}
+	if req.Method == "HEAD" {
+		return true
+	}
+	if !sec.AuthEnabled() {
+		return true
+	}
+
+	var user *User
+	if req.Header.Get("Authorization") == "" && sm.ClientCertAuthEnabled() {
+		user = UserFromClientCertificate(sec, req)
+		if user == nil {
+			return false
+		}
+	} else {
+		user = UserFromBasicAuth(sec, req)
+		if user == nil {
+			return false
+		}
+	}
+
+	if sec.HasAccess(user.Name, res, act, content) {
+		return true
+	}
+	plog.Warningf("auth: user %s does not for resource %s:%s:%s", user, res, act, content)
 	return false
 }
 

@@ -283,6 +283,15 @@ func (e *CSFNode) serve() (err error) {
 
 func (e *CSFNode) newClientHandler() http.Handler {
 	mux := http.NewServeMux()
+	// SERVICE: build client handler
+	for _, sv := range e.Cfg.shub {
+		plog.Infof("start Service(%s)", sv.ServiceID())
+		sv.BuildClientHandler(e, mux)
+	}
+
+	if e.Cfg.ClientHandlerFactory != nil {
+		return e.Cfg.ClientHandlerFactory(e, mux)
+	}
 	return mux
 }
 
@@ -294,3 +303,5 @@ func (e *CSFNode) newPeerHandler() http.Handler {
 	mux.Handle(rafthttp.RaftPrefix+"/", raftHandler)
 	return mux
 }
+
+func (e *CSFNode) Err() <-chan error { return e.errc }
