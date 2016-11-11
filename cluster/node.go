@@ -100,6 +100,7 @@ type CSFNode struct {
 	raftNode raftNode
 
 	snapCount uint64
+	snapnow   bool
 
 	w  wait.Wait
 	td *contention.TimeoutDetector
@@ -118,6 +119,8 @@ type CSFNode struct {
 	stopping chan struct{}
 	// done is closed when all goroutines from start() complete.
 	done chan struct{}
+	// snapshotc signals make snapshot imm
+	snapshotc chan struct{}
 
 	errorc  chan error
 	id      types.ID
@@ -176,11 +179,11 @@ func createMembership(cfg *Config) (*membership.RaftCluster, error) {
 func doSetupNode(cfg *Config) (srv *CSFNode, err error) {
 
 	var (
-		w  *wal.WAL
-		n  raft.Node
-		s  *raft.MemoryStorage
-		id types.ID
-		cl *membership.RaftCluster
+		w        *wal.WAL
+		n        raft.Node
+		rStorage *raft.MemoryStorage
+		id       types.ID
+		cl       *membership.RaftCluster
 	)
 
 	if terr := fileutil.TouchDirAll(cfg.Dir); terr != nil {
@@ -234,7 +237,7 @@ func doSetupNode(cfg *Config) (srv *CSFNode, err error) {
 		return nil, err
 	}
 	cfg.Print()
-	id, n, s, w = startNode(cfg, cl, snapshot)
+	id, n, rStorage, w = startNode(cfg, cl, snapshot)
 
 	if terr := fileutil.TouchDirAll(cfg.MemberDir()); terr != nil {
 		return nil, fmt.Errorf("cannot access member directory: %v", terr)
@@ -259,7 +262,7 @@ func doSetupNode(cfg *Config) (srv *CSFNode, err error) {
 		raftNode: raftNode{
 			Node:        n,
 			ticker:      time.Tick(heartbeat),
-			raftStorage: s,
+			raftStorage: rStorage,
 			storage:     NewStorage(w, ss),
 			readStateC:  make(chan raft.ReadState, 1),
 		},
@@ -342,6 +345,7 @@ func (s *CSFNode) start() {
 	s.stop = make(chan struct{})
 	s.stopping = make(chan struct{})
 	s.readwaitc = make(chan struct{}, 1)
+	s.snapshotc = make(chan struct{})
 	s.readNotifier = newNotifier()
 	if s.ClusterVersion() != nil {
 		plog.Infof("starting server... [version: %v]", version.Version)
@@ -461,8 +465,19 @@ func (s *CSFNode) run() {
 		close(s.done)
 	}()
 
+	// apply default snapshot
+	if !raft.IsEmptySnap(snap) {
+		s.doApplySnapshot(snap.Data)
+		snap.Data = nil
+	}
+
 	for {
 		select {
+		case <-s.snapshotc:
+			// make a snapshot
+			s.snapnow = true
+			f := func(context.Context) { s.applyAll(&ep, nil) }
+			sched.Schedule(f)
 		case ap := <-s.raftNode.apply():
 			var ci uint64
 			if len(ap.entries) != 0 {
@@ -487,27 +502,29 @@ func (s *CSFNode) run() {
 }
 
 func (s *CSFNode) applyAll(ep *csfProgress, apply *apply) {
-	s.applySnapshot(ep, apply)
-	st := time.Now()
-	s.applyEntries(ep, apply)
-	d := time.Since(st)
-	entriesNum := len(apply.entries)
-	if entriesNum != 0 && d > time.Duration(entriesNum)*warnApplyDuration {
-		plog.Warningf("apply entries took too long [%v for %d entries]", d, len(apply.entries))
-		plog.Warningf("avoid queries with large range/delete range!")
+	if apply != nil {
+		s.applySnapshot(ep, apply)
+		st := time.Now()
+		s.applyEntries(ep, apply)
+		d := time.Since(st)
+		entriesNum := len(apply.entries)
+		if entriesNum != 0 && d > time.Duration(entriesNum)*warnApplyDuration {
+			plog.Warningf("apply entries took too long [%v for %d entries]", d, len(apply.entries))
+			plog.Warningf("avoid queries with large range/delete range!")
+		}
+		proposalsApplied.Set(float64(ep.appliedi))
+		s.applyWait.Trigger(ep.appliedi)
+		// wait for the raft routine to finish the disk writes before triggering a
+		// snapshot. or applied index might be greater than the last index in raft
+		// storage, since the raft routine might be slower than apply routine.
+		<-apply.raftDone
 	}
-	proposalsApplied.Set(float64(ep.appliedi))
-	s.applyWait.Trigger(ep.appliedi)
-	// wait for the raft routine to finish the disk writes before triggering a
-	// snapshot. or applied index might be greater than the last index in raft
-	// storage, since the raft routine might be slower than apply routine.
-	<-apply.raftDone
 
 	s.triggerSnapshot(ep)
 	select {
 	// snapshot requested via send()
 	case m := <-s.msgSnapC:
-		merged := s.createMergedSnapshotMessage(m, ep.appliedi)
+		merged := s.createSnapshotMessage(m, ep.snapi)
 		s.sendMergedSnap(merged)
 	default:
 	}
@@ -526,21 +543,25 @@ func (s *CSFNode) applySnapshot(ep *csfProgress, apply *apply) {
 			apply.snapshot.Metadata.Index, ep.appliedi)
 	}
 
-	snapfn, err := s.raftNode.storage.DBFilePath(apply.snapshot.Metadata.Index)
-	if err != nil {
-		plog.Panicf("get snapshot file path error: %v", err)
-	}
-
-	// SERVICE: Apply Snapshot
+	snapfn := s.raftNode.storage.SnapFilePath(apply.snapshot.Metadata.Index)
 	pbsnap, err2 := snap.Read(snapfn)
 	if err2 != nil {
 		plog.Panicf("read snapshot file error(%s): %v", snapfn, err2)
 	}
 
+	s.doApplySnapshot(pbsnap.Data)
+
+	ep.appliedi = apply.snapshot.Metadata.Index
+	ep.snapi = ep.appliedi
+	ep.confState = apply.snapshot.Metadata.ConfState
+}
+
+func (s *CSFNode) doApplySnapshot(data []byte) {
+	// SERVICE: Apply Snapshot
 	ssp := &basepb.ServiceSnapshotPack{}
-	err3 := ssp.Unmarshal(pbsnap.Data)
+	err3 := ssp.Unmarshal(data)
 	if err3 != nil {
-		plog.Panicf("Unmarshal snapshot file(%s) error: %v", snapfn, err2)
+		plog.Panicf("Unmarshal snapshot data error: %v", err3)
 	}
 
 	for _, ss := range ssp.Snapshots {
@@ -548,17 +569,13 @@ func (s *CSFNode) applySnapshot(ep *csfProgress, apply *apply) {
 		if sv, ok := s.shub[sid]; ok {
 			plog.Infof("apply snapshot to service(%s)", sid)
 			if err4 := sv.ApplySnapshot(s, ss.Data); err4 != nil {
-				plog.Panicf("apply snapshot to service(%s) error: %v", sid, err2)
+				plog.Panicf("apply snapshot to service(%s) error: %v", sid, err4)
 			}
 		} else {
 			plog.Warningf("apply snapshot miss service(%s)", sid)
 		}
 	}
 	// SERVICE: Apply Snapshot - END
-
-	ep.appliedi = apply.snapshot.Metadata.Index
-	ep.snapi = ep.appliedi
-	ep.confState = apply.snapshot.Metadata.ConfState
 }
 
 func (s *CSFNode) applyEntries(ep *csfProgress, apply *apply) {
@@ -582,17 +599,29 @@ func (s *CSFNode) applyEntries(ep *csfProgress, apply *apply) {
 	}
 }
 
+func (s *CSFNode) AskSnapshot() bool {
+	if s.snapshotc == nil {
+		return false
+	}
+	select {
+	case s.snapshotc <- struct{}{}:
+		return true
+	}
+	return false
+}
+
 func (s *CSFNode) triggerSnapshot(ep *csfProgress) {
 	if s.snapCount == 0 {
 		// disable snapshot
 		return
 	}
-	if ep.appliedi-ep.snapi <= s.snapCount {
+	if !s.snapnow && ep.appliedi-ep.snapi <= s.snapCount {
 		return
 	}
 
 	plog.Infof("start to snapshot (applied: %d, lastsnap: %d)", ep.appliedi, ep.snapi)
 	s.snapshot(ep.appliedi)
+	s.snapnow = false
 	ep.snapi = ep.appliedi
 }
 
@@ -651,13 +680,15 @@ func (s *CSFNode) TransferLeadership() error {
 }
 
 // HardStop stops the server without coordination with other members in the cluster.
-func (s *CSFNode) HardStop() {
+func (s *CSFNode) HardStop(wait bool) {
 	select {
-	case s.stop <- struct{}{}:
 	case <-s.done:
 		return
+	case s.stop <- struct{}{}:
 	}
-	<-s.done
+	if wait {
+		<-s.done
+	}
 }
 
 // Stop stops the server gracefully, and shuts down the running goroutine.
@@ -668,7 +699,7 @@ func (s *CSFNode) doStop() {
 	if err := s.TransferLeadership(); err != nil {
 		plog.Warningf("%s failed to transfer leadership (%v)", s.ID(), err)
 	}
-	s.HardStop()
+	s.HardStop(true)
 }
 
 // ReadyNotify returns a channel that will be closed when the server
@@ -814,10 +845,6 @@ func (s *CSFNode) applyEntryNormal(e *raftpb.Entry) {
 	// raft state machine may generate noop entry when leader confirmation.
 	// skip it in advance to avoid some potential bug in the future
 	if len(e.Data) == 0 {
-		select {
-		case s.forceVersionC <- struct{}{}:
-		default:
-		}
 		// promote lessor when the local member is leader and finished
 		// applying all entries from the last term.
 		if s.isLeader() {

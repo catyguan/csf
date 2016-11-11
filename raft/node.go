@@ -215,19 +215,6 @@ func startNode(c *Config, peers []Peer, confChange bool) Node {
 	return &n
 }
 
-// RestartNode is similar to StartNode but does not take a list of peers.
-// The current membership of the cluster will be restored from the Storage.
-// If the caller has an existing state machine, pass in the last log index that
-// has been applied to it; otherwise use zero.
-func RestartNode(c *Config) Node {
-	r := newRaft(c)
-
-	n := newNode()
-	n.logger = c.Logger
-	go n.run(r)
-	return &n
-}
-
 // node is the canonical implementation of the Node interface
 type node struct {
 	propc      chan pb.Message

@@ -28,19 +28,19 @@ import (
 	"golang.org/x/net/context"
 )
 
-func NewClusterHealthCommand() cli.Command {
+func NewShutdownCommand() cli.Command {
 	return cli.Command{
 		Name:      "cluster-health",
-		Usage:     "check the health of the csf cluster",
+		Usage:     "check the health of the etcd cluster",
 		ArgsUsage: " ",
 		Flags: []cli.Flag{
 			cli.BoolFlag{Name: "forever, f", Usage: "forever check the health every 10 second until CTRL+C"},
 		},
-		Action: handleClusterHealth,
+		Action: handleShutdown,
 	}
 }
 
-func handleClusterHealth(c *cli.Context) error {
+func handleShutdown(c *cli.Context) error {
 	forever := c.Bool("forever")
 	if forever {
 		sigch := make(chan os.Signal, 1)
@@ -79,17 +79,13 @@ func handleClusterHealth(c *cli.Context) error {
 
 			checked := false
 			for _, url := range m.ClientURLs {
-				resp, err := hc.Get(url + "/csf/health")
+				resp, err := hc.Get(url + "/health")
 				if err != nil {
 					fmt.Printf("failed to check the health of member %s on %s: %v\n", m.ID, url, err)
 					continue
 				}
 
-				result := struct {
-					Health   string
-					Leader   string
-					Progress string
-				}{}
+				result := struct{ Health string }{}
 				nresult := struct{ Health bool }{}
 				bytes, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
@@ -112,7 +108,7 @@ func handleClusterHealth(c *cli.Context) error {
 					health = true
 					fmt.Printf("member %s is healthy: got healthy result from %s\n", m.ID, url)
 				} else {
-					fmt.Printf("member %s is unhealthy: got unhealthy result(%v) from %s\n", m.ID, string(bytes), url)
+					fmt.Printf("member %s is unhealthy: got unhealthy result from %s\n", m.ID, url)
 				}
 				break
 			}

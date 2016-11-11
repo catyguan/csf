@@ -39,14 +39,16 @@ import (
 )
 
 const (
-	membersPrefix = "/csf/members"
-	statsPrefix   = "/csf/stats"
-	metricsPath   = "/csf/metrics"
-	healthPath    = "/csf/health"
-	versionPath   = "/csf/version"
-	varsPath      = "/csf/debug/vars"
-	configPath    = "/csf/config"
-	pprofPrefix   = "/csf/debug/pprof"
+	shutdownPrefix = "/csf/shutdown"
+	snapshotPrefix = "/csf/snapshot"
+	membersPrefix  = "/csf/members"
+	statsPrefix    = "/csf/stats"
+	metricsPath    = "/csf/metrics"
+	healthPath     = "/csf/health"
+	versionPath    = "/csf/version"
+	varsPath       = "/csf/debug/vars"
+	configPath     = "/csf/config"
+	pprofPrefix    = "/csf/debug/pprof"
 )
 
 // NewClientHandler generates a muxed http.Handler with the given parameters to serve etcd client requests.
@@ -69,6 +71,8 @@ func NewClientHandler(server *cluster.CSFNode, mux *http.ServeMux) http.Handler 
 	mux.HandleFunc("/", http.NotFound)
 	mux.Handle(healthPath, healthHandler(server))
 	mux.HandleFunc(versionPath, versionHandler(server.Cluster(), serveVersion))
+	mux.HandleFunc(shutdownPrefix, shutdowServerHandler(server))
+	mux.HandleFunc(snapshotPrefix, snapshotHandler(server))
 	// mux.HandleFunc(statsPrefix+"/csf/store", sh.serveStore)
 	mux.HandleFunc(statsPrefix+"/self", sh.serveSelf)
 	mux.HandleFunc(statsPrefix+"/leader", sh.serveLeader)
@@ -199,7 +203,7 @@ func healthHandler(server *cluster.CSFNode) http.HandlerFunc {
 		}
 
 		if uint64(server.Leader()) == raft.None {
-			http.Error(w, `{"health": "false"}`, http.StatusServiceUnavailable)
+			http.Error(w, `{"health": "false", "leader" : "none"}`, http.StatusServiceUnavailable)
 			return
 		}
 
@@ -214,7 +218,7 @@ func healthHandler(server *cluster.CSFNode) http.HandlerFunc {
 			}
 		}
 
-		http.Error(w, `{"health": "false"}`, http.StatusServiceUnavailable)
+		http.Error(w, `{"health": "false", "progress" : "false"}`, http.StatusServiceUnavailable)
 		return
 	}
 }
@@ -227,6 +231,49 @@ func versionHandler(c Cluster, fn func(http.ResponseWriter, *http.Request, strin
 		} else {
 			fn(w, r, "not_decided")
 		}
+	}
+}
+
+func shutdowServerHandler(server *cluster.CSFNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !interfaces.AllowMethod(w, r.Method, "GET") {
+			return
+		}
+		if !interfaces.CheckCSFAccess(server, r) {
+			interfaces.WriteNoAuth(w, r)
+			return
+		}
+		vs := make(map[string]bool)
+		vs["result"] = true
+
+		w.Header().Set("Content-Type", "application/json")
+		b, err := json.Marshal(&vs)
+		if err != nil {
+			plog.Panicf("cannot marshal versions to json (%v)", err)
+		}
+		w.Write(b)
+		server.HardStop(false)
+	}
+}
+
+func snapshotHandler(server *cluster.CSFNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !interfaces.AllowMethod(w, r.Method, "GET") {
+			return
+		}
+		if !interfaces.CheckCSFAccess(server, r) {
+			interfaces.WriteNoAuth(w, r)
+			return
+		}
+		vs := make(map[string]bool)
+		vs["result"] = server.AskSnapshot()
+
+		w.Header().Set("Content-Type", "application/json")
+		b, err := json.Marshal(&vs)
+		if err != nil {
+			plog.Panicf("cannot marshal versions to json (%v)", err)
+		}
+		w.Write(b)
 	}
 }
 

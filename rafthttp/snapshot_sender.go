@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/pkg/httputil"
-	pioutil "github.com/catyguan/csf/pkg/ioutil"
 	"github.com/catyguan/csf/pkg/types"
 	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/snap"
@@ -65,18 +64,17 @@ func (s *snapshotSender) stop() { close(s.stopc) }
 func (s *snapshotSender) send(merged snap.Message) {
 	m := merged.Message
 
-	body := createSnapBody(merged)
-	defer body.Close()
+	body, totalSize := createSnapBody(merged)
 
 	u := s.picker.pick()
 	req := createPostRequest(u, RaftSnapshotPrefix, body, "application/octet-stream", s.tr.URLs, s.from, s.cid)
 
-	plog.Infof("start to send database snapshot [index: %d, to %s]...", m.Snapshot.Metadata.Index, types.ID(m.To))
+	plog.Infof("start to send snapshot [index: %d, to %s]...", m.Snapshot.Metadata.Index, types.ID(m.To))
 
 	err := s.post(req)
 	defer merged.CloseWithError(err)
 	if err != nil {
-		plog.Warningf("database snapshot [index: %d, to: %s] failed to be sent out (%v)", m.Snapshot.Metadata.Index, types.ID(m.To), err)
+		plog.Warningf("snapshot [index: %d, to: %s] failed to be sent out (%v)", m.Snapshot.Metadata.Index, types.ID(m.To), err)
 
 		// errMemberRemoved is a critical error since a removed member should
 		// always be stopped. So we use reportCriticalError to report it to errorc.
@@ -96,9 +94,9 @@ func (s *snapshotSender) send(merged snap.Message) {
 	}
 	s.status.activate()
 	s.r.ReportSnapshot(m.To, raft.SnapshotFinish)
-	plog.Infof("database snapshot [index: %d, to: %s] sent out successfully", m.Snapshot.Metadata.Index, types.ID(m.To))
+	plog.Infof("snapshot(%v) [index: %d, to: %s] sent out successfully", totalSize, m.Snapshot.Metadata.Index, types.ID(m.To))
 
-	sentBytes.WithLabelValues(types.ID(m.To).String()).Add(float64(merged.TotalSize))
+	sentBytes.WithLabelValues(types.ID(m.To).String()).Add(float64(totalSize))
 }
 
 // post posts the given request.
@@ -140,7 +138,21 @@ func (s *snapshotSender) post(req *http.Request) (err error) {
 	}
 }
 
-func createSnapBody(merged snap.Message) io.ReadCloser {
+type mybuffer struct {
+	message snap.Message
+	buf     *bytes.Buffer
+}
+
+func (s *mybuffer) Read(b []byte) (int, error) {
+	return s.buf.Read(b)
+}
+
+func (s *mybuffer) Close() error {
+	// s.message.CloseWithError(nil)
+	return nil
+}
+
+func createSnapBody(merged snap.Message) (io.Reader, int) {
 	buf := new(bytes.Buffer)
 	enc := &messageEncoder{w: buf}
 	// encode raft message
@@ -148,8 +160,5 @@ func createSnapBody(merged snap.Message) io.ReadCloser {
 		plog.Panicf("encode message error (%v)", err)
 	}
 
-	return &pioutil.ReaderAndCloser{
-		Reader: io.MultiReader(buf, merged.ReadCloser),
-		Closer: merged.ReadCloser,
-	}
+	return buf, buf.Len()
 }

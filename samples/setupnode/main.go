@@ -60,7 +60,6 @@ func main() {
 		log.Fatal(err)
 		os.Exit(4)
 	}
-	defer node.Close()
 
 	if !node.OnReady(60 * time.Second) {
 		node.Close()
@@ -85,6 +84,7 @@ func main() {
 	case <-stopped:
 	}
 
+	node.Close()
 	osutil.Exit(0)
 
 }

@@ -14,12 +14,7 @@
 
 package snap
 
-import (
-	"io"
-
-	"github.com/catyguan/csf/pkg/ioutil"
-	"github.com/catyguan/csf/raft/raftpb"
-)
+import "github.com/catyguan/csf/raft/raftpb"
 
 // Message is a struct that contains a raft Message and a ReadCloser. The type
 // of raft message MUST be MsgSnap, which contains the raft meta-data and an
@@ -31,17 +26,13 @@ import (
 // User of Message should close the Message after sending it.
 type Message struct {
 	raftpb.Message
-	ReadCloser io.ReadCloser
-	TotalSize  int64
-	closeC     chan bool
+	closeC chan bool
 }
 
-func NewMessage(rs raftpb.Message, rc io.ReadCloser, rcSize int64) *Message {
+func NewMessage(rs raftpb.Message) *Message {
 	return &Message{
-		Message:    rs,
-		ReadCloser: ioutil.NewExactReadCloser(rc, rcSize),
-		TotalSize:  int64(rs.Size()) + rcSize,
-		closeC:     make(chan bool, 1),
+		Message: rs,
+		closeC:  make(chan bool, 1),
 	}
 }
 
@@ -53,9 +44,6 @@ func (m Message) CloseNotify() <-chan bool {
 }
 
 func (m Message) CloseWithError(err error) {
-	if cerr := m.ReadCloser.Close(); cerr != nil {
-		err = cerr
-	}
 	if err == nil {
 		m.closeC <- true
 	} else {

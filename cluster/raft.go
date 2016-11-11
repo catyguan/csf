@@ -73,7 +73,6 @@ type RaftTimer interface {
 	Term() uint64
 }
 
-// MYTODO: APPLY入口???
 // apply contains entries, snapshot to be applied. Once
 // an apply is consumed, the entries will be persisted to
 // to raft storage concurrently; the application must read

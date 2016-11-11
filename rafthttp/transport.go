@@ -381,22 +381,3 @@ func (s *nopTransporter) ActiveSince(id types.ID) time.Time   { return time.Time
 func (s *nopTransporter) Stop()                               {}
 func (s *nopTransporter) Pause()                              {}
 func (s *nopTransporter) Resume()                             {}
-
-type snapTransporter struct {
-	nopTransporter
-	snapDoneC chan snap.Message
-	snapDir   string
-}
-
-func NewSnapTransporter(snapDir string) (Transporter, <-chan snap.Message) {
-	ch := make(chan snap.Message, 1)
-	tr := &snapTransporter{snapDoneC: ch, snapDir: snapDir}
-	return tr, ch
-}
-
-func (s *snapTransporter) SendSnapshot(m snap.Message) {
-	ss := snap.New(s.snapDir)
-	ss.SaveDBFrom(m.ReadCloser, m.Snapshot.Metadata.Index+1)
-	m.CloseWithError(nil)
-	s.snapDoneC <- m
-}

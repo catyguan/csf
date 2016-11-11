@@ -96,17 +96,36 @@ func (this *Counter) OnLeadershipUpdate(sm interfaces.ServiceManager, localIsLea
 }
 
 func (this *Counter) OnClose(sm interfaces.ServiceManager) {
-	plog.Infof("%v close")
+	plog.Infof("%v on close", this.ServiceID())
 }
 
 func (this *Counter) ApplySnapshot(sm interfaces.ServiceManager, data []byte) error {
 	plog.Infof("%v ApplySnapshot - %v", this.ServiceID(), len(data))
+	cs := &CounterSnapshot{}
+	pbutil.MustUnmarshal(cs, data)
+	this.mutex.Lock()
+	this.data = make(map[string]uint64)
+	for _, info := range cs.Info {
+		this.data[info.Name] = info.Value
+	}
+	this.mutex.Unlock()
 	return nil
 }
 
 func (this *Counter) CreateSnapshot(sm interfaces.ServiceManager) ([]byte, error) {
 	plog.Infof("%v CreateSnapshot", this.ServiceID())
-	return nil, nil
+	cs := &CounterSnapshot{}
+	cs.Info = make([]*CounterInfo, 0)
+	this.mutex.Lock()
+	for k, v := range this.data {
+		info := &CounterInfo{}
+		info.Name = k
+		info.Value = v
+		cs.Info = append(cs.Info, info)
+	}
+	this.mutex.Unlock()
+	r := pbutil.MustMarshal(cs)
+	return r, nil
 }
 
 func (this *Counter) BuildClientHandler(sm interfaces.ServiceManager, mux *http.ServeMux) {
