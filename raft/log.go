@@ -326,7 +326,7 @@ func (l *raftLog) slice(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 			ents = unstable
 		}
 	}
-	return limitSize(ents, maxSize), nil
+	return LimitSize(ents, maxSize), nil
 }
 
 // l.firstIndex <= lo <= hi <= l.firstIndex + len(l.entries)

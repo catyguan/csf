@@ -412,10 +412,32 @@ func (s *CSFNode) run() {
 		plog.Panicf("get snapshot from raft storage error: %v", err)
 	}
 
+	var (
+		smu   sync.RWMutex
+		syncC <-chan time.Time
+	)
+	setSyncC := func(ch <-chan time.Time) {
+		smu.Lock()
+		syncC = ch
+		smu.Unlock()
+	}
+	getSyncC := func() (ch <-chan time.Time) {
+		smu.RLock()
+		ch = syncC
+		smu.RUnlock()
+		return
+	}
 	rh := &raftReadyHandler{
 		leadershipUpdate: func() {
 			// SERVICE: NOTICE Service
 			ll := s.isLeader()
+
+			if !ll {
+				setSyncC(nil)
+			} else {
+				setSyncC(s.SyncTicker)
+			}
+
 			for _, ser := range s.shub {
 				ser.OnLeadershipUpdate(s, ll)
 			}
@@ -467,7 +489,7 @@ func (s *CSFNode) run() {
 
 	// apply default snapshot
 	if !raft.IsEmptySnap(snap) {
-		s.doApplySnapshot(snap.Data)
+		s.doApplySnapshot(snap.Metadata.Index, snap.Data)
 		snap.Data = nil
 	}
 
@@ -495,6 +517,8 @@ func (s *CSFNode) run() {
 			plog.Errorf("%s", err)
 			plog.Infof("the data-dir used by this member must be removed.")
 			return
+		case <-getSyncC():
+			s.sync(s.Cfg.ReqTimeout())
 		case <-s.stop:
 			return
 		}
@@ -549,14 +573,14 @@ func (s *CSFNode) applySnapshot(ep *csfProgress, apply *apply) {
 		plog.Panicf("read snapshot file error(%s): %v", snapfn, err2)
 	}
 
-	s.doApplySnapshot(pbsnap.Data)
+	s.doApplySnapshot(pbsnap.Metadata.Index, pbsnap.Data)
 
 	ep.appliedi = apply.snapshot.Metadata.Index
 	ep.snapi = ep.appliedi
 	ep.confState = apply.snapshot.Metadata.ConfState
 }
 
-func (s *CSFNode) doApplySnapshot(data []byte) {
+func (s *CSFNode) doApplySnapshot(index uint64, data []byte) {
 	// SERVICE: Apply Snapshot
 	ssp := &basepb.ServiceSnapshotPack{}
 	err3 := ssp.Unmarshal(data)
@@ -568,7 +592,7 @@ func (s *CSFNode) doApplySnapshot(data []byte) {
 		sid := ss.Id
 		if sv, ok := s.shub[sid]; ok {
 			plog.Infof("apply snapshot to service(%s)", sid)
-			if err4 := sv.ApplySnapshot(s, ss.Data); err4 != nil {
+			if err4 := sv.ApplySnapshot(s, index, ss.Data); err4 != nil {
 				plog.Panicf("apply snapshot to service(%s) error: %v", sid, err4)
 			}
 		} else {
@@ -856,7 +880,7 @@ func (s *CSFNode) applyEntryNormal(e *raftpb.Entry) {
 
 	req := &pb.Request{}
 	pbutil.MustUnmarshal(req, e.Data)
-	s.w.Trigger(req.ID, s.applyRequest(req))
+	s.w.Trigger(req.ID, s.applyRequest(e.Index, req))
 }
 
 // TODO: non-blocking snapshot
@@ -868,7 +892,7 @@ func (s *CSFNode) snapshot(snapi uint64) {
 		for _, ser := range s.shub {
 			ss := &basepb.ServiceSnapshot{}
 			ss.Id = ser.ServiceID()
-			data, err2 := ser.CreateSnapshot(s)
+			data, err2 := ser.CreateSnapshot(s, snapi)
 			if err2 != nil {
 				plog.Panicf("service(%s) create snapshot error %v", ser.ServiceID(), err2)
 			}
@@ -1018,4 +1042,22 @@ func (s *CSFNode) goAttach(f func()) {
 		defer s.wg.Done()
 		f()
 	}()
+}
+
+// sync proposes a SYNC request and is non-blocking.
+// This makes no guarantee that the request will be proposed or performed.
+// The request will be canceled after the given timeout.
+func (s *CSFNode) sync(timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	req := pb.Request{
+		ID:       s.reqIDGen.Next(),
+		SyncTime: time.Now().UnixNano(),
+	}
+	data := pbutil.MustMarshal(&req)
+	// There is no promise that node has leader when do SYNC request,
+	// so it uses goroutine to propose.
+	s.goAttach(func() {
+		s.raftNode.Propose(ctx, data)
+		cancel()
+	})
 }

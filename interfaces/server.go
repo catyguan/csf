@@ -34,4 +34,8 @@ type ServiceManager interface {
 	ClientRequestTime() time.Duration
 
 	DoClusterAction(ctx context.Context, servceId, action string, data []byte) ([]byte, error)
+
+	Index() uint64
+
+	Term() uint64
 }

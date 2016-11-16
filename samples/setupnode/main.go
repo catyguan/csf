@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package etcdlike defines a csf app just like etcd.
+// Package setupnode defines a csf sample app.
 package main
 
 import (

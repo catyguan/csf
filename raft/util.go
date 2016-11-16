@@ -101,7 +101,7 @@ func DescribeEntry(e pb.Entry, f EntryFormatter) string {
 	return fmt.Sprintf("%d/%d %s %s", e.Term, e.Index, e.Type, formatted)
 }
 
-func limitSize(ents []pb.Entry, maxSize uint64) []pb.Entry {
+func LimitSize(ents []pb.Entry, maxSize uint64) []pb.Entry {
 	if len(ents) == 0 {
 		return ents
 	}

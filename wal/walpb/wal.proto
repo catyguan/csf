@@ -8,9 +8,9 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
-message Record {
-	optional int64 type  = 1 [(gogoproto.nullable) = false];
-	optional uint32 crc  = 2 [(gogoproto.nullable) = false];
+message Metadata {
+	optional uint64 NodeID    	= 1 [(gogoproto.nullable) = false];
+	optional uint64 ClusterID 	= 2 [(gogoproto.nullable) = false];
 	optional bytes data  = 3;
 }
 

@@ -44,14 +44,14 @@ var (
 	errUnsupportedStreamType = fmt.Errorf("unsupported stream type")
 
 	// the key is in string format "major.minor.patch"
-	supportedStream = map[string][]streamType{
-		"2.0.0": {},
-		"2.1.0": {streamTypeMsgAppV2, streamTypeMessage},
-		"2.2.0": {streamTypeMsgAppV2, streamTypeMessage},
-		"2.3.0": {streamTypeMsgAppV2, streamTypeMessage},
-		"3.0.0": {streamTypeMsgAppV2, streamTypeMessage},
-		"3.1.0": {streamTypeMsgAppV2, streamTypeMessage},
-	}
+	// supportedStream = map[string][]streamType{
+	// 	"2.0.0": {},
+	// 	"2.1.0": {streamTypeMsgAppV2, streamTypeMessage},
+	// 	"2.2.0": {streamTypeMsgAppV2, streamTypeMessage},
+	// 	"2.3.0": {streamTypeMsgAppV2, streamTypeMessage},
+	// 	"3.0.0": {streamTypeMsgAppV2, streamTypeMessage},
+	// 	"3.1.0": {streamTypeMsgAppV2, streamTypeMessage},
+	// }
 )
 
 type streamType string
@@ -516,11 +516,12 @@ func isClosedConnectionError(err error) bool {
 // checkStreamSupport checks whether the stream type is supported in the
 // given version.
 func checkStreamSupport(v *semver.Version, t streamType) bool {
-	nv := &semver.Version{Major: v.Major, Minor: v.Minor}
-	for _, s := range supportedStream[nv.String()] {
-		if s == t {
-			return true
-		}
-	}
-	return false
+	return true
+	// nv := &semver.Version{Major: v.Major, Minor: v.Minor}
+	// for _, s := range supportedStream[nv.String()] {
+	// 	if s == t {
+	// 		return true
+	// 	}
+	// }
+	// return false
 }

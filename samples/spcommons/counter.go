@@ -35,7 +35,9 @@ type Counter struct {
 	mutex sync.RWMutex
 }
 
+// BEGIN: 业务
 func (this *Counter) GetValue(sm interfaces.ServiceManager, key string) uint64 {
+	plog.Infof("[%v:%v] GetValue(%v)", sm.Term(), sm.Index(), key)
 	this.mutex.RLock()
 	defer func() {
 		this.mutex.RUnlock()
@@ -79,6 +81,9 @@ func (this *Counter) doAddValue(sm interfaces.ServiceManager, key string, val ui
 	}
 }
 
+// END: 业务
+
+// BEGIN: 实现interfaces.Service
 func (this *Counter) ServiceID() string {
 	return "test-counter"
 }
@@ -99,8 +104,8 @@ func (this *Counter) OnClose(sm interfaces.ServiceManager) {
 	plog.Infof("%v on close", this.ServiceID())
 }
 
-func (this *Counter) ApplySnapshot(sm interfaces.ServiceManager, data []byte) error {
-	plog.Infof("%v ApplySnapshot - %v", this.ServiceID(), len(data))
+func (this *Counter) ApplySnapshot(sm interfaces.ServiceManager, index uint64, data []byte) error {
+	plog.Infof("[%v] %v ApplySnapshot - %v", index, this.ServiceID(), len(data))
 	cs := &CounterSnapshot{}
 	pbutil.MustUnmarshal(cs, data)
 	this.mutex.Lock()
@@ -112,8 +117,8 @@ func (this *Counter) ApplySnapshot(sm interfaces.ServiceManager, data []byte) er
 	return nil
 }
 
-func (this *Counter) CreateSnapshot(sm interfaces.ServiceManager) ([]byte, error) {
-	plog.Infof("%v CreateSnapshot", this.ServiceID())
+func (this *Counter) CreateSnapshot(sm interfaces.ServiceManager, index uint64) ([]byte, error) {
+	plog.Infof("[%v] %v CreateSnapshot", index, this.ServiceID())
 	cs := &CounterSnapshot{}
 	cs.Info = make([]*CounterInfo, 0)
 	this.mutex.Lock()
@@ -133,8 +138,8 @@ func (this *Counter) BuildClientHandler(sm interfaces.ServiceManager, mux *http.
 	this.doBuildClientHandler(sm, mux)
 }
 
-func (this *Counter) ApplyAction(sm interfaces.ServiceManager, action string, data []byte) ([]byte, error) {
-	plog.Infof("%v ApplyAction - %s(%v)", this.ServiceID(), action, len(data))
+func (this *Counter) ApplyAction(sm interfaces.ServiceManager, index uint64, action string, data []byte) ([]byte, error) {
+	plog.Infof("[%v] %v ApplyAction - %s(%v)", index, this.ServiceID(), action, len(data))
 	switch action {
 	case "add":
 		info := &CounterInfo{}
@@ -146,3 +151,5 @@ func (this *Counter) ApplyAction(sm interfaces.ServiceManager, action string, da
 		return nil, fmt.Errorf("unknow action %s", action)
 	}
 }
+
+// END: 实现interfaces.Service

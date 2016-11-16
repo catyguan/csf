@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2016 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package walpb
+// Package interfaces defines the base interface class use by csfserver and modules.
+package raftserver
 
-import "errors"
+import "github.com/catyguan/csf/pkg/capnslog"
 
 var (
-	ErrCRCMismatch = errors.New("walpb: crc mismatch")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "raftserver")
 )
-
-func (rec *Record) Validate(crc uint32) error {
-	if rec.Crc == crc {
-		return nil
-	}
-	rec.Reset()
-	return ErrCRCMismatch
-}

@@ -46,13 +46,13 @@ type Service interface {
 	OnClose(sm ServiceManager)
 
 	// 创建快照
-	CreateSnapshot(sm ServiceManager) ([]byte, error)
+	CreateSnapshot(sm ServiceManager, index uint64) ([]byte, error)
 
 	// 应用某个数据快照
-	ApplySnapshot(sm ServiceManager, data []byte) error
+	ApplySnapshot(sm ServiceManager, index uint64, data []byte) error
 
 	// 应用集群行为
-	ApplyAction(sm ServiceManager, action string, data []byte) ([]byte, error)
+	ApplyAction(sm ServiceManager, indexx uint64, action string, data []byte) ([]byte, error)
 
 	// 构建客户端API接口
 	BuildClientHandler(sm ServiceManager, mux *http.ServeMux)

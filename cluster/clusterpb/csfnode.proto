@@ -12,5 +12,6 @@ message Request {
 	optional uint64 ID         =  1 [(gogoproto.nullable) = false];
 	optional string serviceID  =  2 [(gogoproto.nullable) = false];
 	optional string action     =  3 [(gogoproto.nullable) = false];
-	optional bytes  data       = 4 [(gogoproto.nullable) = true];
+	optional bytes  data       =  4 [(gogoproto.nullable) = true];
+	optional int64  syncTime   =  5 [(gogoproto.nullable) = false];
 }

@@ -81,7 +81,7 @@ func (this *CSFNode) processRaftRequest(ctx context.Context, r *pb.Request) (Res
 	return Response{}, ErrStopped
 }
 
-func (this *CSFNode) applyRequest(r *pb.Request) Response {
+func (this *CSFNode) applyRequest(index uint64, r *pb.Request) Response {
 	// SERVICE: Apply Here
 	if this.shub == nil {
 		plog.Warningf("apply request(%s:%s) fail, miss ServiceHub", r.ServiceID, r.Action)
@@ -92,7 +92,7 @@ func (this *CSFNode) applyRequest(r *pb.Request) Response {
 		plog.Warningf("apply request(%s:%s) fail, miss Service", r.ServiceID, r.Action)
 		return Response{err: ErrUnknownActions}
 	}
-	rdata, err := serv.ApplyAction(this, r.Action, r.Data)
+	rdata, err := serv.ApplyAction(this, index, r.Action, r.Data)
 	if err != nil {
 		return Response{err: err}
 	}
