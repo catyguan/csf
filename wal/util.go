@@ -28,7 +28,7 @@ var (
 	badWalName = errors.New("bad wal name")
 )
 
-func Exist(dirpath string) bool {
+func ExistDir(dirpath string) bool {
 	names, err := fileutil.ReadDir(dirpath)
 	if err != nil {
 		return false
@@ -44,60 +44,26 @@ func ExistFile(fpath string) bool {
 	return true
 }
 
-// searchIndex returns the last array index of names whose raft index section is
-// equal to or smaller than the given index.
-// The given names MUST be sorted.
-func searchIndex(names []string, index uint64) (int, bool) {
-	for i := len(names) - 1; i >= 0; i-- {
-		name := names[i]
-		curIndex, err := parseWalName(name)
-		if err != nil {
-			plog.Panicf("parse correct name should never fail: %v", err)
-		}
-		if index >= curIndex {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
-func readWalNames(dirpath string) ([]string, error) {
-	names, err := fileutil.ReadDir(dirpath)
-	if err != nil {
-		return nil, err
-	}
-	wnames := checkWalNames(names)
-	if len(wnames) == 0 {
-		return nil, ErrFileNotFound
-	}
-	return wnames, nil
-}
-
-func checkWalNames(names []string) []string {
-	wnames := make([]string, 0)
+func checkSnapNames(names []string) []string {
+	snaps := []string{}
 	for _, name := range names {
-		if _, err := parseWalName(name); err != nil {
-			// don't complain about left over tmp files
-			if !strings.HasSuffix(name, ".tmp") {
-				plog.Warningf("ignored file %v in wal", name)
+		if strings.HasSuffix(name, snapSuffix) {
+			snaps = append(snaps, name)
+		} else {
+			// If we find a file which is not a snapshot then check if it's
+			// a vaild file. If not throw out a warning.
+			if !strings.HasSuffix(name, ".tmp") &&
+				!strings.HasSuffix(name, ".wal") &&
+				!strings.HasSuffix(name, ".broken") {
+				plog.Warningf("skipped unexpected non snapshot file %v", names)
 			}
-			continue
 		}
-		wnames = append(wnames, name)
 	}
-	return wnames
+	return snaps
 }
 
-func parseWalName(str string) (index uint64, err error) {
-	if !strings.HasSuffix(str, ".wal") {
-		return 0, badWalName
-	}
-	_, err = fmt.Sscanf(str, "%016x.wal", &index)
-	return index, err
-}
-
-func walName(index uint64) string {
-	return fmt.Sprintf("%016x.wal", index)
+func blockName(id uint64) string {
+	return fmt.Sprintf("%016x.wal", id)
 }
 
 func allocFileSize(dir, filePath string, size int64) error {

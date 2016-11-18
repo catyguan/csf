@@ -33,14 +33,8 @@ type logIndex struct {
 	Size  uint32 // 24
 	Type  uint8  // 8
 	Crc   uint32 // 32
-}
-
-func createLogIndex(idx uint64, term uint64, typ uint8) *logIndex {
-	return &logIndex{
-		Index: idx,
-		Term:  term,
-		Type:  typ,
-	}
+	Pos   uint64 // do not save
+	Id    int32  // do not save
 }
 
 func (this *logIndex) Empty() bool {
@@ -52,6 +46,10 @@ func (this *logIndex) Validate(crc uint32) error {
 		return nil
 	}
 	return ErrCRCMismatch
+}
+
+func (this *logIndex) EndPos() uint64 {
+	return this.Pos + uint64(this.Size) + sizeofLogIndex
 }
 
 type logCoder struct {
@@ -88,8 +86,14 @@ func (this *logCoder) WriteRecord(w io.Writer, li *logIndex, b []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(b)
-	return err
+	n, err2 := w.Write(b)
+	if err2 != nil {
+		return err2
+	}
+	if n != len(b) {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 
 func (this *logCoder) Read(r io.Reader) (*logIndex, error) {
@@ -97,11 +101,14 @@ func (this *logCoder) Read(r io.Reader) (*logIndex, error) {
 		this.buf = make([]byte, sizeofLogIndex)
 	}
 	buf := this.buf
-	n, err := r.Read(buf)
+	n, err := io.ReadFull(r, buf)
 	if err != nil {
 		return nil, err
 	}
 	if n != sizeofLogIndex {
+		// if n == 0 {
+		// 	return nil, io.EOF
+		// }
 		return nil, io.ErrUnexpectedEOF
 	}
 
@@ -137,7 +144,7 @@ func (this *logCoder) ReadRecordToBuf(r io.Reader, b []byte) (*logIndex, []byte,
 	} else {
 		b2 = b[:li.Size]
 	}
-	n, err2 := r.Read(b2)
+	n, err2 := io.ReadFull(r, b2)
 	if err2 != nil {
 		return nil, nil, err2
 	}

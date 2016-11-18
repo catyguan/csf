@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package snap
+package wal
 
 import (
 	"fmt"
@@ -38,21 +38,24 @@ var testSnap = &raftpb.Snapshot{
 }
 
 func TestSaveAndLoad(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
-	ss := New(dir)
-	err = ss.save(testSnap)
+
+	ss := NewSnapshotter(dir)
+	err := ss.SaveSnap(*testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	g, err := ss.Load()
+	name, meta, err := ss.LoadLastMetadata()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
+	}
+	plog.Infof("meta = %v", meta.String())
+	g, err2 := ss.LoadSnap(name)
+	if err2 != nil {
+		t.Fatalf("err = %v, want nil", err2)
 	}
 	if !reflect.DeepEqual(g, testSnap) {
 		t.Errorf("snap = %#v, want %#v", g, testSnap)
@@ -60,14 +63,12 @@ func TestSaveAndLoad(t *testing.T) {
 }
 
 func TestBadCRC(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
-	ss := New(dir)
-	err = ss.save(testSnap)
+
+	ss := NewSnapshotter(dir)
+	err := ss.SaveSnap(*testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,35 +77,36 @@ func TestBadCRC(t *testing.T) {
 	// fake a crc mismatch
 	crcTable = crc32.MakeTable(crc32.Koopman)
 
-	_, err = Read(path.Join(dir, fmt.Sprintf("%016x-%016x.snap", 1, 1)))
+	_, err = ss.LoadSnap(fmt.Sprintf("%016x.snap", 1))
 	if err == nil || err != ErrCRCMismatch {
 		t.Errorf("err = %v, want %v", err, ErrCRCMismatch)
 	}
 }
 
 func TestFailback(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
 
 	large := fmt.Sprintf("%016x-%016x-%016x.snap", 0xFFFF, 0xFFFF, 0xFFFF)
-	err = ioutil.WriteFile(path.Join(dir, large), []byte("bad data"), 0666)
+	err := ioutil.WriteFile(path.Join(dir, large), []byte("bad data"), 0666)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ss := New(dir)
-	err = ss.save(testSnap)
+	ss := NewSnapshotter(dir)
+	err = ss.SaveSnap(*testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	g, err := ss.Load()
+	n, _, err := ss.LoadLastMetadata()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
+	}
+	g, err2 := ss.LoadSnap(n)
+	if err2 != nil {
+		t.Errorf("err = %v, want nil", err2)
 	}
 	if !reflect.DeepEqual(g, testSnap) {
 		t.Errorf("snap = %#v, want %#v", g, testSnap)
@@ -117,12 +119,11 @@ func TestFailback(t *testing.T) {
 }
 
 func TestSnapNames(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
+	var err error
+
 	for i := 1; i <= 5; i++ {
 		var f *os.File
 		if f, err = os.Create(path.Join(dir, fmt.Sprintf("%d.snap", i))); err != nil {
@@ -131,7 +132,7 @@ func TestSnapNames(t *testing.T) {
 			f.Close()
 		}
 	}
-	ss := New(dir)
+	ss := NewSnapshotter(dir)
 	names, err := ss.snapNames()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
@@ -146,27 +147,28 @@ func TestSnapNames(t *testing.T) {
 }
 
 func TestLoadNewestSnap(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
-	ss := New(dir)
-	err = ss.save(testSnap)
+	ss := NewSnapshotter(dir)
+	err := ss.SaveSnap(*testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	newSnap := *testSnap
 	newSnap.Metadata.Index = 5
-	err = ss.save(&newSnap)
+	err = ss.SaveSnap(newSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	g, err := ss.Load()
+	n, _, err := ss.LoadLastMetadata()
 	if err != nil {
+		t.Errorf("err = %v, want nil", err)
+	}
+	g, err2 := ss.LoadSnap(n)
+	if err2 != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
 	if !reflect.DeepEqual(g, &newSnap) {
@@ -175,55 +177,31 @@ func TestLoadNewestSnap(t *testing.T) {
 }
 
 func TestNoSnapshot(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
-	ss := New(dir)
-	_, err = ss.Load()
-	if err != ErrNoSnapshot {
+
+	ss := NewSnapshotter(dir)
+	_, _, err := ss.LoadLastMetadata()
+	if err != nil {
 		t.Errorf("err = %v, want %v", err, ErrNoSnapshot)
-	}
-}
-
-func TestEmptySnapshot(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	err = ioutil.WriteFile(path.Join(dir, "1.snap"), []byte(""), 0x700)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = Read(path.Join(dir, "1.snap"))
-	if err != ErrEmptySnapshot {
-		t.Errorf("err = %v, want %v", err, ErrEmptySnapshot)
 	}
 }
 
 // TestAllSnapshotBroken ensures snapshotter returns
 // ErrNoSnapshot if all the snapshots are broken.
 func TestAllSnapshotBroken(t *testing.T) {
-	dir := path.Join(os.TempDir(), "snapshot")
-	err := os.Mkdir(dir, 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := path.Join(testDir, "snapshot")
+	os.Mkdir(dir, 0700)
 	defer os.RemoveAll(dir)
 
-	err = ioutil.WriteFile(path.Join(dir, "1.snap"), []byte("bad"), 0x700)
+	err := ioutil.WriteFile(path.Join(dir, "1.snap"), []byte("bad"), 0x700)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ss := New(dir)
-	_, err = ss.Load()
+	ss := NewSnapshotter(dir)
+	_, _, err = ss.LoadLastMetadata()
 	if err != ErrNoSnapshot {
 		t.Errorf("err = %v, want %v", err, ErrNoSnapshot)
 	}

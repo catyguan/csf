@@ -23,12 +23,69 @@ import (
 
 	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/catyguan/csf/wal"
 )
+
+type debugStorage struct {
+	debuger RaftServerDebuger
+	backend raft.Storage
+}
+
+func (this *debugStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+	r1, r2, r3 := this.backend.InitialState()
+	if this.debuger != nil {
+		this.debuger.StorageInitialState(r1, r2, r3)
+	}
+	return r1, r2, r3
+}
+
+func (this *debugStorage) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+	r1, r2 := this.backend.Entries(lo, hi, maxSize)
+	if this.debuger != nil {
+		this.debuger.StorageEntries(lo, hi, maxSize, r1, r2)
+	}
+	return r1, r2
+}
+
+func (this *debugStorage) Term(i uint64) (uint64, error) {
+	r1, r2 := this.backend.Term(i)
+	if this.debuger != nil {
+		this.debuger.StorageTerm(i, r1, r2)
+	}
+	return r1, r2
+}
+
+func (this *debugStorage) LastIndex() (uint64, error) {
+	r1, r2 := this.backend.LastIndex()
+	if this.debuger != nil {
+		this.debuger.StorageLastIndex(r1, r2)
+	}
+	return r1, r2
+}
+
+func (this *debugStorage) FirstIndex() (uint64, error) {
+	r1, r2 := this.backend.FirstIndex()
+	if this.debuger != nil {
+		this.debuger.StorageFirstIndex(r1, r2)
+	}
+	return r1, r2
+}
+
+func (this *debugStorage) Snapshot() (raftpb.Snapshot, error) {
+	r1, r2 := this.backend.Snapshot()
+	if this.debuger != nil {
+		this.debuger.StorageSnapshot(r1, r2)
+	}
+	return r1, r2
+}
 
 type RaftServer struct {
 	id         uint64
 	Node       raft.Node
+	w          *wal.WAL
+	Debuger    RaftServerDebuger
 	Handler    RaftServerHandler
+	Transport  RaftServerTransport
 	memStorage *raft.MemoryStorage
 
 	closec chan interface{}
@@ -41,9 +98,11 @@ type RaftServer struct {
 	lastLeadTime time.Time
 }
 
-func NewRaftServer(h RaftServerHandler) (*RaftServer, error) {
+func NewRaftServer(tr RaftServerTransport, h RaftServerHandler, d RaftServerDebuger) (*RaftServer, error) {
 	r := new(RaftServer)
+	r.Transport = tr
 	r.Handler = h
+	r.Debuger = d
 	r.done = make(chan interface{})
 	r.readStateC = make(chan raft.ReadState, 1)
 	return r, nil
@@ -62,11 +121,41 @@ func (this *RaftServer) LeaderId() uint64 {
 
 func (this *RaftServer) StartRaftServer(cfg *Config) error {
 	this.id = cfg.ID
-	if cfg.InMemory {
+	if cfg.WALDir == "" {
 		ncfg := cfg.Config
 		this.memStorage = raft.NewMemoryStorage()
 		ncfg.Storage = this.memStorage
+		if this.Debuger != nil {
+			ncfg.Storage = &debugStorage{
+				backend: ncfg.Storage,
+				debuger: this.Debuger,
+			}
+		}
 		this.Node = raft.StartNode(&ncfg, cfg.InitPeers)
+	} else {
+		w, newone, err := wal.InitWAL(cfg.WALDir, cfg.ClusterID)
+		if err != nil {
+			return err
+		}
+		err = w.Begin()
+		if err != nil {
+			return err
+		}
+		this.w = w
+
+		ncfg := cfg.Config
+		ncfg.Storage = w
+		if this.Debuger != nil {
+			ncfg.Storage = &debugStorage{
+				backend: ncfg.Storage,
+				debuger: this.Debuger,
+			}
+		}
+		if newone {
+			this.Node = raft.StartNode(&ncfg, cfg.InitPeers)
+		} else {
+			this.Node = raft.RestartNode(&ncfg)
+		}
 	}
 
 	ticker := time.Tick(cfg.TickerDuration)
@@ -140,14 +229,18 @@ func (this *RaftServer) run(closec chan interface{}, ticker <-chan time.Time) {
 			// writing to their disks.
 			// For more details, check raft thesis 10.2.1
 			if islead {
-				this.Handler.SendMessage(rd.Messages)
+				this.Transport.SendMessage(rd.Messages)
 			}
 
 			// TODO:  持久化日志和状态
-			this.Handler.Debug(&rd.HardState, rd.Entries)
-			// if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
-			// 	plog.Fatalf("raft save state and entries error: %v", err)
-			// }
+			if this.Debuger != nil {
+				this.Debuger.SaveToWAL(&rd.HardState, rd.Entries)
+			}
+			if this.w != nil {
+				if err := this.w.Save(rd.HardState, rd.Entries); err != nil {
+					plog.Fatalf("raft save state and entries error: %v", err)
+				}
+			}
 			if !raft.IsEmptyHardState(rd.HardState) {
 				proposalsCommitted.Set(float64(rd.HardState.Commit))
 			}
@@ -167,16 +260,30 @@ func (this *RaftServer) run(closec chan interface{}, ticker <-chan time.Time) {
 			}
 
 			if !islead {
-				// gofail: var raftBeforeFollowerSend struct{}
-				this.Handler.SendMessage(rd.Messages)
+				this.Transport.SendMessage(rd.Messages)
 			}
-			this.Handler.ApplyRaftUpdates(rd.CommittedEntries, &rd.Snapshot)
+			if !raft.IsEmptySnap(rd.Snapshot) {
+				this.Handler.ApplyRaftSnapshot(rd.Snapshot)
+			}
+			for _, entry := range rd.CommittedEntries {
+				this.Handler.ApplyRaftUpdate(entry)
+				// lastIndex
+				if entry.Type == raftpb.EntryConfChange {
+					var cc raftpb.ConfChange
+					cc.Unmarshal(entry.Data)
+					plog.Infof("ApplyConfChange - %v", cc.String())
+					this.Node.ApplyConfChange(cc)
+				}
+			}
 			this.Node.Advance()
 		}
 	}
 }
 
 func (this *RaftServer) OnRecvRaftRPC(m raftpb.Message) {
+	if this.Debuger != nil {
+		this.Debuger.ReceivedMessage(m)
+	}
 	this.onRecvRaftRPC(context.Background(), m)
 }
 

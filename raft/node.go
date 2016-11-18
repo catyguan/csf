@@ -170,27 +170,21 @@ type Peer struct {
 
 // StartNode returns a new Node given configuration and a list of raft peers.
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
-func BuildNode(c *Config, peers []Peer) Node {
-	return startNode(c, peers, false)
-}
+// StartNode returns a new Node given configuration and a list of raft peers.
+// It appends a ConfChangeAddNode entry for each given peer to the initial log.
 func StartNode(c *Config, peers []Peer) Node {
-	return startNode(c, peers, true)
-}
-func startNode(c *Config, peers []Peer, confChange bool) Node {
 	r := newRaft(c)
 	// become the follower at term 1 and apply initial configuration
 	// entries of term 1
 	r.becomeFollower(1, None)
-	if confChange {
-		for _, peer := range peers {
-			cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
-			d, err := cc.Marshal()
-			if err != nil {
-				panic("unexpected marshal error")
-			}
-			e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
-			r.raftLog.append(e)
+	for _, peer := range peers {
+		cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
+		d, err := cc.Marshal()
+		if err != nil {
+			panic("unexpected marshal error")
 		}
+		e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
+		r.raftLog.append(e)
 	}
 	// Mark these initial entries as committed.
 	// TODO(bdarnell): These entries are still unstable; do we need to preserve
@@ -208,6 +202,19 @@ func startNode(c *Config, peers []Peer, confChange bool) Node {
 	for _, peer := range peers {
 		r.addNode(peer.ID)
 	}
+
+	n := newNode()
+	n.logger = c.Logger
+	go n.run(r)
+	return &n
+}
+
+// RestartNode is similar to StartNode but does not take a list of peers.
+// The current membership of the cluster will be restored from the Storage.
+// If the caller has an existing state machine, pass in the last log index that
+// has been applied to it; otherwise use zero.
+func RestartNode(c *Config) Node {
+	r := newRaft(c)
 
 	n := newNode()
 	n.logger = c.Logger

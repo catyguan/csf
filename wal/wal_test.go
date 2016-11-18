@@ -15,13 +15,14 @@
 package wal
 
 import (
+	"encoding/json"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/catyguan/csf/wal/walpb"
+	"github.com/catyguan/csf/raft/raftpb"
 )
 
 var (
@@ -37,31 +38,114 @@ func TestAlloc(t *testing.T) {
 	}
 }
 
-func TestBase(t *testing.T) {
+func TestWALBase(t *testing.T) {
 	SegmentSizeBytes = 16 * 1024
 
 	p := filepath.Join(testDir, "waltest")
-	os.Remove(p)
+	// os.Remove(p)
 
-	w, err2 := InitWAL(p, &walpb.Metadata{})
+	w, _, err2 := InitWAL(p, 100)
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	w.Close()
 
 	time.Sleep(time.Second)
+}
 
-	// w, err := Open(p)
-	// if err != nil {
-	// 	t.Fatalf("err = %v, want nil", err)
-	// }
-	// defer w.Close()
+func TestWALSave(t *testing.T) {
+	SegmentSizeBytes = 4 * 1024
 
-	// plog.Infof("names = %v", w.names)
+	p := filepath.Join(testDir, "waltest")
+	// os.RemoveAll(p)
 
-	// a, b, c, err3 := w.InitRead(&walpb.Snapshot{})
-	// plog.Infof("InitRead - %v, %v, %v", a, b, c)
-	// if err3 != nil {
-	// 	t.Fatalf("err3 = %v", err3)
-	// }
+	w, _, err2 := InitWAL(p, 100)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	st := raftpb.HardState{Term: 1}
+	ents := make([]raftpb.Entry, 0)
+	si := 6
+	sz := 10
+	for i := 0; i < sz; i++ {
+		v := uint64(si + i)
+		ents = append(ents, raftpb.Entry{Index: v, Term: v, Data: []byte("hello world")})
+	}
+
+	err3 := w.doSave(&st, ents)
+	if err3 != nil {
+		t.Fatalf("err3 = %v", err3)
+	}
+
+	time.Sleep(time.Second)
+}
+
+func TestWALDump(t *testing.T) {
+	SegmentSizeBytes = 16 * 1024
+
+	p := filepath.Join(testDir, "waltest")
+	cid := uint64(100)
+
+	w, _, err2 := InitWAL(p, cid)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	time.Sleep(time.Second)
+
+	err3 := w.processRecord(0, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
+		bs, _ := json.Marshal(li)
+		plog.Infof("result3 = %v, %v", string(bs), data)
+		return false, nil
+	})
+	if err3 != nil {
+		t.Fatalf("err3 = %v", err3)
+	}
+}
+
+func TestWALTerm(t *testing.T) {
+	SegmentSizeBytes = 16 * 1024
+
+	p := filepath.Join(testDir, "waltest")
+	cid := uint64(100)
+
+	w, _, err2 := InitWAL(p, cid)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	time.Sleep(time.Second)
+
+	v, err3 := w.Term(14)
+	if err3 != nil {
+		t.Fatalf("err3 = %v", err3)
+	}
+	plog.Infof("result3 = %v", v)
+
+}
+
+func TestWALEntries(t *testing.T) {
+	SegmentSizeBytes = 16 * 1024
+
+	p := filepath.Join(testDir, "waltest")
+	cid := uint64(100)
+
+	w, _, err2 := InitWAL(p, cid)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	time.Sleep(time.Second)
+
+	v, err3 := w.Entries(3, 7, 1000*1000)
+	if err3 != nil {
+		t.Fatalf("err3 = %v", err3)
+	}
+	plog.Infof("result3 = %v", v)
+
 }

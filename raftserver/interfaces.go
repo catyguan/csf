@@ -24,15 +24,14 @@ import (
 
 type Config struct {
 	raft.Config
+	ClusterID      uint64
 	WALDir         string
 	InitPeers      []raft.Peer
-	InMemory       bool
 	TickerDuration time.Duration
 }
 
 func NewConfig() *Config {
 	r := &Config{
-		InMemory:       false,
 		TickerDuration: 500 * time.Millisecond,
 	}
 	r.ID = 0x01
@@ -43,12 +42,27 @@ func NewConfig() *Config {
 	return r
 }
 
-type RaftServerHandler interface {
-	Debug(st *raftpb.HardState, entries []raftpb.Entry)
+type RaftServerDebuger interface {
+	ReceivedMessage(msg raftpb.Message)
+	SaveToWAL(st *raftpb.HardState, entries []raftpb.Entry)
 
-	ApplyRaftUpdates(entries []raftpb.Entry, snapshot *raftpb.Snapshot) error
+	// Storage Debuger
+	StorageInitialState(rst raftpb.HardState, conf raftpb.ConfState, rerr error)
+	StorageEntries(lo, hi, maxSize uint64, rents []raftpb.Entry, rerr error)
+	StorageTerm(i uint64, rterm uint64, rerr error)
+	StorageLastIndex(rindex uint64, rerr error)
+	StorageFirstIndex(rindex uint64, rerr error)
+	StorageSnapshot(rss raftpb.Snapshot, rerr error)
+}
+
+type RaftServerHandler interface {
+	ApplyRaftSnapshot(snapshot raftpb.Snapshot) error
+
+	ApplyRaftUpdate(entry raftpb.Entry) error
 
 	LeadershipUpdate(isLocalLeader bool)
+}
 
+type RaftServerTransport interface {
 	SendMessage(msgs []raftpb.Message)
 }
