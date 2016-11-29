@@ -15,82 +15,17 @@
 package wal
 
 import (
-	"fmt"
-	"io"
-	"sync/atomic"
-
 	"github.com/catyguan/csf/pkg/fileutil"
-	"github.com/catyguan/csf/pkg/pbutil"
 	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/raft/raftpb"
 )
 
-func (this *WAL) doClear() {
+func (this *WAL) Close() {
 	for _, lb := range this.blocks {
 		lb.Close()
 	}
 	this.blocks = make([]*logBlock, 0)
-}
-
-func (this *WAL) doRun(ac chan *actionOfWAL) {
-	defer this.doClear()
-	for {
-		// pick
-		select {
-		case act := <-ac:
-			if act == nil {
-				plog.Infof("WAL worker stop")
-				return
-			}
-			switch act.action {
-			default:
-				this.handleSomeAction(act)
-			}
-		}
-	}
-}
-
-func (this *WAL) handleSomeAction(act *actionOfWAL) {
-	switch act.action {
-	case "init":
-		r, err := this.doInit()
-		if act.respC != nil {
-			act.respC <- &respOfWAL{answer: r, err: err}
-		}
-	case "begin":
-		err := this.doBegin()
-		if act.respC != nil {
-			act.respC <- &respOfWAL{err: err}
-		}
-	case "save":
-		err := this.doSave(act.p1.(*raftpb.HardState), act.p2.([]raftpb.Entry))
-		if act.respC != nil {
-			act.respC <- &respOfWAL{err: err}
-		}
-	case "term":
-		r, err := this.doTerm(act.p1.(uint64))
-		if act.respC != nil {
-			act.respC <- &respOfWAL{answer: r, err: err}
-		}
-	case "entries":
-		r, err := this.doEntries(act.p1.(uint64), act.p2.(uint64), act.p3.(uint64))
-		if act.respC != nil {
-			act.respC <- &respOfWAL{answer: r, err: err}
-		}
-	default:
-		plog.Warningf("unknow WAL action - %v", act.action)
-	}
-}
-
-func (this *WAL) callAction(act *actionOfWAL) (interface{}, error) {
-	act.respC = make(chan *respOfWAL, 1)
-	if this.actionC != nil {
-		this.actionC <- act
-		r := <-act.respC
-		return r.answer, r.err
-	} else {
-		return nil, fmt.Errorf("WAL closed")
-	}
+	this.ents = nil
 }
 
 func (this *WAL) doInit() (bool, error) {
@@ -107,11 +42,13 @@ func (this *WAL) doInit() (bool, error) {
 	if !flb.IsExists() {
 		// init first wal block
 		plog.Infof("init WAL block [0]")
-		err := flb.Create()
+		err := flb.CreateAndInit(&raftpb.HardState{}, &raftpb.ConfState{})
 		if err != nil {
 			plog.Warningf("init WAL block [0] fail - %v", err)
 		}
 		this.doAppendBlock(flb)
+		this.state.Reset()
+		this.confState.Reset()
 		newone = true
 	} else {
 		lb := flb
@@ -131,50 +68,95 @@ func (this *WAL) doInit() (bool, error) {
 		}
 	}
 
+	n, lr, err := this.snapshotter.LoadLastHeader()
+	if err != nil {
+		return false, err
+	}
+	if lr == nil {
+		lr = &snapHeader{}
+	}
+
+	err = this.Begin(n, lr)
+	if err != nil {
+		return false, err
+	}
+
 	return newone, nil
 }
 
-func (this *WAL) doBegin() error {
-	n, meta, err := this.snapshotter.LoadLastMetadata()
-	if err != nil {
-		return err
-	}
-	if meta == nil {
-		meta = &raftpb.SnapshotMetadata{}
-	}
+func (this *WAL) Begin(lastSnapshotName string, lr *snapHeader) error {
+	this.state = lr.state
+	this.confState = lr.confState
+	this.lastSnapshotName = lastSnapshotName
 
-	this.initConfState = meta.ConfState
-	this.lastSnapshotName = n
-	this.lastSnapshotMetadata = meta
-	this.firstIndex = meta.Index + 1
-
-	lb := this.tailBlock()
-	err = lb.Active()
-	if err != nil {
-		return err
-	}
-	this.state = lb.state
-	this.lastIndex = lb.LastIndex()
-
-	return nil
-}
-
-func (this *WAL) processRecord(start, end uint64, h recoderHandler) error {
-	lbi := this.seekBlock(start)
-	plog.Infof("seek block %v - %v", start, lbi.id)
-	for i := lbi.id; i < len(this.blocks); i++ {
+	flb := this.seekBlock(lr.index)
+	for i := flb.id; i < len(this.blocks); i++ {
 		lb := this.blocks[i]
-		plog.Infof("process block %v", lb.id)
-		stop, err := lb.Process(start, end, h)
-		if err != nil && err != io.EOF {
+		ents := make([]raftpb.Entry, 0)
+		err := lb.Active(func(li *logIndex, data []byte) (bool, error) {
+			// read all stats & sync state
+			switch int64(li.Type) {
+			case stateType:
+				st := raftpb.HardState{}
+				err := st.Unmarshal(data)
+				if err == nil {
+					this.state = st
+				}
+			case confStateType:
+				cst := raftpb.ConfState{}
+				err := cst.Unmarshal(data)
+				if err == nil {
+					this.confState = cst
+				}
+			case entryType:
+				if li.Index >= lr.index {
+					e := raftpb.Entry{}
+					err := e.Unmarshal(data)
+					if err == nil {
+						ents = append(ents, e)
+						sz := len(ents)
+						if sz > 1 {
+							if ents[sz-2].Index+1 != ents[sz-1].Index {
+								plog.Panicf("missing log entry [last: %d, at: %d]",
+									ents[sz-2].Index, ents[sz-1].Index)
+							}
+						}
+					}
+				}
+			}
+			return false, nil
+		})
+		if err != nil {
+			plog.Warningf("WAL Begin() active block[%v] fail - %v", lb.id, err)
 			return err
 		}
-		if stop {
-			break
+		this.doAppend(ents)
+		if lb != this.tailBlock() {
+			lb.Close()
 		}
 	}
+
+	plog.Infof("WAL begin at %v, ents=%v, state=%v, confState=%v",
+		lr.index, len(this.ents), this.state.String(), this.confState.String())
+
 	return nil
 }
+
+// func (this *WAL) processRecord(start, end uint64, h recoderHandler) error {
+// 	lbi := this.seekBlock(start)
+// 	for i := lbi.id; i < len(this.blocks); i++ {
+// 		lb := this.blocks[i]
+// 		// plog.Infof("process block %v", lb.id)
+// 		stop, err := lb.Process(start, end, h)
+// 		if err != nil && err != io.EOF {
+// 			return err
+// 		}
+// 		if stop {
+// 			break
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (this *WAL) seekBlock(idx uint64) *logBlock {
 	c := len(this.blocks)
@@ -187,91 +169,7 @@ func (this *WAL) seekBlock(idx uint64) *logBlock {
 	return this.blocks[0]
 }
 
-func (this *WAL) seekStats(lb *logBlock, idx uint64) (*raftpb.HardState, error) {
-	// lb := this.seekBlock(idx)
-	// f, err := lb.readFile()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// _, err = f.Seek(0, os.SEEK_END)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// lih := createLogCoder(0)
-	// for {
-	// 	lih.ReadRecordToBuf(r, b)
-	// }
-	return nil, nil
-}
-
-func (this *WAL) doTerm(i uint64) (uint64, error) {
-	// check TailBlock
-	lb := this.tailBlock()
-	if lb.Tail != nil {
-		if lb.Tail.Index == i {
-			plog.Infof("term at TailBlock.Tail")
-			return lb.Tail.Term, nil
-		}
-	} else {
-		if lb.Index == i {
-			plog.Infof("term at TailBlock.Header")
-			return lb.Term, nil
-		}
-	}
-
-	// search
-	plog.Infof("search term records")
-	var r *logIndex
-	err := this.processRecord(i-1, i+1, func(li *logIndex, b []byte) (bool, error) {
-		if li.Index == i {
-			r = li
-			return true, nil
-		}
-		return false, nil
-	})
-	if err != nil && err != io.EOF {
-		return 0, err
-	}
-	if r != nil {
-		return r.Term, nil
-	}
-	return 0, nil
-}
-
-func (this *WAL) doEntries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	var r []raftpb.Entry
-	var totalSize = uint64(0)
-	err := this.processRecord(lo, hi, func(li *logIndex, b []byte) (bool, error) {
-		if li.Type != uint8(entryType) {
-			return false, nil
-		}
-		if li.Index >= hi {
-			return true, nil
-		}
-		if li.Index < lo {
-			return false, nil
-		}
-		totalSize += uint64(len(b))
-		if len(r) > 0 && totalSize > maxSize {
-			return true, nil
-		}
-		e := raftpb.Entry{}
-		if err := e.Unmarshal(b); err != nil {
-			return false, err
-		}
-		r = append(r, e)
-		return false, nil
-	})
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	if r != nil {
-		return r, nil
-	}
-	return make([]raftpb.Entry, 0), nil
-}
-
-func mustSync(st, prevst raftpb.HardState, entsnum int) bool {
+func mustSync(st, prevst *raftpb.HardState, entsnum int) bool {
 	// Persistent state on all servers:
 	// (Updated on stable storage before responding to RPCs)
 	// currentTerm
@@ -284,68 +182,78 @@ func sameState(st1, st2 *raftpb.HardState) bool {
 	return st1.Vote == st2.Vote && st1.Term == st2.Term && st1.Commit == st2.Commit
 }
 
-func (this *WAL) doSave(st *raftpb.HardState, ents []raftpb.Entry) error {
+func (this *WAL) Save(st *raftpb.HardState, ents []raftpb.Entry) error {
 	// short cut, do not call sync
-	if raft.IsEmptyHardState(*st) && len(ents) == 0 {
+	ebst := raft.IsEmptyHardState(*st)
+	if ebst && len(ents) == 0 {
 		return nil
 	}
 
-	mustSync := mustSync(*st, this.state, len(ents))
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
-	lb, err2 := this.checkTailBlock(ents)
-	if err2 != nil {
-		return err2
+	err := this.doAppend(ents)
+	if err != nil {
+		return err
 	}
-	for i := range ents {
-		e := &ents[i]
-		b := pbutil.MustMarshal(e)
-		_, err := lb.Append(e.Index, e.Term, uint8(entryType), b)
-		if err != nil {
-			return err
-		}
-		atomic.StoreUint64(&this.lastIndex, e.Index)
-	}
-
-	if !raft.IsEmptyHardState(*st) {
+	if !sameState(st, &this.state) {
 		this.state = *st
-		if !sameState(st, &lb.state) {
-			_, err := lb.AppendState(0, 0, st)
+	}
+
+	/*
+		lb, err2 := this.checkTailBlock(ents)
+		if err2 != nil {
+			return err2
+		}
+
+		mustSync := mustSync(st, &this.state, len(ents))
+
+		this.doAppendEntries(ents)
+		for i := range ents {
+			e := &ents[i]
+			b := pbutil.MustMarshal(e)
+			_, err := lb.Append(e.Index, e.Term, uint8(entryType), b)
 			if err != nil {
 				return err
 			}
+			atomic.StoreUint64(&this.lastIndex, e.Index)
 		}
-	}
 
-	curOff := lb.Tail.EndPos()
-
-	if curOff < uint64(SegmentSizeBytes) {
-		if mustSync {
-			return lb.sync()
+		if !ebst {
+			if !sameState(st, &this.state) {
+				b := pbutil.MustMarshal(st)
+				_, err := lb.Append(0, 0, uint8(stateType), b)
+				if err != nil {
+					return err
+				}
+				this.state = *st
+			}
 		}
-		return nil
-	}
-	return this.cut(lb)
+
+		curOff := lb.Tail.EndPos()
+		if curOff < uint64(SegmentSizeBytes) {
+			if mustSync {
+				return lb.sync()
+			}
+		}
+		return this.Cut(lb)
+	*/
+	return nil
 }
 
-func (this *WAL) cut(lb *logBlock) error {
+func (this *WAL) Cut(lb *logBlock) error {
 	if err := lb.sync(); err != nil {
 		return err
 	}
 	lb.Close()
 
 	nlb := lb.newNextBlock()
-	if err := nlb.Create(); err != nil {
+	if err := nlb.CreateAndInit(&this.state, &this.confState); err != nil {
 		plog.Warningf("create new WAL block [%v] fail - %v", nlb.id, err)
 		return err
 	}
 	this.doAppendBlock(nlb)
 
-	if !raft.IsEmptyHardState(this.state) {
-		_, err := nlb.AppendState(0, 0, &this.state)
-		if err != nil {
-			return err
-		}
-	}
 	if err := nlb.sync(); err != nil {
 		return err
 	}
@@ -362,8 +270,8 @@ func (this *WAL) checkTailBlock(ents []raftpb.Entry) (*logBlock, error) {
 	if len(ents) == 0 {
 		return tlb, nil
 	}
-	if tlb != nil {
-		err := tlb.Active()
+	if tlb != nil && tlb.Tail == nil {
+		err := tlb.Active(nil)
 		if err != nil {
 			return nil, err
 		}
@@ -396,4 +304,11 @@ func (this *WAL) checkTailBlock(ents []raftpb.Entry) (*logBlock, error) {
 	// Truncate
 	err := tlb.Truncate(e.Index)
 	return tlb, err
+}
+
+func (this *WAL) ApplyConfState(cst *raftpb.ConfState) error {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	this.confState = *cst
+	return nil
 }

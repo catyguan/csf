@@ -137,10 +137,6 @@ func (this *RaftServer) StartRaftServer(cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		err = w.Begin()
-		if err != nil {
-			return err
-		}
 		this.w = w
 
 		ncfg := cfg.Config
@@ -156,6 +152,10 @@ func (this *RaftServer) StartRaftServer(cfg *Config) error {
 		} else {
 			this.Node = raft.RestartNode(&ncfg)
 		}
+	}
+
+	for i := 0; i < cfg.ElectionTick-1; i++ {
+		this.Node.Tick()
 	}
 
 	ticker := time.Tick(cfg.TickerDuration)
@@ -237,7 +237,8 @@ func (this *RaftServer) run(closec chan interface{}, ticker <-chan time.Time) {
 				this.Debuger.SaveToWAL(&rd.HardState, rd.Entries)
 			}
 			if this.w != nil {
-				if err := this.w.Save(rd.HardState, rd.Entries); err != nil {
+				err := this.w.Save(&rd.HardState, rd.Entries)
+				if err != nil {
 					plog.Fatalf("raft save state and entries error: %v", err)
 				}
 			}
@@ -272,7 +273,10 @@ func (this *RaftServer) run(closec chan interface{}, ticker <-chan time.Time) {
 					var cc raftpb.ConfChange
 					cc.Unmarshal(entry.Data)
 					plog.Infof("ApplyConfChange - %v", cc.String())
-					this.Node.ApplyConfChange(cc)
+					cst := this.Node.ApplyConfChange(cc)
+					if this.w != nil {
+						this.w.ApplyConfState(cst)
+					}
 				}
 			}
 			this.Node.Advance()
@@ -288,9 +292,13 @@ func (this *RaftServer) OnRecvRaftRPC(m raftpb.Message) {
 }
 
 func (this *RaftServer) onRecvRaftRPC(ctx context.Context, m raftpb.Message) {
-	this.Node.Step(ctx, m)
+	if this.Node != nil {
+		this.Node.Step(ctx, m)
+	}
 }
 
 func (this *RaftServer) Propose(ctx context.Context, data []byte) {
-	this.Node.Propose(ctx, data)
+	if this.Node != nil {
+		this.Node.Propose(ctx, data)
+	}
 }

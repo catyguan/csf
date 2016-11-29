@@ -15,7 +15,6 @@
 package wal
 
 import (
-	"encoding/json"
 	"os"
 	"path"
 	"path/filepath"
@@ -42,7 +41,7 @@ func TestWALBase(t *testing.T) {
 	SegmentSizeBytes = 16 * 1024
 
 	p := filepath.Join(testDir, "waltest")
-	// os.Remove(p)
+	os.RemoveAll(p)
 
 	w, _, err2 := InitWAL(p, 100)
 	if err2 != nil {
@@ -67,43 +66,23 @@ func TestWALSave(t *testing.T) {
 
 	st := raftpb.HardState{Term: 1}
 	ents := make([]raftpb.Entry, 0)
-	si := 6
-	sz := 10
+	si := 1
+	sz := 20
 	for i := 0; i < sz; i++ {
 		v := uint64(si + i)
 		ents = append(ents, raftpb.Entry{Index: v, Term: v, Data: []byte("hello world")})
 	}
 
-	err3 := w.doSave(&st, ents)
+	err3 := w.Save(&st, ents)
 	if err3 != nil {
 		t.Fatalf("err3 = %v", err3)
 	}
+	plog.Infof("lastIndex: %v", w.lastIndex())
+	plog.Infof("state: %v", w.state.String())
+	plog.Infof("confState: %v", w.confState.String())
+	plog.Infof("cacheEnties: %v", len(w.ents))
 
 	time.Sleep(time.Second)
-}
-
-func TestWALDump(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
-
-	p := filepath.Join(testDir, "waltest")
-	cid := uint64(100)
-
-	w, _, err2 := InitWAL(p, cid)
-	if err2 != nil {
-		t.Fatalf("err2 = %v", err2)
-	}
-	defer w.Close()
-
-	time.Sleep(time.Second)
-
-	err3 := w.processRecord(0, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
-		bs, _ := json.Marshal(li)
-		plog.Infof("result3 = %v, %v", string(bs), data)
-		return false, nil
-	})
-	if err3 != nil {
-		t.Fatalf("err3 = %v", err3)
-	}
 }
 
 func TestWALTerm(t *testing.T) {
@@ -120,7 +99,7 @@ func TestWALTerm(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	v, err3 := w.Term(14)
+	v, err3 := w.Term(12)
 	if err3 != nil {
 		t.Fatalf("err3 = %v", err3)
 	}

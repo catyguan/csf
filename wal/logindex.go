@@ -15,26 +15,35 @@
 package wal
 
 import (
-	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"hash"
 	"io"
-	"os"
 
 	"github.com/catyguan/csf/pkg/crc"
 )
 
-const sizeofLogIndex = 3 * 8
+const sizeofLogIndex = 8
 
 type logIndex struct {
-	Index uint64 // 64
-	Term  uint64 // 64
-	Size  uint32 // 24
+	Index uint64 // do not save
+	Term  uint64 // do not save
 	Type  uint8  // 8
+	Size  uint32 // 24
 	Crc   uint32 // 32
 	Pos   uint64 // do not save
-	Id    int32  // do not save
+}
+
+func (this *logIndex) Copy() *logIndex {
+	r := &logIndex{}
+	*r = *this
+	return r
+}
+
+func (this *logIndex) String() string {
+	bs, _ := json.Marshal(this)
+	return fmt.Sprintf("%s%s", logTypeString(this.Type), string(bs))
 }
 
 func (this *logIndex) Empty() bool {
@@ -66,11 +75,9 @@ func (this *logCoder) Write(w io.Writer, li *logIndex) error {
 		this.buf = make([]byte, sizeofLogIndex)
 	}
 	buf := this.buf
-	binary.LittleEndian.PutUint64(buf[0:], li.Index)
-	binary.LittleEndian.PutUint64(buf[8:], li.Term)
-	binary.LittleEndian.PutUint32(buf[16:], li.Size)
-	buf[19] = li.Type
-	binary.LittleEndian.PutUint32(buf[20:], li.Crc)
+	binary.LittleEndian.PutUint32(buf[0:], li.Size)
+	buf[3] = li.Type
+	binary.LittleEndian.PutUint32(buf[4:], li.Crc)
 
 	_, err := w.Write(buf)
 	return err
@@ -97,45 +104,54 @@ func (this *logCoder) WriteRecord(w io.Writer, li *logIndex, b []byte) error {
 }
 
 func (this *logCoder) Read(r io.Reader) (*logIndex, error) {
+	li := &logIndex{}
+	err := this.ReadIndex(r, li)
+	if err != nil {
+		return nil, err
+	}
+	return li, nil
+}
+
+func (this *logCoder) ReadIndex(r io.Reader, li *logIndex) error {
+	li.Type = 0
 	if this.buf == nil {
 		this.buf = make([]byte, sizeofLogIndex)
 	}
 	buf := this.buf
 	n, err := io.ReadFull(r, buf)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if n != sizeofLogIndex {
 		// if n == 0 {
 		// 	return nil, io.EOF
 		// }
-		return nil, io.ErrUnexpectedEOF
+		return io.ErrUnexpectedEOF
 	}
 
-	li := &logIndex{}
-	li.Index = binary.LittleEndian.Uint64(buf[0:])
-	li.Term = binary.LittleEndian.Uint64(buf[8:])
-	li.Size = binary.LittleEndian.Uint32(buf[16:]) & 0x00FFFFFF
-	li.Type = buf[19]
-	li.Crc = binary.LittleEndian.Uint32(buf[20:])
+	li.Size = binary.LittleEndian.Uint32(buf[0:]) & 0x00FFFFFF
+	li.Type = buf[3]
+	li.Crc = binary.LittleEndian.Uint32(buf[4:])
 
-	return li, nil
+	return nil
 }
 
 func (this *logCoder) ReadRecord(r io.Reader) (*logIndex, []byte, error) {
-	return this.ReadRecordToBuf(r, nil)
+	li := &logIndex{}
+	b, err := this.ReadRecordToBuf(r, nil, li)
+	return li, b, err
 }
 
-func (this *logCoder) ReadRecordToBuf(r io.Reader, b []byte) (*logIndex, []byte, error) {
-	li, err := this.Read(r)
+func (this *logCoder) ReadRecordToBuf(r io.Reader, b []byte, li *logIndex) ([]byte, error) {
+	err := this.ReadIndex(r, li)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if li.Empty() {
-		return nil, nil, io.EOF
+		return nil, io.EOF
 	}
 	if li.Size == 0 {
-		return li, nil, nil
+		return nil, nil
 	}
 	var b2 []byte
 	if b == nil || uint32(len(b)) < li.Size {
@@ -146,36 +162,17 @@ func (this *logCoder) ReadRecordToBuf(r io.Reader, b []byte) (*logIndex, []byte,
 	}
 	n, err2 := io.ReadFull(r, b2)
 	if err2 != nil {
-		return nil, nil, err2
+		return nil, err2
 	}
 	if uint32(n) != li.Size {
-		return nil, nil, io.ErrUnexpectedEOF
+		return nil, io.ErrUnexpectedEOF
 	}
 	// crc
 	if this.crc != nil {
 		this.crc.Write(b2)
 		if li.Crc != this.crc.Sum32() {
-			return nil, nil, ErrCRCMismatch
+			return nil, ErrCRCMismatch
 		}
 	}
-	return li, b, nil
-}
-
-func (this *logCoder) PickEntry(f *os.File, index uint64) (*logIndex, error) {
-	if f != nil {
-		return nil, fmt.Errorf("not impl")
-	}
-	r := bufio.NewReader(f)
-	for {
-		li, err := this.Read(r)
-		if err != nil {
-			if err == io.EOF {
-				return nil, nil
-			}
-			return nil, err
-		}
-		if li.Type == uint8(entryType) && li.Index >= index {
-			return li, nil
-		}
-	}
+	return b, nil
 }

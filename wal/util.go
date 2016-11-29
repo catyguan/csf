@@ -26,6 +26,8 @@ import (
 
 var (
 	badWalName = errors.New("bad wal name")
+
+	validFileExts = []string{".wal", ".tmp", ".snap", ".broken"}
 )
 
 func ExistDir(dirpath string) bool {
@@ -44,18 +46,63 @@ func ExistFile(fpath string) bool {
 	return true
 }
 
+func readWalNames(dirpath string) ([]string, error) {
+	names, err := fileutil.ReadDir(dirpath)
+	if err != nil {
+		return nil, err
+	}
+	wnames := checkWalNames(names)
+	if len(wnames) == 0 {
+		return nil, ErrFileNotFound
+	}
+	return wnames, nil
+}
+
+func checkWalNames(names []string) []string {
+	wnames := make([]string, 0)
+	for _, name := range names {
+		if _, _, err := parseWalName(name); err != nil {
+			// don't complain about left over tmp files
+			m := false
+			for _, ext := range validFileExts {
+				if strings.HasSuffix(name, ext) {
+					m = true
+					break
+				}
+			}
+			if !m {
+				plog.Warningf("skipped unexpected non walblock file  %v", name)
+			}
+			continue
+		}
+		wnames = append(wnames, name)
+	}
+	return wnames
+}
+
+func parseWalName(str string) (seq, index uint64, err error) {
+	if !strings.HasSuffix(str, ".wal") {
+		return 0, 0, badWalName
+	}
+	_, err = fmt.Sscanf(str, "%016x-%016x.wal", &seq, &index)
+	return seq, index, err
+}
+
 func checkSnapNames(names []string) []string {
 	snaps := []string{}
 	for _, name := range names {
 		if strings.HasSuffix(name, snapSuffix) {
 			snaps = append(snaps, name)
 		} else {
-			// If we find a file which is not a snapshot then check if it's
-			// a vaild file. If not throw out a warning.
-			if !strings.HasSuffix(name, ".tmp") &&
-				!strings.HasSuffix(name, ".wal") &&
-				!strings.HasSuffix(name, ".broken") {
-				plog.Warningf("skipped unexpected non snapshot file %v", names)
+			m := false
+			for _, ext := range validFileExts {
+				if strings.HasSuffix(name, ext) {
+					m = true
+					break
+				}
+			}
+			if !m {
+				plog.Warningf("skipped unexpected non snapshot file %v", name)
 			}
 		}
 	}

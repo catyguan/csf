@@ -43,16 +43,16 @@ func TestSaveAndLoad(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(*testSnap)
+	err := ss.SaveSnap(&snapHeader{}, *testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	name, meta, err := ss.LoadLastMetadata()
+	name, lr, err := ss.LoadLastHeader()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
-	plog.Infof("meta = %v", meta.String())
+	plog.Infof("RT = %v", lr.String())
 	g, err2 := ss.LoadSnap(name)
 	if err2 != nil {
 		t.Fatalf("err = %v, want nil", err2)
@@ -68,7 +68,7 @@ func TestBadCRC(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(*testSnap)
+	err := ss.SaveSnap(&snapHeader{}, *testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,12 +95,12 @@ func TestFailback(t *testing.T) {
 	}
 
 	ss := NewSnapshotter(dir)
-	err = ss.SaveSnap(*testSnap)
+	err = ss.SaveSnap(&snapHeader{}, *testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	n, _, err := ss.LoadLastMetadata()
+	n, _, err := ss.LoadLastHeader()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
@@ -151,19 +151,19 @@ func TestLoadNewestSnap(t *testing.T) {
 	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
 	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(*testSnap)
+	err := ss.SaveSnap(&snapHeader{}, *testSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	newSnap := *testSnap
 	newSnap.Metadata.Index = 5
-	err = ss.SaveSnap(newSnap)
+	err = ss.SaveSnap(&snapHeader{}, newSnap)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	n, _, err := ss.LoadLastMetadata()
+	n, _, err := ss.LoadLastHeader()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
@@ -182,7 +182,7 @@ func TestNoSnapshot(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	ss := NewSnapshotter(dir)
-	_, _, err := ss.LoadLastMetadata()
+	_, _, err := ss.LoadLastHeader()
 	if err != nil {
 		t.Errorf("err = %v, want %v", err, ErrNoSnapshot)
 	}
@@ -201,7 +201,7 @@ func TestAllSnapshotBroken(t *testing.T) {
 	}
 
 	ss := NewSnapshotter(dir)
-	_, _, err = ss.LoadLastMetadata()
+	_, _, err = ss.LoadLastHeader()
 	if err != ErrNoSnapshot {
 		t.Errorf("err = %v, want %v", err, ErrNoSnapshot)
 	}

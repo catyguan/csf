@@ -52,6 +52,7 @@ func create1wal2mem() *network {
 func do_Test_WAL() {
 	nw := create1wal()
 	nw.VM(1).slog = true
+	nw.VM(1).elog = true
 	err := nw.StartAll()
 	if err != nil {
 		log.Fatal(err)
@@ -62,7 +63,7 @@ func do_Test_WAL() {
 	time.Sleep(10 * time.Second)
 
 	// nw.VM(1).Add(context.Background(), 100)
-	// time.Sleep(5 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	nw.DumpStatus()
 	time.Sleep(1 * time.Second)

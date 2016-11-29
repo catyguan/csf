@@ -35,6 +35,7 @@ func main() {
 
 	// do_Test_LeaderDisconn()
 	// do_Test_Simple()
+	// do_Test_WAL()
 	do_Test_WAL_Simple()
 
 	log.Printf("BYE~~~~~\n")

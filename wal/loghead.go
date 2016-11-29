@@ -16,6 +16,7 @@ package wal
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"io"
 )
 
@@ -26,6 +27,11 @@ type logHeader struct {
 	Index     uint64 // 64, 上一个Block的最后的Index, 本Block的FirstIndex = Index + 1
 	Term      uint64 // 64, 上一个Block的最后的Term
 	Crc       uint32 // 32, 上一个Block的最后的Crc
+}
+
+func (this *logHeader) String() string {
+	bs, _ := json.Marshal(this)
+	return string(bs)
 }
 
 func (this *logHeader) FirstIndex() uint64 {

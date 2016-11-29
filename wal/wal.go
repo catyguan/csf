@@ -16,11 +16,12 @@ package wal
 
 import (
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/catyguan/csf/raft"
 	"github.com/catyguan/csf/raft/raftpb"
 
 	"github.com/catyguan/csf/pkg/capnslog"
@@ -32,11 +33,31 @@ const (
 	stateType
 	crcType
 	snapshotType
+	confStateType
 
 	// warnSyncDuration is the amount of time allotted to an fsync before
 	// logging a warning
 	warnSyncDuration = time.Second
 )
+
+func logTypeString(v uint8) string {
+	switch int64(v) {
+	case metadataType:
+		return "metadata"
+	case entryType:
+		return "entry"
+	case stateType:
+		return "state"
+	case crcType:
+		return "crc"
+	case snapshotType:
+		return "snapshot"
+	case confStateType:
+		return "confState"
+	default:
+		return fmt.Sprintf("unknow(%d)", v)
+	}
+}
 
 var (
 	// SegmentSizeBytes is the preallocated size of each wal segment file.
@@ -80,149 +101,160 @@ type WAL struct {
 
 	clusterId uint64
 
-	mu                   sync.RWMutex
-	firstIndex           uint64           // atom
-	lastIndex            uint64           // atom
-	state                raftpb.HardState // hardstate recorded at the head of WAL
-	initConfState        raftpb.ConfState
-	lastSnapshotName     string
-	lastSnapshotMetadata *raftpb.SnapshotMetadata
+	mu sync.Mutex
+
+	state            raftpb.HardState
+	confState        raftpb.ConfState
+	lastSnapshotName string
+	ents             []raftpb.Entry
 
 	snapshotter *Snapshotter
 	blocks      []*logBlock
-	actionC     chan *actionOfWAL
 }
 
 func InitWAL(dirpath string, clusterId uint64) (*WAL, bool, error) {
 	w := &WAL{
-		dir:        dirpath,
-		clusterId:  clusterId,
-		blocks:     make([]*logBlock, 0),
-		actionC:    make(chan *actionOfWAL, 512),
-		firstIndex: 1,
-		lastIndex:  0,
+		dir:       dirpath,
+		clusterId: clusterId,
+		blocks:    make([]*logBlock, 0),
+		ents:      make([]raftpb.Entry, 1),
 	}
-	w.run()
-
-	act := new(actionOfWAL)
-	act.action = "init"
-	r, err := w.callAction(act)
+	w.snapshotter = NewSnapshotter(w.dir)
+	r, err := w.doInit()
 
 	if err != nil {
 		w.Close()
 		return nil, false, err
 	}
-	w.snapshotter = NewSnapshotter(w.dir)
-	return w, r.(bool), nil
-}
 
-func (this *WAL) Close() {
-	if this.actionC != nil {
-		close(this.actionC)
-		this.actionC = nil
-	}
-}
-
-func (this *WAL) run() {
-	ac := this.actionC
-	go this.doRun(ac)
-}
-
-func (this *WAL) Begin() error {
-	act := new(actionOfWAL)
-	act.action = "begin"
-	_, err := this.callAction(act)
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (this *WAL) Save(st raftpb.HardState, entries []raftpb.Entry) error {
-	act := new(actionOfWAL)
-	act.action = "save"
-	act.p1 = &st
-	act.p2 = entries
-	_, err := this.callAction(act)
-
-	if err != nil {
-		return err
-	}
-	return nil
+	return w, r, nil
 }
 
 func (this *WAL) tailBlock() *logBlock {
 	return this.blocks[len(this.blocks)-1]
 }
 
-// InitialState returns the saved HardState and ConfState information.
+// InitialState implements the Storage interface.
 func (this *WAL) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	return this.state, this.initConfState, nil
+	return this.state, this.confState, nil
 }
 
-// Entries returns a slice of log entries in the range [lo,hi).
-// MaxSize limits the total size of the log entries returned, but
-// Entries returns at least one entry if any.
+// Entries implements the Storage interface.
 func (this *WAL) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	act := new(actionOfWAL)
-	act.action = "entries"
-	act.p1 = lo
-	act.p2 = hi
-	act.p3 = maxSize
-	r, err := this.callAction(act)
-
-	if err != nil {
-		return nil, err
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	offset := this.ents[0].Index
+	if lo <= offset {
+		return nil, raft.ErrCompacted
 	}
-	return r.([]raftpb.Entry), nil
+	if hi > this.lastIndex()+1 {
+		plog.Panicf("entries' hi(%d) is out of bound lastindex(%d)", hi, this.lastIndex())
+	}
+	// only contains dummy entries.
+	if len(this.ents) == 1 {
+		return nil, raft.ErrUnavailable
+	}
+
+	ents := this.ents[lo-offset : hi-offset]
+	return raft.LimitSize(ents, maxSize), nil
 }
 
-// Term returns the term of entry i, which must be in the range
-// [FirstIndex()-1, LastIndex()]. The term of the entry before
-// FirstIndex is retained for matching purposes even though the
-// rest of that entry may not be available.
+// Term implements the Storage interface.
 func (this *WAL) Term(i uint64) (uint64, error) {
-	act := new(actionOfWAL)
-	act.action = "term"
-	act.p1 = i
-	r, err := this.callAction(act)
-
-	if err != nil {
-		return 0, err
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	offset := this.ents[0].Index
+	if i < offset {
+		return 0, raft.ErrCompacted
 	}
-	return r.(uint64), nil
+	if int(i-offset) >= len(this.ents) {
+		return 0, raft.ErrUnavailable
+	}
+	return this.ents[i-offset].Term, nil
 }
 
-// LastIndex returns the index of the last entry in the log.
+// LastIndex implements the Storage interface.
 func (this *WAL) LastIndex() (uint64, error) {
-	r := atomic.LoadUint64(&this.lastIndex)
-	return r, nil
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.lastIndex(), nil
 }
 
-// FirstIndex returns the index of the first log entry that is
-// possibly available via Entries (older entries have been incorporated
-// into the latest Snapshot; if storage only contains the dummy entry the
-// first log entry is not available).
+func (this *WAL) lastIndex() uint64 {
+	return this.ents[0].Index + uint64(len(this.ents)) - 1
+}
+
+// FirstIndex implements the Storage interface.
 func (this *WAL) FirstIndex() (uint64, error) {
-	r := atomic.LoadUint64(&this.firstIndex)
-	return r, nil
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.firstIndex(), nil
 }
 
-// Snapshot returns the most recent snapshot.
-// If snapshot is temporarily unavailable, it should return ErrSnapshotTemporarilyUnavailable,
-// so raft state machine could know that Storage needs some time to prepare
-// snapshot and call Snapshot later.
-func (this *WAL) Snapshot() (raftpb.Snapshot, error) {
-	act := new(actionOfWAL)
-	act.action = "snapshot"
-	act.p1 = uint64(0)
-	act.p2 = this.lastSnapshotName
-	r, err := this.callAction(act)
+func (this *WAL) firstIndex() uint64 {
+	return this.ents[0].Index + 1
+}
 
-	if err != nil {
-		return raftpb.Snapshot{}, err
+// Snapshot implements the Storage interface.
+func (this *WAL) Snapshot() (raftpb.Snapshot, error) {
+	// ms.Lock()
+	// defer ms.Unlock()
+	return raftpb.Snapshot{}, nil
+}
+
+// Compact discards all log entries prior to compactIndex.
+// It is the application's responsibility to not attempt to compact an index
+// greater than raftLog.applied.
+func (this *WAL) Compact(compactIndex uint64) error {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	offset := this.ents[0].Index
+	if compactIndex <= offset {
+		return raft.ErrCompacted
 	}
-	snap := r.(*raftpb.Snapshot)
-	return *snap, nil
+	if compactIndex > this.lastIndex() {
+		plog.Panicf("compact %d is out of bound lastindex(%d)", compactIndex, this.lastIndex())
+	}
+
+	i := compactIndex - offset
+	ents := make([]raftpb.Entry, 1, 1+uint64(len(this.ents))-i)
+	ents[0].Index = this.ents[i].Index
+	ents[0].Term = this.ents[i].Term
+	ents = append(ents, this.ents[i+1:]...)
+	this.ents = ents
+	return nil
+}
+
+// Append the new entries to storage.
+// TODO (xiangli): ensure the entries are continuous and
+// entries[0].Index > ms.entries[0].Index
+func (this *WAL) doAppend(entries []raftpb.Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	first := this.firstIndex()
+	last := entries[0].Index + uint64(len(entries)) - 1
+
+	// shortcut if there is no new entry.
+	if last < first {
+		return nil
+	}
+	// truncate compacted entries
+	if first > entries[0].Index {
+		entries = entries[first-entries[0].Index:]
+	}
+
+	offset := entries[0].Index - this.ents[0].Index
+	switch {
+	case uint64(len(this.ents)) > offset:
+		this.ents = append([]raftpb.Entry{}, this.ents[:offset]...)
+		this.ents = append(this.ents, entries...)
+	case uint64(len(this.ents)) == offset:
+		this.ents = append(this.ents, entries...)
+	default:
+		plog.Panicf("missing log entry [last: %d, append at: %d]",
+			this.lastIndex(), entries[0].Index)
+	}
+	return nil
 }
