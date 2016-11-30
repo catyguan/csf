@@ -15,35 +15,26 @@
 package wal
 
 import (
+	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/catyguan/csf/raft/raftpb"
 )
 
-var (
-	testDir string = "c:\\tmp"
-)
-
-func TestAlloc(t *testing.T) {
-	fn := path.Join(testDir, "alloc.dat")
-	os.Remove(fn)
-	err := allocFileSize(testDir, fn, 1024*1024)
-	if err != nil {
-		t.Fatalf("err = %v", err)
-	}
+func tc_config1() *Config {
+	r := NewConfig()
+	r.Dir = filepath.Join(testDir, "waltest")
+	r.BlockRollSize = 16 * 1024
+	r.InitMetadata = []byte("test")
+	return r
 }
 
 func TestWALBase(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
+	cfg := tc_config1()
+	os.RemoveAll(cfg.Dir)
 
-	p := filepath.Join(testDir, "waltest")
-	os.RemoveAll(p)
-
-	w, _, err2 := InitWAL(p, 100)
+	w, _, err2 := initWALCore(cfg)
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
@@ -53,78 +44,152 @@ func TestWALBase(t *testing.T) {
 }
 
 func TestWALSave(t *testing.T) {
-	SegmentSizeBytes = 4 * 1024
+	cfg := tc_config1()
+	// cfg.PostAppend = true
 
-	p := filepath.Join(testDir, "waltest")
-	// os.RemoveAll(p)
-
-	w, _, err2 := InitWAL(p, 100)
+	w, bs, err2 := initWALCore(cfg)
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer w.Close()
+	plog.Infof("TestWALSave meta %v", string(bs))
 
-	st := raftpb.HardState{Term: 1}
-	ents := make([]raftpb.Entry, 0)
-	si := 1
-	sz := 20
+	sz := 100
 	for i := 0; i < sz; i++ {
-		v := uint64(si + i)
-		ents = append(ents, raftpb.Entry{Index: v, Term: v, Data: []byte("hello world")})
+		s := fmt.Sprintf("hello world %v", i)
+		w.Append(0, []byte(s))
 	}
 
-	err3 := w.Save(&st, ents)
-	if err3 != nil {
-		t.Fatalf("err3 = %v", err3)
-	}
-	plog.Infof("lastIndex: %v", w.lastIndex())
-	plog.Infof("state: %v", w.state.String())
-	plog.Infof("confState: %v", w.confState.String())
-	plog.Infof("cacheEnties: %v", len(w.ents))
+	plog.Infof("lastIndex: %v", w.LastIndex())
 
 	time.Sleep(time.Second)
 }
 
-func TestWALTerm(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
+func TestWALSync(t *testing.T) {
+	cfg := tc_config1()
 
-	p := filepath.Join(testDir, "waltest")
-	cid := uint64(100)
-
-	w, _, err2 := InitWAL(p, cid)
+	w, _, err2 := initWALCore(cfg)
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer w.Close()
 
-	time.Sleep(time.Second)
-
-	v, err3 := w.Term(12)
-	if err3 != nil {
-		t.Fatalf("err3 = %v", err3)
+	err := w.Sync()
+	if err != nil {
+		t.Fatalf("err = %v", err)
 	}
-	plog.Infof("result3 = %v", v)
 
+	time.Sleep(time.Second)
 }
 
-func TestWALEntries(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
+func TestWALDelete(t *testing.T) {
+	cfg := tc_config1()
 
-	p := filepath.Join(testDir, "waltest")
-	cid := uint64(100)
-
-	w, _, err2 := InitWAL(p, cid)
+	w, _, err2 := initWALCore(cfg)
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer w.Close()
 
-	time.Sleep(time.Second)
+	// w.GetCursor(10)
 
-	v, err3 := w.Entries(3, 7, 1000*1000)
+	err := w.Delete()
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	time.Sleep(time.Second)
+}
+
+func TestWALReset(t *testing.T) {
+	cfg := tc_config1()
+
+	w, _, err2 := initWALCore(cfg)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	// w.GetCursor(10)
+
+	err := w.Reset()
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	time.Sleep(time.Second)
+}
+
+func TestWALRoll(t *testing.T) {
+	cfg := tc_config1()
+	cfg.BlockRollSize = 4 * 1024
+
+	w, bs, err2 := initWALCore(cfg)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+	plog.Infof("TestWALSave meta %v", string(bs))
+
+	sz := 200
+	for i := 0; i < sz; i++ {
+		s := fmt.Sprintf("hello world %v", i)
+		w.Append(0, []byte(s))
+	}
+
+	plog.Infof("lastIndex: %v", w.LastIndex())
+
+	time.Sleep(time.Second)
+}
+
+func TestWALTruncate(t *testing.T) {
+	cfg := tc_config1()
+
+	w, _, err2 := initWALCore(cfg)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	err := w.Truncate(100)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	time.Sleep(time.Second)
+}
+
+func TestCursor(t *testing.T) {
+	// TestWALSave(t)
+	cfg := tc_config1()
+
+	w, _, err2 := initWALCore(cfg)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	c, err3 := w.GetCursor(80)
 	if err3 != nil {
 		t.Fatalf("err3 = %v", err3)
 	}
-	plog.Infof("result3 = %v", v)
+	for {
+		e, err4 := c.Read()
+		if err4 != nil {
+			t.Fatalf("err4 = %v", err4)
+		}
+		if e == nil {
+			plog.Infof("cursor end")
+			break
+		}
+		plog.Infof("result = %v, %v", e.Index, string(e.Data))
+	}
+	c.Close()
 
+	err := w.Delete()
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	time.Sleep(time.Second)
 }

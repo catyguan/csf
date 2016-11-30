@@ -20,37 +20,34 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/catyguan/csf/pkg/fileutil"
-	"github.com/catyguan/csf/pkg/pbutil"
-	"github.com/catyguan/csf/raft/raftpb"
 )
 
-type recoderHandler func(li *logIndex, data []byte) (stop bool, err error)
+type RecoderHandler func(li *logIndex, data []byte) (stop bool, err error)
 
 type logBlock struct {
-	logHeader
-	id    int
-	dir   string
-	Tail  *logIndex
-	wFile *os.File
+	Header logHeader
+	id     int
+	dir    string
+	Tail   *logIndex
+	wFile  *os.File
 }
 
 func (this *logBlock) String() string {
 	s := ""
 	s += fmt.Sprintf("id: %d,", this.id)
-	s += fmt.Sprintf("header: %s,", &this.logHeader)
+	s += fmt.Sprintf("header: %s,", &this.Header)
 	s += fmt.Sprintf("tail: %s", this.Tail)
 	return s
 }
 
-func newFirstBlock(dir string, clusterId uint64) *logBlock {
+func newFirstBlock(dir string) *logBlock {
 	this := &logBlock{
 		id:  0,
 		dir: dir,
 	}
-	this.ClusterId = clusterId
+	this.Header.Version = WALVersion
 	return this
 }
 
@@ -60,34 +57,21 @@ func (this *logBlock) newNextBlock() *logBlock {
 		id:  this.id + 1,
 		dir: this.dir,
 	}
-	r.ClusterId = this.ClusterId
+	r.Header.Version = this.Header.Version
+	r.Header.SetMetaData(this.Header.MetaData)
 	if t != nil {
-		r.Index = t.Index
-		r.Term = t.Term
-		r.Crc = t.Crc
+		r.Header.Index = t.Index
+		r.Header.Crc = t.Crc
 	} else {
-		r.Index = this.Index
-		r.Term = this.Term
-		r.Crc = this.Crc
+		r.Header.Index = this.Header.Index
+		r.Header.Crc = this.Header.Crc
 	}
-	return r
-}
-
-func debugNewLogBlock(dir string, clusterId uint64, id int, idx, term uint64, crc uint32) *logBlock {
-	r := &logBlock{
-		id:  id,
-		dir: dir,
-	}
-	r.ClusterId = clusterId
-	r.Index = idx
-	r.Term = term
-	r.Crc = crc
 	return r
 }
 
 func (this *logBlock) LastIndex() uint64 {
 	if this.Tail == nil {
-		return this.Index
+		return this.Header.Index
 	}
 	return this.Tail.Index
 }
@@ -96,11 +80,20 @@ func (this *logBlock) BlockFilePath() string {
 	return filepath.Join(this.dir, blockName(uint64(this.id)))
 }
 
+func (this *logBlock) IsExistsNextBlock() bool {
+	fn := filepath.Join(this.dir, blockName(uint64(this.id+1)))
+	return ExistFile(fn)
+}
+
 func (this *logBlock) IsExists() bool {
 	return ExistFile(this.BlockFilePath())
 }
 
-func (this *logBlock) Create() error {
+func (this *logBlock) CreateT(s string) error {
+	return this.Create([]byte(s))
+}
+
+func (this *logBlock) Create(metadata []byte) error {
 	wfn := this.BlockFilePath()
 
 	if ExistFile(wfn) {
@@ -108,56 +101,31 @@ func (this *logBlock) Create() error {
 		return os.ErrExist
 	}
 
-	err := allocFileSize(this.dir, wfn, SegmentSizeBytes)
-	if err != nil {
-		plog.Warningf("alloc WAL block fail - %v", err)
-		return err
-	}
-
-	f, err := os.OpenFile(wfn, os.O_WRONLY, fileutil.PrivateFileMode)
+	f, err := os.OpenFile(wfn, os.O_RDWR|os.O_CREATE, fileutil.PrivateFileMode)
 	if err != nil {
 		return err
 	}
 	lih := createLogCoder(0)
-	err2 := lih.WriteHeader(f, &this.logHeader)
-	if err2 != nil {
+	this.Header.SetMetaData(metadata)
+	err = lih.WriteHeader(f, &this.Header)
+	if err != nil {
 		f.Close()
-		return err2
+		return err
 	}
+	err = lih.WriteTailSize(f, 0)
 	this.wFile = f
 	return nil
 }
 
-func (this *logBlock) InitWrite(st *raftpb.HardState, cst *raftpb.ConfState) error {
-	if this.Tail != nil {
-		plog.Panicf("block[%v] already active, can't InitWrite", this.id)
+func (this *logBlock) Open(lastBlock bool) error {
+	if lastBlock {
+		return this.OpenWrite()
+	} else {
+		return this.ReadHeader()
 	}
-	bs := pbutil.MustMarshal(st)
-	_, err := this.doAppend(this.Index, this.Term, uint8(stateType), bs)
-	if err != nil {
-		return err
-	}
-	bs = pbutil.MustMarshal(cst)
-	_, err = this.doAppend(this.Index, this.Term, uint8(confStateType), bs)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (this *logBlock) CreateAndInit(st *raftpb.HardState, cst *raftpb.ConfState) error {
-	err := this.Create()
-	if err != nil {
-		return err
-	}
-	return this.InitWrite(st, cst)
-}
-
-func (this *logBlock) CreateEmpty() error {
-	return this.CreateAndInit(&raftpb.HardState{}, &raftpb.ConfState{})
-}
-
-func (this *logBlock) Open() error {
+func (this *logBlock) ReadHeader() error {
 	wfn := this.BlockFilePath()
 
 	f, err := os.OpenFile(wfn, os.O_RDONLY, fileutil.PrivateFileMode)
@@ -165,8 +133,11 @@ func (this *logBlock) Open() error {
 		return err
 	}
 	defer f.Close()
+	return this.doReadHeader(f)
+}
 
-	lih := createLogCoder(0)
+func (this *logBlock) doReadHeader(f *os.File) error {
+	lih := &logCoder{}
 	lh, err2 := lih.ReadHeader(f)
 	if err2 != nil {
 		if err2 == io.EOF {
@@ -174,39 +145,51 @@ func (this *logBlock) Open() error {
 		}
 		return err2
 	}
-	if lh.ClusterId != this.ClusterId {
-		return fmt.Errorf("WAL block clusterId fail, got(%v) want(%v)", lh.ClusterId, this.ClusterId)
-	}
-	this.logHeader = *lh
-
+	this.Header = *lh
 	return nil
 }
 
-func (this *logBlock) writesFile() (*os.File, error) {
+func (this *logBlock) OpenWrite() error {
 	if this.wFile != nil {
-		return this.wFile, nil
-	}
-	f, err := os.OpenFile(this.BlockFilePath(), os.O_WRONLY, fileutil.PrivateFileMode)
-	if err != nil {
-		return nil, err
-	}
-	this.wFile = f
-	off := int64(sizeofLogHead)
-	if this.Tail != nil {
-		off = int64(this.Tail.EndPos())
-	}
-	_, err = f.Seek(off, os.SEEK_SET)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
-func (this *logBlock) closeWriteFile(f *os.File, err error) {
-	if err != nil {
-		f.Close()
+		this.wFile.Close()
 		this.wFile = nil
 	}
+	wfn := this.BlockFilePath()
+	f, err := os.OpenFile(wfn, os.O_RDWR, fileutil.PrivateFileMode)
+	if err != nil {
+		return err
+	}
+	err = this.doReadHeader(f)
+	if err != nil {
+		return err
+	}
+	_, err2 := f.Seek(-int64(sizeofLogTail), os.SEEK_END)
+	if err2 != nil {
+		f.Close()
+		return err2
+	}
+	lih := &logCoder{}
+	lt, err3 := lih.ReadTail(f)
+	if err3 != nil {
+		f.Close()
+		return err3
+	}
+	if lt.Size != 0 {
+		n, err := f.Seek(-int64(sizeofLogTail+lt.Size), os.SEEK_END)
+		if err != nil {
+			f.Close()
+			return err
+		}
+		this.Tail, err = lih.ReadIndex(f)
+		if err != nil {
+			f.Close()
+			return err
+		}
+		this.Tail.Pos = uint64(n)
+	}
+	f.Seek(0, os.SEEK_END)
+	this.wFile = f
+	return nil
 }
 
 func (this *logBlock) readFile() (*os.File, error) {
@@ -217,56 +200,35 @@ func (this *logBlock) readFile() (*os.File, error) {
 	return rf, nil
 }
 
-func (this *logBlock) closeReadFile(f *os.File, err error) {
-	f.Close()
-}
-
-func (this *logBlock) Active(h recoderHandler) (err error) {
-	if h == nil && this.Tail != nil {
-		return nil
-	}
+func (this *logBlock) ReadAll(h RecoderHandler) error {
 	f, err2 := this.readFile()
 	if err2 != nil {
 		return err2
 	}
-	defer func() {
-		this.closeReadFile(f, err)
-	}()
+	defer f.Close()
 
-	this.Tail = &logIndex{}
-	_, err = this.doProcess(f, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
-		*this.Tail = *li
-		if h != nil {
-			_, err3 := h(li, data)
-			if err3 != nil {
-				return false, err3
-			}
-		}
+	_, err := this.doProcess(f, 0xFFFFFFFF, h)
+	return err
+}
+
+func (this *logBlock) doSeek(f *os.File, eidx uint64) (*logIndex, error) {
+	var lli logIndex
+	_, err := this.doProcess(f, eidx+1, func(li *logIndex, data []byte) (bool, error) {
+		lli = *li
 		return false, nil
 	})
 	if err != nil && err != io.EOF {
-		return fmt.Errorf("block[%v] active fail - %v", this.id, err)
+		return nil, err
 	}
-	if this.Tail.Empty() {
-		plog.Panicf("block[%v] no record, invalid format", this.id)
+	if lli.Empty() {
+		return nil, nil
 	}
-	return nil
+	return &lli, nil
 }
 
-func (this *logBlock) Process(eidx uint64, h recoderHandler) (nstop bool, err error) {
-	rf, err2 := this.readFile()
-	if err2 != nil {
-		return false, err2
-	}
-	defer func() {
-		this.closeReadFile(rf, err)
-	}()
-	return this.doProcess(rf, eidx, h)
-}
-
-func (this *logBlock) doProcess(f *os.File, eidx uint64, h recoderHandler) (nstop bool, err error) {
-	off := uint64(sizeofLogHead)
-	lcrc := this.Crc
+func (this *logBlock) doProcess(f *os.File, eidx uint64, h RecoderHandler) (nstop bool, err error) {
+	off := this.Header.Size()
+	lcrc := this.Header.Crc
 
 	_, err = f.Seek(int64(off), os.SEEK_SET)
 	if err != nil {
@@ -278,110 +240,70 @@ func (this *logBlock) doProcess(f *os.File, eidx uint64, h recoderHandler) (nsto
 
 	lih := createLogCoder(lcrc)
 	r := bufio.NewReader(f)
-	e := raftpb.Entry{}
-	// plog.Infof("doProcess(%v, %v) at %v, %v", sidx, eidx, off, lid)
 	for {
 		buf, err = lih.ReadRecordToBuf(r, buf, &li)
 		if err != nil {
 			return false, err
-		}
-		if li.Empty() {
-			return true, nil
-		}
-		relbuf := buf[:li.Size]
-		if li.Type == uint8(entryType) {
-			e.Reset()
-			pbutil.MustUnmarshal(&e, relbuf)
-			li.Index = e.Index
-			li.Term = e.Term
-		} else {
-			if lli.Empty() {
-				li.Index = this.Index
-				li.Term = this.Term
-			} else {
-				li.Index = lli.Index
-				li.Term = lli.Term
-			}
-		}
-		if li.Index >= eidx {
-			return true, nil
 		}
 		if lli.Empty() {
 			li.Pos = uint64(off)
 		} else {
 			li.Pos = lli.EndPos()
 		}
-		lli = li
-		stop, err2 := h(&li, relbuf)
-		if err2 != nil {
-			return false, err2
+		if li.Index >= eidx {
+			return true, nil
 		}
-		if stop {
+		lli = li
+		relbuf := buf[:li.Size]
+		nstop, err = h(&li, relbuf)
+		if err != nil {
+			return false, err
+		}
+		if nstop {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func (this *logBlock) createLogIndex(idx uint64, term uint64, typ uint8) *logIndex {
-	r := new(logIndex)
-	r.Type = typ
+func (this *logBlock) createLogIndex(idx uint64) *logIndex {
+	r := &logIndex{}
 	if this.Tail != nil {
-		if idx == 0 {
-			r.Index = this.Tail.Index
-		} else {
+		if idx != 0 {
 			r.Index = idx
-		}
-		if term == 0 {
-			r.Term = this.Tail.Term
 		} else {
-			r.Term = term
+			r.Index = this.Tail.Index + 1
 		}
 		r.Pos = this.Tail.EndPos()
 	} else {
-		if idx == 0 {
-			r.Index = this.Index
-		} else {
+		if idx != 0 {
 			r.Index = idx
-		}
-		if term == 0 {
-			r.Term = this.Term
 		} else {
-			r.Term = term
+			r.Index = this.Header.Index + 1
 		}
-		r.Pos = sizeofLogHead
+		r.Pos = uint64(this.Header.Size())
 	}
 	return r
 }
 
-func (this *logBlock) Append(idx uint64, term uint64, typ uint8, data []byte) (*logIndex, error) {
-	if this.Tail == nil {
-		plog.Panicf("block[%v] not active, can't Append", this.id)
+func (this *logBlock) Append(idx uint64, data []byte) (*logIndex, error) {
+	if this.wFile == nil {
+		plog.Panicf("block[%v] not OpenWrite, can't Append", this.id)
 	}
-	return this.doAppend(idx, term, typ, data)
+	return this.doAppend(idx, data)
 }
 
-func (this *logBlock) doAppend(idx uint64, term uint64, typ uint8, data []byte) (li *logIndex, err error) {
-	f, err2 := this.writesFile()
-	if err2 != nil {
-		plog.Warningf("block[%v].doAppend() open write file fail - %v", this.id, err)
-		return nil, err2
-	}
-	defer func() {
-		this.closeWriteFile(f, err)
-	}()
-	if typ == 0 {
-		typ = 0xFF
-	}
-	li = this.createLogIndex(idx, term, typ)
-	crc := this.Crc
+func (this *logBlock) doAppend(idx uint64, data []byte) (*logIndex, error) {
+	f := this.wFile
+	li := this.createLogIndex(idx)
+	crc := this.Header.Crc
 	if this.Tail != nil {
 		crc = this.Tail.Crc
 	}
 	lc := createLogCoder(crc)
-	err = lc.WriteRecord(f, li, data)
+	err := lc.WriteRecord(f, li, data)
 	if err != nil {
-		plog.Warningf("block[%v].doAppend() write record file fail - %v", this.id, err)
+		plog.Warningf("block[%v].doAppend() write record fail - %v", this.id, err)
 		return nil, err
 	}
 	this.Tail = li
@@ -395,20 +317,11 @@ func (this *logBlock) Close() {
 	}
 }
 
-func (this *logBlock) sync() error {
+func (this *logBlock) Sync() error {
 	if this.wFile == nil {
 		return nil
 	}
-
-	start := time.Now()
 	err := fileutil.Fdatasync(this.wFile)
-
-	duration := time.Since(start)
-	if duration > warnSyncDuration {
-		plog.Warningf("sync duration of %v, expected less than %v", duration, warnSyncDuration)
-	}
-	syncDurations.Observe(duration.Seconds())
-
 	return err
 }
 
@@ -417,47 +330,56 @@ func (this *logBlock) Remove() error {
 	return os.Remove(this.BlockFilePath())
 }
 
-func (this *logBlock) Truncate(idx uint64) error {
-	rf, err2 := this.readFile()
-	if err2 != nil {
-		plog.Warningf("block[%v].Truncate() open read file fail - %v", this.id, err2)
-		return err2
-	}
-	defer this.closeReadFile(rf, nil)
+func (this *logBlock) Truncate(idx uint64) (uint64, error) {
+	wfn := this.BlockFilePath()
 
-	lli := logIndex{}
+	f, err := os.OpenFile(wfn, os.O_RDONLY, fileutil.PrivateFileMode)
+	if err != nil {
+		plog.Warningf("block[%v].Truncate() open file fail - %v", this.id, err)
+		return 0, err
+	}
 	tli := logIndex{}
-	_, err := this.doProcess(rf, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
-		if li.Index >= idx {
-			tli = lli
+	_, err = this.doProcess(f, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
+		if li.Index > idx {
 			return true, nil
 		}
-		lli = *li
+		tli = *li
 		return false, nil
 	})
+	f.Close()
+
 	if err != nil && err != io.EOF {
-		return err
+		plog.Warningf("block[%v].Truncate() seek %v fail - %v", this.id, idx, err)
+		return 0, err
 	}
-	pos := uint64(sizeofLogHead)
+	pos := uint64(this.Header.Size())
 	if !tli.Empty() {
 		pos = tli.EndPos()
 	}
-	plog.Infof("block[%v] truncate to [%v]", this.id, pos)
-	wf, err3 := this.writesFile()
-	if err3 != nil {
-		plog.Warningf("block[%v].Truncate() open write file fail - %v", this.id, err3)
-		return err3
-	}
-	defer this.closeWriteFile(wf, nil)
 
-	_, err = wf.Seek(int64(pos), os.SEEK_SET)
+	this.Close()
+	plog.Infof("block[%v] Truncate(%v) at [%v]", this.id, idx, pos)
+	err = os.Truncate(this.BlockFilePath(), int64(pos))
 	if err != nil {
-		return err
+		plog.Warningf("block[%v].Truncate() truncate file fail - %v", this.id, err)
+		return 0, err
 	}
-	err = fileutil.ZeroToEnd(wf)
+	if tli.Empty() {
+		this.Tail = nil
+	} else {
+		this.Tail = &tli
+	}
+
+	f, err = os.OpenFile(wfn, os.O_RDWR, fileutil.PrivateFileMode)
 	if err != nil {
-		return err
+		plog.Warningf("block[%v].Truncate() reopen file fail - %v", this.id, err)
+		return 0, err
 	}
-	this.Tail = &tli
-	return nil
+	_, err = f.Seek(0, os.SEEK_END)
+	if err != nil {
+		return 0, err
+	}
+	this.wFile = f
+
+	return this.LastIndex(), nil
 }

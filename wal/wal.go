@@ -15,246 +15,454 @@
 package wal
 
 import (
-	"errors"
-	"fmt"
-	"hash/crc32"
-	"sync"
+	"container/list"
+	"sync/atomic"
 	"time"
 
-	"github.com/catyguan/csf/raft"
-	"github.com/catyguan/csf/raft/raftpb"
-
-	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/pkg/fileutil"
 )
 
 const (
-	metadataType int64 = iota + 1
-	entryType
-	stateType
-	crcType
-	snapshotType
-	confStateType
-
-	// warnSyncDuration is the amount of time allotted to an fsync before
-	// logging a warning
-	warnSyncDuration = time.Second
+	actionAppend   int = 1
+	actionClose    int = 2
+	actionSync     int = 3
+	actionDelete   int = 4
+	actionReset    int = 5
+	actionTruncate int = 6
 )
 
-func logTypeString(v uint8) string {
-	switch int64(v) {
-	case metadataType:
-		return "metadata"
-	case entryType:
-		return "entry"
-	case stateType:
-		return "state"
-	case crcType:
-		return "crc"
-	case snapshotType:
-		return "snapshot"
-	case confStateType:
-		return "confState"
-	default:
-		return fmt.Sprintf("unknow(%d)", v)
-	}
+type walCursor interface {
+	InBlock(lb *logBlock) bool
+	CloseByWAL()
 }
 
-var (
-	// SegmentSizeBytes is the preallocated size of each wal segment file.
-	// The actual size might be larger than this. In general, the default
-	// value should be used, but this is defined as an exported variable
-	// so that tests can set a different segment size.
-	SegmentSizeBytes int64 = 32 * 1024 * 1024
-	MaxRecordSize    int64 = 0x00FFFFFF
-
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal")
-
-	ErrLogIndexError    = errors.New("wal: logindex format error")
-	ErrLogHeaderError   = errors.New("wal: logheader format error")
-	ErrFileNotFound     = errors.New("wal: file not found")
-	ErrCRCMismatch      = errors.New("wal: crc mismatch")
-	ErrSnapshotMismatch = errors.New("wal: snapshot mismatch")
-	ErrSnapshotNotFound = errors.New("wal: snapshot not found")
-	crcTable            = crc32.MakeTable(crc32.Castagnoli)
-)
-
-type actionOfWAL struct {
-	action string
+type walReq struct {
+	action int
 	p1     interface{}
 	p2     interface{}
 	p3     interface{}
-	respC  chan *respOfWAL
+	resp   chan walResp
 }
 
-type respOfWAL struct {
-	answer interface{}
-	err    error
+type walResp struct {
+	r1  interface{}
+	r2  interface{}
+	err error
 }
 
-// WAL is a logical representation of the stable storage.
-// WAL is either in read mode or append mode but not both.
-// A newly created WAL is in append mode, and ready for appending records.
-// A just opened WAL is in read mode, and ready for reading records.
-// The WAL will be ready for appending after reading out all the previous records.
-type WAL struct {
-	dir string // the living directory of the underlay files
+type walcore struct {
+	cfg       *Config
+	lastIndex uint64 // atomic access
+	blocks    []*logBlock
+	cursors   *list.List
 
-	clusterId uint64
-
-	mu sync.Mutex
-
-	state            raftpb.HardState
-	confState        raftpb.ConfState
-	lastSnapshotName string
-	ents             []raftpb.Entry
-
-	snapshotter *Snapshotter
-	blocks      []*logBlock
+	reqCh  chan *walReq
+	closed uint64
 }
 
-func InitWAL(dirpath string, clusterId uint64) (*WAL, bool, error) {
-	w := &WAL{
-		dir:       dirpath,
-		clusterId: clusterId,
+func initWALCore(cfg *Config) (w *walcore, metadata []byte, err error) {
+	w = &walcore{
+		cfg:       cfg,
+		lastIndex: 0,
 		blocks:    make([]*logBlock, 0),
-		ents:      make([]raftpb.Entry, 1),
+		reqCh:     make(chan *walReq, cfg.WALQueueSize),
+		closed:    0,
 	}
-	w.snapshotter = NewSnapshotter(w.dir)
-	r, err := w.doInit()
+	_, metadata, err = w.doInit()
 
 	if err != nil {
-		w.Close()
-		return nil, false, err
+		w.doClose()
+		return nil, nil, err
 	}
 
-	return w, r, nil
+	go w.run()
+
+	return w, metadata, nil
 }
 
-func (this *WAL) tailBlock() *logBlock {
+func (this *walcore) tailBlock() *logBlock {
 	return this.blocks[len(this.blocks)-1]
 }
 
-// InitialState implements the Storage interface.
-func (this *WAL) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
-	return this.state, this.confState, nil
-}
-
-// Entries implements the Storage interface.
-func (this *WAL) Entries(lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	offset := this.ents[0].Index
-	if lo <= offset {
-		return nil, raft.ErrCompacted
+func (this *walcore) doInit() (bool, []byte, error) {
+	newone := false
+	if !ExistDir(this.cfg.Dir) {
+		plog.Infof("init walcore at %v", this.cfg.Dir)
+		err := fileutil.CreateDirAll(this.cfg.Dir)
+		if err != nil {
+			plog.Warningf("init walcore fail - %v", err)
+			return false, nil, err
+		}
 	}
-	if hi > this.lastIndex()+1 {
-		plog.Panicf("entries' hi(%d) is out of bound lastindex(%d)", hi, this.lastIndex())
-	}
-	// only contains dummy entries.
-	if len(this.ents) == 1 {
-		return nil, raft.ErrUnavailable
-	}
-
-	ents := this.ents[lo-offset : hi-offset]
-	return raft.LimitSize(ents, maxSize), nil
-}
-
-// Term implements the Storage interface.
-func (this *WAL) Term(i uint64) (uint64, error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	offset := this.ents[0].Index
-	if i < offset {
-		return 0, raft.ErrCompacted
-	}
-	if int(i-offset) >= len(this.ents) {
-		return 0, raft.ErrUnavailable
-	}
-	return this.ents[i-offset].Term, nil
-}
-
-// LastIndex implements the Storage interface.
-func (this *WAL) LastIndex() (uint64, error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	return this.lastIndex(), nil
-}
-
-func (this *WAL) lastIndex() uint64 {
-	return this.ents[0].Index + uint64(len(this.ents)) - 1
-}
-
-// FirstIndex implements the Storage interface.
-func (this *WAL) FirstIndex() (uint64, error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	return this.firstIndex(), nil
-}
-
-func (this *WAL) firstIndex() uint64 {
-	return this.ents[0].Index + 1
-}
-
-// Snapshot implements the Storage interface.
-func (this *WAL) Snapshot() (raftpb.Snapshot, error) {
-	// ms.Lock()
-	// defer ms.Unlock()
-	return raftpb.Snapshot{}, nil
-}
-
-// Compact discards all log entries prior to compactIndex.
-// It is the application's responsibility to not attempt to compact an index
-// greater than raftLog.applied.
-func (this *WAL) Compact(compactIndex uint64) error {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	offset := this.ents[0].Index
-	if compactIndex <= offset {
-		return raft.ErrCompacted
-	}
-	if compactIndex > this.lastIndex() {
-		plog.Panicf("compact %d is out of bound lastindex(%d)", compactIndex, this.lastIndex())
+	var rmeta []byte
+	flb := newFirstBlock(this.cfg.Dir)
+	if !flb.IsExists() {
+		// init first wal block
+		plog.Infof("init WAL block [0]")
+		err := flb.Create(this.cfg.InitMetadata)
+		if err != nil {
+			plog.Warningf("init WAL block [0] fail - %v", err)
+		}
+		this.doAppendBlock(flb)
+		this.lastIndex = 0
+		rmeta = this.cfg.InitMetadata
+		newone = true
+	} else {
+		lb := flb
+		for {
+			llb := !lb.IsExistsNextBlock()
+			err := lb.Open(llb)
+			if err != nil {
+				plog.Warningf("open WAL block[%v] fail - %v", lb.id, err)
+				return false, nil, err
+			}
+			if rmeta == nil {
+				rmeta = lb.Header.MetaData
+			}
+			this.doAppendBlock(lb)
+			if llb {
+				this.lastIndex = lb.LastIndex()
+				break
+			}
+			lb = lb.newNextBlock()
+		}
 	}
 
-	i := compactIndex - offset
-	ents := make([]raftpb.Entry, 1, 1+uint64(len(this.ents))-i)
-	ents[0].Index = this.ents[i].Index
-	ents[0].Term = this.ents[i].Term
-	ents = append(ents, this.ents[i+1:]...)
-	this.ents = ents
+	return newone, rmeta, nil
+}
+
+func (this *walcore) run() {
+	ti := time.NewTicker(this.cfg.IdleSyncDuration)
+	defer func() {
+		ti.Stop()
+		this.doClose()
+	}()
+
+	for {
+		idle := false
+		select {
+		case req := <-this.reqCh:
+			idle = false
+			switch req.action {
+			case actionClose:
+				this.doSync()
+				close(req.resp)
+				return
+			case actionSync:
+				err := this.doSync()
+				if req.resp != nil {
+					req.resp <- walResp{err: err}
+				}
+			case actionAppend:
+				err := this.doAppend(req.p1.(uint64), req.p2.([]byte))
+				if req.resp != nil {
+					req.resp <- walResp{err: err}
+				}
+			case actionDelete:
+				err := this.doDelete()
+				if req.resp != nil {
+					req.resp <- walResp{err: err}
+				}
+			case actionReset:
+				err := this.doReset()
+				if req.resp != nil {
+					req.resp <- walResp{err: err}
+				}
+			case actionTruncate:
+				err := this.doTruncate(req.p1.(uint64))
+				if req.resp != nil {
+					req.resp <- walResp{err: err}
+				}
+			}
+		case <-ti.C:
+			if idle {
+				this.doSync()
+			} else {
+				idle = true
+			}
+		}
+	}
+}
+
+func (this *walcore) isClosed() bool {
+	return atomic.LoadUint64(&this.closed) == 1
+}
+
+func (this *walcore) doClose() {
+	close(this.reqCh)
+	if this.cursors != nil {
+		for e := this.cursors.Front(); e != nil; e = e.Next() {
+			e.Value.(walCursor).CloseByWAL()
+		}
+		this.cursors = nil
+	}
+
+	for _, lb := range this.blocks {
+		lb.Close()
+	}
+	this.blocks = make([]*logBlock, 0)
+
+	atomic.StoreUint64(&this.lastIndex, 0)
+}
+
+func (this *walcore) seekBlock(idx uint64) *logBlock {
+	c := len(this.blocks)
+	for i := c - 1; i >= 0; i-- {
+		lb := this.blocks[i]
+		if idx > lb.Header.Index {
+			return lb
+		}
+	}
+	return this.blocks[0]
+}
+
+func (this *walcore) doRoll(lb *logBlock) error {
+	if err := lb.Sync(); err != nil {
+		plog.Warningf("Cut(%v) sync fail - %v", lb.id, err)
+		return err
+	}
+	lb.Close()
+
+	nlb := lb.newNextBlock()
+	if err := nlb.Create(lb.Header.MetaData); err != nil {
+		plog.Warningf("create new WAL block [%v] fail - %v", nlb.id, err)
+		return err
+	}
+	this.doAppendBlock(nlb)
+
+	if err := nlb.Sync(); err != nil {
+		return err
+	}
+	plog.Infof("segmented WAL block[%v] is created", nlb.id)
 	return nil
 }
 
-// Append the new entries to storage.
-// TODO (xiangli): ensure the entries are continuous and
-// entries[0].Index > ms.entries[0].Index
-func (this *WAL) doAppend(entries []raftpb.Entry) error {
-	if len(entries) == 0 {
+func (this *walcore) doAppendBlock(lb *logBlock) {
+	this.blocks = append(this.blocks, lb)
+}
+
+func (this *walcore) doAddCursor(c walCursor) {
+	if this.cursors == nil {
+		this.cursors = list.New()
+	}
+	this.cursors.PushBack(c)
+}
+
+func (this *walcore) doCloseCursor(lb *logBlock) {
+	if this.cursors == nil {
+		return
+	}
+	var n *list.Element
+	for e := this.cursors.Front(); e != nil; {
+		c := e.Value.(walCursor)
+		if c.InBlock(lb) {
+			n = e.Next()
+			this.cursors.Remove(e)
+			e = n
+			c.CloseByWAL()
+		} else {
+			e = e.Next()
+		}
+	}
+}
+
+func (this *walcore) doRemoveCursor(p walCursor) {
+	if this.cursors == nil {
+		return
+	}
+	var n *list.Element
+	for e := this.cursors.Front(); e != nil; {
+		c := e.Value.(walCursor)
+		if c == p {
+			n = e.Next()
+			this.cursors.Remove(e)
+			e = n
+		} else {
+			e = e.Next()
+		}
+	}
+}
+
+func (this *walcore) newCursor(idx uint64) (*cursor, error) {
+	lb := this.seekBlock(idx)
+	return newCursor(this, lb, idx)
+}
+
+// WAL implements
+func NewWAL(cfg *Config) (WAL, []byte, error) {
+	return initWALCore(cfg)
+}
+
+// Append
+func (this *walcore) Append(idx uint64, data []byte) error {
+	if this.isClosed() {
+		return ErrClosed
+	}
+	req := &walReq{
+		action: actionAppend,
+		p1:     idx,
+		p2:     data,
+	}
+	if !this.cfg.PostAppend {
+		req.resp = make(chan walResp, 1)
+		this.reqCh <- req
+		resp := <-req.resp
+		return resp.err
+	} else {
+		this.reqCh <- req
 		return nil
 	}
+}
 
-	first := this.firstIndex()
-	last := entries[0].Index + uint64(len(entries)) - 1
+func (this *walcore) doAppend(idx uint64, data []byte) error {
+	lb := this.tailBlock()
 
-	// shortcut if there is no new entry.
-	if last < first {
+	li, err := lb.Append(idx, data)
+	if err != nil {
+		return err
+	}
+	atomic.StoreUint64(&this.lastIndex, li.Index)
+
+	curOff := li.EndPos()
+	if curOff < this.cfg.BlockRollSize {
 		return nil
 	}
-	// truncate compacted entries
-	if first > entries[0].Index {
-		entries = entries[first-entries[0].Index:]
-	}
+	return this.doRoll(lb)
+}
 
-	offset := entries[0].Index - this.ents[0].Index
-	switch {
-	case uint64(len(this.ents)) > offset:
-		this.ents = append([]raftpb.Entry{}, this.ents[:offset]...)
-		this.ents = append(this.ents, entries...)
-	case uint64(len(this.ents)) == offset:
-		this.ents = append(this.ents, entries...)
-	default:
-		plog.Panicf("missing log entry [last: %d, append at: %d]",
-			this.lastIndex(), entries[0].Index)
+// Sync blocks
+func (this *walcore) doSync() error {
+	lb := this.tailBlock()
+	return lb.Sync()
+}
+func (this *walcore) Sync() error {
+	if this.isClosed() {
+		return ErrClosed
+	}
+	req := &walReq{
+		action: actionSync,
+		resp:   make(chan walResp, 1),
+	}
+	this.reqCh <- req
+	resp := <-req.resp
+	return resp.err
+}
+
+func (this *walcore) Close() error {
+	atomic.StoreUint64(&this.closed, 1)
+	req := &walReq{
+		action: actionClose,
+		resp:   make(chan walResp, 0),
+	}
+	this.reqCh <- req
+	<-req.resp
+	return nil
+}
+
+// Delete permanently closes the log by deleting all data
+func (this *walcore) Delete() error {
+	if this.isClosed() {
+		return ErrClosed
+	}
+	req := &walReq{
+		action: actionDelete,
+		resp:   make(chan walResp, 1),
+	}
+	this.reqCh <- req
+	resp := <-req.resp
+	return resp.err
+}
+
+func (this *walcore) doDelete() error {
+	c := len(this.blocks)
+	if c > 0 {
+		return nil
+	}
+	for i := c - 1; i >= 0; i-- {
+		lb := this.blocks[i]
+		// this.doCloseCursor(lb)
+		err := lb.Remove()
+		if err != nil {
+			this.blocks = this.blocks[:i]
+			return err
+		}
+	}
+	this.doClose()
+	return nil
+}
+
+// Reset destructively clears out any pending data in the log
+func (this *walcore) Reset() error {
+	if this.isClosed() {
+		return ErrClosed
+	}
+	req := &walReq{
+		action: actionReset,
+		resp:   make(chan walResp, 1),
+	}
+	this.reqCh <- req
+	resp := <-req.resp
+	return resp.err
+}
+
+func (this *walcore) doReset() error {
+	if err := this.doDelete(); err != nil {
+		return err
+	}
+	if _, _, err := this.doInit(); err != nil {
+		return err
 	}
 	return nil
+}
+
+// Truncate to index
+func (this *walcore) Truncate(idx uint64) error {
+	if this.isClosed() {
+		return ErrClosed
+	}
+	req := &walReq{
+		action: actionTruncate,
+		p1:     idx,
+		resp:   make(chan walResp, 1),
+	}
+	this.reqCh <- req
+	resp := <-req.resp
+	return resp.err
+}
+func (this *walcore) doTruncate(idx uint64) error {
+
+	tlb := this.seekBlock(idx)
+
+	c := len(this.blocks)
+	for i := c - 1; i > tlb.id; i-- {
+		lb := this.blocks[i]
+		this.doCloseCursor(lb)
+		err := lb.Remove()
+		if err != nil {
+			this.blocks = this.blocks[:i]
+			return err
+		}
+		plog.Infof("drop WAL block[%v, %v]", lb.id, lb.Header.Index)
+	}
+	this.blocks = this.blocks[:tlb.id+1]
+	// Truncate
+	this.doCloseCursor(tlb)
+	lidx, err := tlb.Truncate(idx)
+	atomic.StoreUint64(&this.lastIndex, lidx)
+	return err
+}
+
+// Index returns the last index
+func (this *walcore) LastIndex() uint64 {
+	return atomic.LoadUint64(&this.lastIndex)
+}
+
+// GetCursor returns a Cursor at the specified index
+func (this *walcore) GetCursor(idx uint64) (Cursor, error) {
+	c, err := this.newCursor(idx)
+	if err != nil {
+		return nil, err
+	}
+	this.doAddCursor(c)
+	return c, nil
 }

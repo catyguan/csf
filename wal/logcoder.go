@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
 
 package wal
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"hash"
 
-var (
-	syncDurations = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "csf",
-		Subsystem: "disk",
-		Name:      "wal_fsync_duration_seconds",
-		Help:      "The latency distributions of fsync called by wal.",
-		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
-	})
+	"github.com/catyguan/csf/pkg/crc"
 )
 
-func init() {
-	prometheus.MustRegister(syncDurations)
+type logCoder struct {
+	crc hash.Hash32
+	buf []byte
+}
+
+func createLogCoder(prevCrc uint32) *logCoder {
+	return &logCoder{crc: crc.New(prevCrc, crcTable)}
 }

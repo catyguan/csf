@@ -16,64 +16,25 @@ package wal
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+)
 
-	"github.com/catyguan/csf/raft/raftpb"
+var (
+	testDir       string = "c:\\tmp"
+	testBlockSize uint64 = 16 * 1024
 )
 
 func TestLogCoder(t *testing.T) {
 	if t != nil {
-		li1 := &logIndex{
-			Index: 1,
-			Term:  2,
-			Type:  7,
-			Crc:   5,
-			Size:  6,
-		}
-		if li1 != nil {
-			buf := bytes.NewBuffer(make([]byte, 0))
-			lih := &logCoder{}
-
-			err := lih.Write(buf, li1)
-			if err != nil {
-				t.Fatalf("err1 = %v", err)
-			}
-
-			// lih = &logCoder{}
-			li2, err2 := lih.Read(buf)
-			if err2 != nil {
-				t.Fatalf("err2 = %v", err2)
-			}
-			plog.Infof("result1 = %v", li2.String())
-		}
-
-		if li1 != nil {
-			buf := bytes.NewBuffer(make([]byte, 0))
-			lih := createLogCoder(0)
-
-			err := lih.WriteRecord(buf, li1, []byte("hello world"))
-			if err != nil {
-				t.Fatalf("err1 = %v", err)
-			}
-
-			lih2 := createLogCoder(0)
-			li2, b, err2 := lih2.ReadRecord(buf)
-			if err2 != nil {
-				t.Fatalf("err2 = %v", err2)
-			}
-			plog.Infof("result2 = %v, %v", li2.String(), string(b))
-		}
-	}
-	if t != nil {
 		lh1 := &logHeader{
-			ClusterId: 100,
-			Index:     1,
-			Term:      2,
-			Crc:       5,
+			Index: 1,
+			Crc:   5,
 		}
+		lh1.SetMetaData([]byte("hello world"))
 		if lh1 != nil {
 			buf := bytes.NewBuffer(make([]byte, 0))
 			lih := &logCoder{}
@@ -93,18 +54,71 @@ func TestLogCoder(t *testing.T) {
 	}
 
 	if t != nil {
-		lr1 := &snapHeader{}
+		li1 := &logIndex{
+			Index: 1,
+			Crc:   5,
+			Size:  6,
+			Pos:   7,
+		}
+		if li1 != nil {
+			buf := bytes.NewBuffer(make([]byte, 0))
+			lih := &logCoder{}
+
+			err := lih.WriteIndex(buf, li1)
+			if err != nil {
+				t.Fatalf("err1 = %v", err)
+			}
+			errq := lih.WriteQIndex(buf, li1)
+			if errq != nil {
+				t.Fatalf("err1q = %v", errq)
+			}
+
+			// lih = &logCoder{}
+			li2, err2 := lih.ReadIndex(buf)
+			if err2 != nil {
+				t.Fatalf("err2 = %v", err2)
+			}
+			liq := &logIndex{}
+			err2q := lih.ReadQIndexTo(buf, liq)
+			if err2q != nil {
+				t.Fatalf("err2q = %v", err2q)
+			}
+			plog.Infof("result1 = %v, %v", li2.String(), liq)
+		}
+
+		if li1 != nil {
+			buf := bytes.NewBuffer(make([]byte, 0))
+			lih := createLogCoder(0)
+
+			err := lih.WriteRecord(buf, li1, []byte("hello world"))
+			if err != nil {
+				t.Fatalf("err1 = %v", err)
+			}
+
+			lih2 := createLogCoder(0)
+			li2, b, err2 := lih2.ReadRecord(buf)
+			if err2 != nil {
+				t.Fatalf("err2 = %v", err2)
+			}
+			plog.Infof("result2 = %v, %v", li2.String(), string(b))
+		}
+	}
+
+	if t != nil {
+		lr1 := &logTail{
+			Size: 123,
+		}
 		if lr1 != nil {
 			buf := bytes.NewBuffer(make([]byte, 0))
 			lih := &logCoder{}
 
-			err := lih.WriteSnap(buf, lr1)
+			err := lih.WriteTail(buf, lr1)
 			if err != nil {
 				t.Fatalf("h err1 = %v", err)
 			}
 
 			// lih = &logCoder{}
-			lr2, err2 := lih.ReadSnap(buf)
+			lr2, err2 := lih.ReadTail(buf)
 			if err2 != nil {
 				t.Fatalf("h err2 = %v", err2)
 			}
@@ -114,42 +128,34 @@ func TestLogCoder(t *testing.T) {
 }
 
 func TestLogBlockBase(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
-
 	p := filepath.Join(testDir, "waltest2")
 	os.RemoveAll(p)
 	os.MkdirAll(p, os.ModePerm)
 
-	cid := uint64(100)
-
-	lb := newFirstBlock(p, cid)
-	err := lb.CreateEmpty()
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	lb := newFirstBlock(p)
+	if lb != nil {
+		err := lb.CreateT("hello world")
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		lb.Close()
 	}
-	lb.Close()
 
-	lb2 := newFirstBlock(p, cid)
-	err2 := lb2.Open()
+	lb2 := newFirstBlock(p)
+	err2 := lb2.OpenWrite()
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer lb2.Close()
-
-	lb2.Active(nil)
 }
 
 func TestLogBlockRemove(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
-
 	p := filepath.Join(testDir, "waltest2")
 	os.RemoveAll(p)
 	os.MkdirAll(p, os.ModePerm)
 
-	cid := uint64(100)
-
-	lb := newFirstBlock(p, cid)
-	err := lb.CreateEmpty()
+	lb := newFirstBlock(p)
+	err := lb.CreateT("hello world")
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -162,25 +168,36 @@ func TestLogBlockRemove(t *testing.T) {
 }
 
 func TestLogBlockAppend(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
-
 	p := filepath.Join(testDir, "waltest2")
 	os.RemoveAll(p)
 	os.MkdirAll(p, os.ModePerm)
 
-	cid := uint64(100)
-
-	lb := newFirstBlock(p, cid)
-	err := lb.CreateEmpty()
+	lb := newFirstBlock(p)
+	err := lb.CreateT("hello world")
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	defer lb.Close()
+	doTestLogBlockAppend(lb, t)
+}
+
+func TestLogBlockAppend2(t *testing.T) {
+	p := filepath.Join(testDir, "waltest2")
+
+	lb2 := newFirstBlock(p)
+	err2 := lb2.OpenWrite()
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer lb2.Close()
+	doTestLogBlockAppend(lb2, t)
+}
+
+func doTestLogBlockAppend(lb *logBlock, t *testing.T) {
 	if lb != nil {
 		sz := 100
 		for i := 1; i < sz; i++ {
-			v := uint64(i * 10)
-			li, err4 := lb.Append(v, v, 5, []byte("hello world"))
+			li, err4 := lb.Append(0, []byte(fmt.Sprintf("hello world %v", i)))
 			if err4 != nil {
 				t.Fatalf("err4 = %v", err4)
 			}
@@ -192,7 +209,7 @@ func TestLogBlockAppend(t *testing.T) {
 }
 
 func TestLogBlockQDump(t *testing.T) {
-	p := filepath.Join(testDir, "waltest2")
+	p := filepath.Join(testDir, "waltest")
 	bid := 0
 
 	fname := filepath.Join(p, blockName(uint64(bid)))
@@ -203,13 +220,15 @@ func TestLogBlockQDump(t *testing.T) {
 	defer f.Close()
 
 	lih := &logCoder{}
-	if f != nil {
-		lh, err2 := lih.ReadHeader(f)
-		if err2 != nil {
-			t.Fatalf("err2 = %v", err2)
-		}
-		plog.Infof("header = %v", lh.String())
+
+	lh, err2 := lih.ReadHeader(f)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
 	}
+	plog.Infof("header = %v", lh.String())
+	//f.Seek(int64(lh.Size()), os.SEEK_SET)
+	lih.ReadTail(f)
+
 	var lli *logIndex
 	for {
 		li, _, err3 := lih.ReadRecord(f)
@@ -221,9 +240,11 @@ func TestLogBlockQDump(t *testing.T) {
 			t.Fatalf("err3 = %v", err3)
 		}
 		if lli != nil {
+			li.Index = lli.Index + 1
 			li.Pos = lli.EndPos()
 		} else {
-			li.Pos = sizeofLogHead
+			li.Index = lh.Index + 1
+			li.Pos = uint64(lh.Size())
 		}
 		lli = li
 		plog.Infof("index = %v", li.String())
@@ -231,36 +252,20 @@ func TestLogBlockQDump(t *testing.T) {
 }
 
 func TestLogBlockDump(t *testing.T) {
-	SegmentSizeBytes = 16 * 1024
-
-	p := filepath.Join(testDir, "wal3")
+	p := filepath.Join(testDir, "waltest2")
 	bid := 0
 
-	cid := uint64(1)
-
-	lb2 := newFirstBlock(p, cid)
+	lb2 := newFirstBlock(p)
 	lb2.id = bid
-	err2 := lb2.Open()
+	err2 := lb2.ReadHeader()
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer lb2.Close()
 
 	if lb2 != nil {
-		err3 := lb2.Active(func(li *logIndex, data []byte) (bool, error) {
-			var v interface{}
-			v = data
-			switch int64(li.Type) {
-			case entryType:
-				e := &raftpb.Entry{}
-				e.Unmarshal(data)
-				v = e
-			case stateType:
-				st := &raftpb.HardState{}
-				st.Unmarshal(data)
-				v = st
-			}
-			plog.Infof("result3 = %v, %v", li.String(), v)
+		err3 := lb2.ReadAll(func(li *logIndex, data []byte) (bool, error) {
+			plog.Infof("result3 = %v, %v", li.String(), data)
 			return false, nil
 		})
 		if err3 != nil {
@@ -276,16 +281,15 @@ func TestLogBlockDump(t *testing.T) {
 
 func TestLogBlockTruncate(t *testing.T) {
 	p := filepath.Join(testDir, "waltest2")
-	cid := uint64(100)
 
-	lb2 := newFirstBlock(p, cid)
-	err2 := lb2.Open()
+	lb2 := newFirstBlock(p)
+	err2 := lb2.ReadHeader()
 	if err2 != nil {
 		t.Fatalf("err2 = %v", err2)
 	}
 	defer lb2.Close()
 
-	err3 := lb2.Truncate(800)
+	_, err3 := lb2.Truncate(180)
 	if err3 != nil && err3 != io.EOF {
 		t.Fatalf("err3 = %v", err3)
 	}

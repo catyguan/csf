@@ -16,11 +16,17 @@ package wal
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/catyguan/csf/pkg/pbutil"
 	"github.com/catyguan/csf/raft/raftpb"
+)
+
+var (
+	ErrSnapshotMismatch = errors.New("wal: snapshot mismatch")
+	ErrSnapshotNotFound = errors.New("wal: snapshot not found")
 )
 
 type snapHeader struct {
