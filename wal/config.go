@@ -23,7 +23,6 @@ type Config struct {
 	WALQueueSize     int           // WAL的队列大小，缺省为1000
 	CursorQueueSize  int           // Cursor的队列大小，缺省为100
 	IdleSyncDuration time.Duration // 进行IdleSync的检查时间间隔，缺省为30秒
-	PostAppend       bool          // Append是否不等待响应
 }
 
 func NewConfig() *Config {

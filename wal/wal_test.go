@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,12 +55,15 @@ func TestWALSave(t *testing.T) {
 	plog.Infof("TestWALSave meta %v", string(bs))
 
 	sz := 100
+	ents := make([]Entry, 0)
 	for i := 0; i < sz; i++ {
 		s := fmt.Sprintf("hello world %v", i)
-		w.Append(0, []byte(s))
+		ents = append(ents, Entry{Index: 0, Data: []byte(s)})
 	}
+	rsc := w.Append(ents, true)
+	rs := <-rsc
 
-	plog.Infof("lastIndex: %v", w.LastIndex())
+	plog.Infof("save: %v, lastIndex: %v", rs.Index, w.LastIndex())
 
 	time.Sleep(time.Second)
 }
@@ -74,28 +77,10 @@ func TestWALSync(t *testing.T) {
 	}
 	defer w.Close()
 
-	err := w.Sync()
-	if err != nil {
-		t.Fatalf("err = %v", err)
-	}
-
-	time.Sleep(time.Second)
-}
-
-func TestWALDelete(t *testing.T) {
-	cfg := tc_config1()
-
-	w, _, err2 := initWALCore(cfg)
-	if err2 != nil {
-		t.Fatalf("err2 = %v", err2)
-	}
-	defer w.Close()
-
-	// w.GetCursor(10)
-
-	err := w.Delete()
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	rsc := w.Sync()
+	rs := <-rsc
+	if rs.Err != nil {
+		t.Fatalf("err = %v", rs.Err)
 	}
 
 	time.Sleep(time.Second)
@@ -110,11 +95,21 @@ func TestWALReset(t *testing.T) {
 	}
 	defer w.Close()
 
-	// w.GetCursor(10)
+	c, _ := w.GetCursor(10)
+	if c != nil {
+		e, err2 := c.Read()
+		plog.Infof("cursor read1 %v, %v", e, err2)
+	}
 
-	err := w.Reset()
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	rsc := w.Reset()
+	rs := <-rsc
+	if rs.Err != nil {
+		t.Fatalf("err = %v", rs.Err)
+	}
+
+	if c != nil {
+		e, err2 := c.Read()
+		plog.Infof("cursor read2 %v, %v", e, err2)
 	}
 
 	time.Sleep(time.Second)
@@ -131,13 +126,16 @@ func TestWALRoll(t *testing.T) {
 	defer w.Close()
 	plog.Infof("TestWALSave meta %v", string(bs))
 
+	ents := make([]Entry, 0)
 	sz := 200
 	for i := 0; i < sz; i++ {
 		s := fmt.Sprintf("hello world %v", i)
-		w.Append(0, []byte(s))
+		ents = append(ents, Entry{Index: 0, Data: []byte(s)})
 	}
+	rsc := w.Append(ents, true)
+	rs := <-rsc
 
-	plog.Infof("lastIndex: %v", w.LastIndex())
+	plog.Infof("result:%v, lastIndex: %v", rs.Index, w.LastIndex())
 
 	time.Sleep(time.Second)
 }
@@ -151,44 +149,10 @@ func TestWALTruncate(t *testing.T) {
 	}
 	defer w.Close()
 
-	err := w.Truncate(100)
-	if err != nil {
-		t.Fatalf("err = %v", err)
-	}
-
-	time.Sleep(time.Second)
-}
-
-func TestCursor(t *testing.T) {
-	// TestWALSave(t)
-	cfg := tc_config1()
-
-	w, _, err2 := initWALCore(cfg)
-	if err2 != nil {
-		t.Fatalf("err2 = %v", err2)
-	}
-	defer w.Close()
-
-	c, err3 := w.GetCursor(80)
-	if err3 != nil {
-		t.Fatalf("err3 = %v", err3)
-	}
-	for {
-		e, err4 := c.Read()
-		if err4 != nil {
-			t.Fatalf("err4 = %v", err4)
-		}
-		if e == nil {
-			plog.Infof("cursor end")
-			break
-		}
-		plog.Infof("result = %v, %v", e.Index, string(e.Data))
-	}
-	c.Close()
-
-	err := w.Delete()
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	rsc := w.Truncate(100)
+	rs := <-rsc
+	if rs.Err != nil {
+		t.Fatalf("err = %v", rs.Err)
 	}
 
 	time.Sleep(time.Second)

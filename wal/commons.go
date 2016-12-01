@@ -31,7 +31,7 @@ var (
 	ErrLogHeaderError = errors.New("wal: logheader format error")
 	ErrFileNotFound   = errors.New("wal: file not found")
 	ErrCRCMismatch    = errors.New("wal: crc mismatch")
-	ErrClosed         = errors.New("wal: closed")
+	ErrClosed         = errors.New("closed")
 	crcTable          = crc32.MakeTable(crc32.Castagnoli)
 )
 
@@ -43,29 +43,33 @@ type Entry struct {
 type Cursor interface {
 	// Read Entry
 	Read() (*Entry, error)
+
 	// Close Cursor
-	Close() error
+	Close()
+}
+
+type Result struct {
+	Index uint64
+	Err   error
+	data  interface{}
 }
 
 // WriteAheadLogger is the primary interface
 type WAL interface {
 	// Append
-	Append(idx uint64, data []byte) error
+	Append(ents []Entry, sync bool) <-chan Result
 
 	// Sync blocks
-	Sync() error
+	Sync() <-chan Result
 
 	// Close flushes and cleanly closes the log
-	Close() error
-
-	// Delete permanently closes the log by deleting all data
-	Delete() error
+	Close()
 
 	// Reset destructively clears out any pending data in the log
-	Reset() error
+	Reset() <-chan Result
 
 	// Truncate to index
-	Truncate(idx uint64) error
+	Truncate(idx uint64) <-chan Result
 
 	// Index returns the last index
 	LastIndex() uint64

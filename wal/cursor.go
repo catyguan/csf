@@ -24,9 +24,10 @@ type cursor struct {
 	lb *logBlock
 	wc *walcore
 
-	li logIndex
-	f  *os.File
-	lc *logCoder
+	indexTryRead uint64
+	li           logIndex
+	f            *os.File
+	lc           *logCoder
 }
 
 func newCursor(wc *walcore, lb *logBlock, idx uint64) (*cursor, error) {
@@ -36,6 +37,7 @@ func newCursor(wc *walcore, lb *logBlock, idx uint64) (*cursor, error) {
 	}
 	li, err2 := lb.doSeek(f, idx-1)
 	if err2 != nil {
+		f.Close()
 		return nil, err2
 	}
 	c := &cursor{
@@ -52,28 +54,30 @@ func newCursor(wc *walcore, lb *logBlock, idx uint64) (*cursor, error) {
 		off = c.li.EndPos()
 	}
 	_, err = f.Seek(int64(off), os.SEEK_SET)
-
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	c.indexTryRead = idx
 	return c, nil
 }
 
 func (this *cursor) doClose() {
-	if this.f != nil {
-		this.f.Close()
+	// TODO: multi close not safed
+	f := this.f
+	if f != nil {
 		this.f = nil
+		f.Close()
 	}
-}
-
-func (this *cursor) Read() (*Entry, error) {
-	end, e, err := this.doRead()
-	if end {
-		this.doClose()
-	}
-	return e, err
 }
 
 func (this *cursor) doRead() (bool, *Entry, error) {
-	if this.f == nil {
+	f := this.f
+	if f == nil {
 		return false, nil, io.ErrUnexpectedEOF
+	}
+	if this.indexTryRead > this.wc.LastIndex() {
+		return false, nil, nil
 	}
 	if this.lc == nil {
 		crc := this.li.Crc
@@ -82,7 +86,7 @@ func (this *cursor) doRead() (bool, *Entry, error) {
 		}
 		this.lc = createLogCoder(crc)
 	}
-	data, err := this.lc.ReadRecordToBuf(this.f, nil, &this.li)
+	data, err := this.lc.ReadRecordToBuf(f, nil, &this.li)
 
 	if err != nil {
 		if err == io.EOF {
@@ -95,20 +99,62 @@ func (this *cursor) doRead() (bool, *Entry, error) {
 		Index: this.li.Index,
 		Data:  data,
 	}
+	this.indexTryRead = e.Index + 1
 	return false, e, nil
 }
 
-func (this *cursor) Close() error {
-	this.doClose()
+func (this *cursor) Close() {
 	this.wc.doRemoveCursor(this)
-	return nil
+	this.doClose()
 }
 
-func (this *cursor) InBlock(lb *logBlock) bool {
+func (this *cursor) walBlock(lb *logBlock) bool {
 	return this.lb == lb || this.lb.id == lb.id
 }
 
-func (this *cursor) CloseByWAL() {
-	plog.Infof("close by wal!!!")
+func (this *cursor) walClose() {
 	this.doClose()
+}
+
+type cursorImpl struct {
+	w *walcore
+	c *cursor
+}
+
+func (this *cursorImpl) Close() {
+	if this.w != nil {
+		if this.c != nil {
+			this.c.Close()
+			this.c = nil
+		}
+		this.w = nil
+	}
+}
+
+func (this *cursorImpl) Read() (*Entry, error) {
+	if this.w == nil {
+		return nil, ErrClosed
+	}
+	if this.c == nil {
+		return nil, nil
+	}
+	for {
+		end, e, err := this.c.doRead()
+		if !end {
+			return e, err
+		}
+		idx := this.c.indexTryRead
+		this.c.Close()
+		this.c = nil
+
+		c, err := this.w.createCursor(idx)
+		if err != nil {
+			return nil, err
+		}
+		if c == nil {
+			return nil, nil
+		}
+		this.c = c
+
+	}
 }
