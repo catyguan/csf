@@ -48,6 +48,12 @@ type Cursor interface {
 	Close()
 }
 
+type Follow interface {
+	EntryCh() <-chan *Entry
+	Error() error
+	Close()
+}
+
 type Result struct {
 	Index uint64
 	Err   error
@@ -76,4 +82,7 @@ type WAL interface {
 
 	// GetCursor returns a Cursor at the specified index
 	GetCursor(idx uint64) (Cursor, error)
+
+	// GetFollow returns a Follow at the specified index
+	GetFollow(idx uint64) (Follow, error)
 }

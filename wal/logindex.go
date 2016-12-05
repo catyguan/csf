@@ -54,7 +54,7 @@ func (this *logIndex) Validate(crc uint32) error {
 }
 
 func (this *logIndex) EndPos() uint64 {
-	return this.Pos + uint64(sizeofLogIndex) + uint64(this.Size) + sizeofLogTail
+	return this.Pos + uint64(sizeofLogIndex) + uint64(this.Size)
 }
 
 func (this *logIndex) DataSize() uint32 {
@@ -104,7 +104,7 @@ func (this *logCoder) WriteRecord(w io.Writer, li *logIndex, b []byte) error {
 	if n != len(b) {
 		return io.ErrUnexpectedEOF
 	}
-	return this.WriteTailSize(w, li.Size+sizeofLogIndex)
+	return nil
 }
 
 func (this *logCoder) ReadIndex(r io.Reader) (*logIndex, error) {
@@ -132,6 +132,10 @@ func (this *logCoder) ReadIndexTo(r io.Reader, li *logIndex) error {
 	li.Index = binary.LittleEndian.Uint64(buf[0:])
 	li.Size = binary.LittleEndian.Uint32(buf[8:])
 	li.Crc = binary.LittleEndian.Uint32(buf[12:])
+
+	if li.Empty() {
+		return io.EOF
+	}
 
 	return nil
 }
@@ -189,14 +193,6 @@ func (this *logCoder) ReadRecordToBuf(r io.Reader, b []byte, li *logIndex) ([]by
 				return nil, ErrCRCMismatch
 			}
 		}
-	}
-	// Skip Tail
-	if this.buf == nil {
-		this.buf = make([]byte, sizeofLogIndex)
-	}
-	_, err = io.ReadFull(r, this.buf[:sizeofLogTail])
-	if err != nil {
-		return nil, err
 	}
 	return b, nil
 }

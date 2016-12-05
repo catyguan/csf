@@ -37,7 +37,7 @@ func (this *logHeader) String() string {
 }
 
 func (this *logHeader) Size() uint16 {
-	return sizeofLogHeader + this.MetaSize + uint16(this.Padding) + sizeofLogTail
+	return sizeofLogHeader + this.MetaSize + uint16(this.Padding)
 }
 
 func (this *logHeader) SetMetaData(m []byte) {

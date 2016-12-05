@@ -89,11 +89,11 @@ func (this *logBlock) IsExists() bool {
 	return ExistFile(this.BlockFilePath())
 }
 
-func (this *logBlock) CreateT(s string) error {
-	return this.Create([]byte(s))
+func (this *logBlock) CreateT(s string, sz uint64) error {
+	return this.Create([]byte(s), sz)
 }
 
-func (this *logBlock) Create(metadata []byte) error {
+func (this *logBlock) Create(metadata []byte, sz uint64) error {
 	wfn := this.BlockFilePath()
 
 	if ExistFile(wfn) {
@@ -105,6 +105,11 @@ func (this *logBlock) Create(metadata []byte) error {
 	if err != nil {
 		return err
 	}
+	if err = fileutil.Preallocate(f, int64(sz), true); err != nil {
+		f.Close()
+		return err
+	}
+	f.Seek(0, os.SEEK_SET)
 	lih := createLogCoder(0)
 	this.Header.SetMetaData(metadata)
 	err = lih.WriteHeader(f, &this.Header)
@@ -112,7 +117,6 @@ func (this *logBlock) Create(metadata []byte) error {
 		f.Close()
 		return err
 	}
-	err = lih.WriteTailSize(f, 0)
 	this.wFile = f
 	return nil
 }
@@ -161,33 +165,28 @@ func (this *logBlock) OpenWrite() error {
 	}
 	err = this.doReadHeader(f)
 	if err != nil {
+		f.Close()
 		return err
 	}
-	_, err2 := f.Seek(-int64(sizeofLogTail), os.SEEK_END)
-	if err2 != nil {
+	tli := logIndex{}
+	_, err = this.doProcess(f, 0xFFFFFFFF, func(li *logIndex, data []byte) (bool, error) {
+		tli = *li
+		return false, nil
+	})
+	if err != nil && err != io.EOF {
 		f.Close()
-		return err2
+		return err
 	}
-	lih := &logCoder{}
-	lt, err3 := lih.ReadTail(f)
-	if err3 != nil {
+	pos := uint64(this.Header.Size())
+	if !tli.Empty() {
+		pos = tli.EndPos()
+		this.Tail = &tli
+	}
+	_, err = f.Seek(int64(pos), os.SEEK_SET)
+	if err != nil {
 		f.Close()
-		return err3
+		return err
 	}
-	if lt.Size != 0 {
-		n, err := f.Seek(-int64(sizeofLogTail+lt.Size), os.SEEK_END)
-		if err != nil {
-			f.Close()
-			return err
-		}
-		this.Tail, err = lih.ReadIndex(f)
-		if err != nil {
-			f.Close()
-			return err
-		}
-		this.Tail.Pos = uint64(n)
-	}
-	f.Seek(0, os.SEEK_END)
 	this.wFile = f
 	return nil
 }
@@ -331,9 +330,10 @@ func (this *logBlock) Remove() error {
 }
 
 func (this *logBlock) Truncate(idx uint64) (uint64, error) {
-	wfn := this.BlockFilePath()
+	this.Close()
 
-	f, err := os.OpenFile(wfn, os.O_RDONLY, fileutil.PrivateFileMode)
+	wfn := this.BlockFilePath()
+	f, err := os.OpenFile(wfn, os.O_RDWR, fileutil.PrivateFileMode)
 	if err != nil {
 		plog.Warningf("block[%v].Truncate() open file fail - %v", this.id, err)
 		return 0, err
@@ -346,9 +346,8 @@ func (this *logBlock) Truncate(idx uint64) (uint64, error) {
 		tli = *li
 		return false, nil
 	})
-	f.Close()
-
 	if err != nil && err != io.EOF {
+		f.Close()
 		plog.Warningf("block[%v].Truncate() seek %v fail - %v", this.id, idx, err)
 		return 0, err
 	}
@@ -357,26 +356,27 @@ func (this *logBlock) Truncate(idx uint64) (uint64, error) {
 		pos = tli.EndPos()
 	}
 
-	this.Close()
-	plog.Infof("block[%v] Truncate(%v) at [%v]", this.id, idx, pos)
-	err = os.Truncate(this.BlockFilePath(), int64(pos))
+	_, err = f.Seek(int64(pos), os.SEEK_SET)
 	if err != nil {
+		f.Close()
+		return 0, err
+	}
+	err = fileutil.ZeroToEnd(f)
+	if err != nil {
+		f.Close()
 		plog.Warningf("block[%v].Truncate() truncate file fail - %v", this.id, err)
 		return 0, err
 	}
+	plog.Infof("block[%v] Truncate(%v) at [%v]", this.id, idx, pos)
+
 	if tli.Empty() {
 		this.Tail = nil
 	} else {
 		this.Tail = &tli
 	}
-
-	f, err = os.OpenFile(wfn, os.O_RDWR, fileutil.PrivateFileMode)
+	_, err = f.Seek(int64(pos), os.SEEK_SET)
 	if err != nil {
-		plog.Warningf("block[%v].Truncate() reopen file fail - %v", this.id, err)
-		return 0, err
-	}
-	_, err = f.Seek(0, os.SEEK_END)
-	if err != nil {
+		f.Close()
 		return 0, err
 	}
 	this.wFile = f

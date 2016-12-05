@@ -18,6 +18,7 @@ package wal
 import (
 	"io"
 	"os"
+	"sync/atomic"
 )
 
 type cursor struct {
@@ -71,6 +72,8 @@ func (this *cursor) doClose() {
 	}
 }
 
+// return (blockEnd bool, e *Entry, error)
+//		e = nil means log.EOF
 func (this *cursor) doRead() (bool, *Entry, error) {
 	f := this.f
 	if f == nil {
@@ -156,5 +159,89 @@ func (this *cursorImpl) Read() (*Entry, error) {
 		}
 		this.c = c
 
+	}
+}
+
+type followImpl struct {
+	closed     uint64
+	w          *walcore
+	c          *cursor
+	ch         chan *Entry
+	startIndex uint64
+	lastErr    error
+}
+
+func (this *followImpl) run() {
+	defer func() {
+		plog.Infof("follow exit")
+		close(this.ch)
+		if this.c != nil {
+			this.c.Close()
+			this.c = nil
+		}
+	}()
+	for {
+		if atomic.LoadUint64(&this.closed) == 1 {
+			// plog.Infof("follow closed")
+			return
+		}
+		if this.w.isClosed() {
+			this.lastErr = ErrClosed
+			// plog.Infof("WAL close")
+			return
+		}
+		e, err := this.readOne()
+		if err != nil {
+			this.lastErr = err
+			// plog.Infof("follow error = %v", err)
+			return
+		}
+		if e != nil {
+			this.ch <- e
+		} else {
+			this.w.emu.Lock()
+			this.w.econd.Wait()
+			this.w.emu.Unlock()
+		}
+	}
+}
+
+func (this *followImpl) Close() {
+	if atomic.CompareAndSwapUint64(&this.closed, 0, 1) {
+		this.w.emu.Lock()
+		this.w.econd.Broadcast()
+		this.w.emu.Unlock()
+	}
+}
+
+func (this *followImpl) EntryCh() <-chan *Entry {
+	return this.ch
+}
+
+func (this *followImpl) Error() error {
+	return this.lastErr
+}
+
+func (this *followImpl) readOne() (*Entry, error) {
+	idx := this.startIndex
+	for {
+		if this.c != nil {
+			blockEnd, e, err := this.c.doRead()
+			if !blockEnd {
+				return e, err
+			}
+			idx = this.c.indexTryRead
+			this.c.Close()
+			this.c = nil
+		}
+
+		c, err := this.w.createCursor(idx)
+		if err != nil {
+			return nil, err
+		}
+		if c == nil {
+			return nil, nil
+		}
+		this.c = c
 	}
 }

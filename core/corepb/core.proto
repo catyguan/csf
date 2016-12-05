@@ -1,0 +1,53 @@
+syntax = "proto3";
+package corepb;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+message Header {
+  string name = 1;
+  string value = 2;
+}
+
+enum RequestType {
+  UNKNOW = 0;
+  QUERY = 1;
+  EXECUTE = 2;
+  MESSAGE = 3;
+}
+
+message RequestInfo {
+  uint64 ID = 1;
+  string service_name = 2;
+  string service_path = 3;
+  RequestType type = 4;
+}
+
+message Request {
+  RequestInfo info = 1;
+  bytes data  = 2;
+}
+
+message ChannelRequest {
+  Request request = 1;
+  repeated Header header = 2;
+}
+
+message ResponseInfo {
+  uint64 RequestID = 1;
+}
+
+message Response {
+  ResponseInfo info = 1;
+  bytes data = 2;
+  string error = 3;
+}
+
+message ChannelResponse {
+  Response response = 1;
+  repeated Header header = 2;
+}

@@ -104,27 +104,6 @@ func TestLogCoder(t *testing.T) {
 		}
 	}
 
-	if t != nil {
-		lr1 := &logTail{
-			Size: 123,
-		}
-		if lr1 != nil {
-			buf := bytes.NewBuffer(make([]byte, 0))
-			lih := &logCoder{}
-
-			err := lih.WriteTail(buf, lr1)
-			if err != nil {
-				t.Fatalf("h err1 = %v", err)
-			}
-
-			// lih = &logCoder{}
-			lr2, err2 := lih.ReadTail(buf)
-			if err2 != nil {
-				t.Fatalf("h err2 = %v", err2)
-			}
-			plog.Infof("RT result1 = %v", lr2.String())
-		}
-	}
 }
 
 func TestLogBlockBase(t *testing.T) {
@@ -134,7 +113,7 @@ func TestLogBlockBase(t *testing.T) {
 
 	lb := newFirstBlock(p)
 	if lb != nil {
-		err := lb.CreateT("hello world")
+		err := lb.CreateT("hello world", testBlockSize)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -155,7 +134,7 @@ func TestLogBlockRemove(t *testing.T) {
 	os.MkdirAll(p, os.ModePerm)
 
 	lb := newFirstBlock(p)
-	err := lb.CreateT("hello world")
+	err := lb.CreateT("hello world", testBlockSize)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -173,7 +152,7 @@ func TestLogBlockAppend(t *testing.T) {
 	os.MkdirAll(p, os.ModePerm)
 
 	lb := newFirstBlock(p)
-	err := lb.CreateT("hello world")
+	err := lb.CreateT("hello world", testBlockSize)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -209,7 +188,7 @@ func doTestLogBlockAppend(lb *logBlock, t *testing.T) {
 }
 
 func TestLogBlockQDump(t *testing.T) {
-	p := filepath.Join(testDir, "waltest")
+	p := filepath.Join(testDir, "waltest2")
 	bid := 0
 
 	fname := filepath.Join(p, blockName(uint64(bid)))
@@ -227,7 +206,6 @@ func TestLogBlockQDump(t *testing.T) {
 	}
 	plog.Infof("header = %v", lh.String())
 	//f.Seek(int64(lh.Size()), os.SEEK_SET)
-	lih.ReadTail(f)
 
 	var lli *logIndex
 	for {

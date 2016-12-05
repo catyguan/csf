@@ -45,6 +45,8 @@ type walcore struct {
 	blocks    []*logBlock
 	cursors   *list.List
 	cmu       sync.Mutex
+	emu       sync.Mutex
+	econd     *sync.Cond
 
 	reqCh    chan *walReq
 	closed   uint64
@@ -65,6 +67,7 @@ func initWALCore(cfg *Config) (w *walcore, metadata []byte, err error) {
 		reqCh:     make(chan *walReq, cfg.WALQueueSize),
 		closed:    0,
 	}
+	w.econd = sync.NewCond(&w.emu)
 	_, metadata, err = w.doInit()
 
 	if err != nil {
@@ -92,7 +95,7 @@ func (this *walcore) doInit() (bool, []byte, error) {
 	if !flb.IsExists() {
 		// init first wal block
 		plog.Infof("init WAL block [0]")
-		err := flb.Create(this.cfg.InitMetadata)
+		err := flb.Create(this.cfg.InitMetadata, this.cfg.BlockRollSize)
 		if err != nil {
 			plog.Warningf("init WAL block [0] fail - %v", err)
 		}
@@ -235,5 +238,20 @@ func (this *walcore) GetCursor(idx uint64) (Cursor, error) {
 		w: this,
 		c: c,
 	}
+	return r, nil
+}
+
+func (this *walcore) GetFollow(idx uint64) (Follow, error) {
+	c, err := this.createCursor(idx)
+	if err != nil {
+		return nil, err
+	}
+	r := &followImpl{
+		w:          this,
+		c:          c,
+		startIndex: idx,
+		ch:         make(chan *Entry, this.cfg.CursorQueueSize),
+	}
+	go r.run()
 	return r, nil
 }

@@ -45,6 +45,9 @@ func (this *walcore) run() {
 	defer func() {
 		ti.Stop()
 		this.doClose()
+		this.emu.Lock()
+		this.econd.Broadcast()
+		this.emu.Unlock()
 		close(this.reqCh)
 	}()
 
@@ -119,7 +122,7 @@ func (this *walcore) doRoll(lb *logBlock) error {
 	lb.Close()
 
 	nlb := lb.newNextBlock()
-	if err := nlb.Create(lb.Header.MetaData); err != nil {
+	if err := nlb.Create(lb.Header.MetaData, this.cfg.BlockRollSize); err != nil {
 		plog.Warningf("create new WAL block [%v] fail - %v", nlb.id, err)
 		return err
 	}
@@ -146,6 +149,13 @@ func (this *walcore) doAddCursor(c *cursor) {
 }
 
 func (this *walcore) doCloseCursor(lb *logBlock) {
+	this.execCloseCursor(lb)
+	this.emu.Lock()
+	this.econd.Broadcast()
+	this.emu.Unlock()
+}
+
+func (this *walcore) execCloseCursor(lb *logBlock) {
 	this.cmu.Lock()
 	defer this.cmu.Unlock()
 	if this.cursors == nil {
@@ -185,6 +195,11 @@ func (this *walcore) doRemoveCursor(p *cursor) {
 }
 
 func (this *walcore) doAppendEnts(ents []Entry, sync bool) error {
+	defer func() {
+		this.emu.Lock()
+		this.econd.Broadcast()
+		this.emu.Unlock()
+	}()
 	for _, e := range ents {
 		err := this.doAppend(e.Index, e.Data)
 		if err != nil {
