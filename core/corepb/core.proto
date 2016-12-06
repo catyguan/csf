@@ -11,6 +11,7 @@ option (gogoproto.goproto_getters_all) = false;
 message Header {
   string name = 1;
   string value = 2;
+  bytes data = 3;
 }
 
 enum RequestType {
@@ -39,6 +40,7 @@ message ChannelRequest {
 
 message ResponseInfo {
   uint64 RequestID = 1;
+  uint64 ActionIndex = 2;
 }
 
 message Response {

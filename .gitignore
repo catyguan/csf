@@ -22,7 +22,7 @@ _testmain.go
 *.exe
 *.test
 *.prof
-/doc/tmp/*.png
+/doc/tmp
 *.bak
 samples/datas
 bak2

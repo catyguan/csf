@@ -44,8 +44,8 @@ func (this *CounterService) impl() {
 }
 
 // BEGIN: 实现core.CoreService
-func (this *CounterService) VerifyRequest(ctx context.Context, req *corepb.Request) (context.Context, error) {
-	return nil, nil
+func (this *CounterService) VerifyRequest(ctx context.Context, req *corepb.Request) (bool, error) {
+	return req.IsExecuteType(), nil
 }
 
 func (this *CounterService) ApplyRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {

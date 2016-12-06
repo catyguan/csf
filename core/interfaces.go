@@ -26,7 +26,8 @@ type ServiceInvoker interface {
 
 type CoreService interface {
 	// 检验请求数据是否正确（可Apply）
-	VerifyRequest(ctx context.Context, req *corepb.Request) (context.Context, error)
+	// 返回 bool - 该请求需要保存; error - 错误
+	VerifyRequest(ctx context.Context, req *corepb.Request) (bool, error)
 
 	// 应用服务请求(需要保证处理能成功)
 	ApplyRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error)
@@ -36,4 +37,12 @@ type CoreService interface {
 
 	// 恢复服务状态快照
 	ApplySnapshot(ctx context.Context, r io.Reader) error
+}
+
+type ServiceChannel interface {
+	SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error)
+}
+
+type ServiceChannelHandler interface {
+	SendRequest(ctx context.Context, nextChannel ServiceChannel, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error)
 }

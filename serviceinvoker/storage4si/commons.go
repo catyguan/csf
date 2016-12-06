@@ -1,4 +1,4 @@
-// Copyright 2016 The CSF Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,31 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Package interfaces defines the base interface class use by csfserver and modules.
-package interfaces
+package storage4si
 
 import (
-	"context"
-	"time"
+	"errors"
 
 	"github.com/catyguan/csf/pkg/capnslog"
 )
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "interfaces")
+	ErrClosed   = errors.New("closed")
+	ErrConflict = errors.New("conflict")
+
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal4si")
 )
-
-type ServiceManager interface {
-	GetACL() ACL
-
-	ClientCertAuthEnabled() bool
-
-	ClientRequestTime() time.Duration
-
-	DoClusterAction(ctx context.Context, servceId, action string, data []byte) ([]byte, error)
-
-	Index() uint64
-
-	Term() uint64
-}

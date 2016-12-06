@@ -31,7 +31,7 @@ func NewExecuteRequest(serviceName, servicePath string, data []byte) *Request {
 	r := new(Request)
 	r.Info = &RequestInfo{
 		ID:          0,
-		Type:        RequestType_QUERY,
+		Type:        RequestType_EXECUTE,
 		ServiceName: serviceName,
 		ServicePath: servicePath,
 	}
@@ -55,12 +55,10 @@ func HandleError(resp *Response, err error) error {
 	if err != nil {
 		return err
 	}
-	if resp != nil {
-		if resp.Error != "" {
-			return errors.New(resp.Error)
-		}
+	if resp == nil {
+		return nil
 	}
-	return nil
+	return resp.ToError()
 }
 
 func (this *Response) ToError() error {
@@ -77,4 +75,45 @@ func (this *Request) CreateResponse(data []byte) *Response {
 	}
 	r.Data = data
 	return r
+}
+
+func (this *Request) IsQueryType() bool {
+	if this.Info == nil {
+		return false
+	}
+	return this.Info.Type == RequestType_QUERY
+}
+
+func (this *Request) IsExecuteType() bool {
+	if this.Info == nil {
+		return false
+	}
+	return this.Info.Type == RequestType_EXECUTE
+}
+
+func (this *Request) IsMessageType() bool {
+	if this.Info == nil {
+		return false
+	}
+	return this.Info.Type == RequestType_MESSAGE
+}
+
+func HandleChannelError(cresp *ChannelResponse, err error) error {
+	if err != nil {
+		return err
+	}
+	if cresp == nil {
+		return nil
+	}
+	if cresp.Response == nil {
+		return nil
+	}
+	return cresp.Response.ToError()
+}
+
+func (this *ChannelResponse) ToError() error {
+	if this.Response == nil {
+		return nil
+	}
+	return this.Response.ToError()
 }

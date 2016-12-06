@@ -19,21 +19,35 @@ import (
 	"github.com/catyguan/csf/core/corepb"
 )
 
-type simpleServiceInvoker struct {
+type SimpleServiceInvoker struct {
 	cs CoreService
 }
 
-func (this *simpleServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
-	nctx, err := this.cs.VerifyRequest(ctx, req)
+func (this *SimpleServiceInvoker) impl() {
+	_ = ServiceChannel(this)
+}
+
+func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
-	}
-	if nctx != nil {
-		ctx = nctx
 	}
 	return this.cs.ApplyRequest(ctx, req)
 }
 
-func NewSimpleServiceInvoker(cs CoreService) ServiceInvoker {
-	return &simpleServiceInvoker{cs: cs}
+func (this *SimpleServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
+	resp, err := this.InvokeRequest(ctx, creq.Request)
+	err = corepb.HandleError(resp, err)
+	if err != nil {
+		return nil, err
+	}
+	r := make(chan *corepb.ChannelResponse, 1)
+	r <- &corepb.ChannelResponse{
+		Response: resp,
+	}
+	return r, nil
+}
+
+func NewSimpleServiceInvoker(cs CoreService) *SimpleServiceInvoker {
+	return &SimpleServiceInvoker{cs: cs}
 }
