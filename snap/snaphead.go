@@ -19,50 +19,42 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/catyguan/csf/pkg/pbutil"
-	"github.com/catyguan/csf/raft/raftpb"
 )
 
 var (
-	ErrSnapshotMismatch = errors.New("wal: snapshot mismatch")
-	ErrSnapshotNotFound = errors.New("wal: snapshot not found")
+	ErrSnapshotMismatch = errors.New("snapshot mismatch")
+	ErrSnapshotNotFound = errors.New("snapshot not found")
+	sizeOfSnapHeader    = 8 /* Index */ + 4 /* MetaLen */ + 8 /* DataSize */
 )
 
-type snapHeader struct {
-	state     raftpb.HardState
-	confState raftpb.ConfState
-	index     uint64
-	term      uint64
+/* [Index:8, MetaLen:4, DatSize:8], [Meta:N, Data:M] */
+type SnapHeader struct {
+	Index    uint64
+	Meta     []byte
+	DataSize uint64
 }
 
-func (this *snapHeader) String() string {
+func (this *SnapHeader) String() string {
 	s := ""
-	s += fmt.Sprintf("state: %s, ", this.state.String())
-	s += fmt.Sprintf("confState: %s, ", this.confState.String())
-	s += fmt.Sprintf("index: %v, ", this.index)
-	s += fmt.Sprintf("term: %v", this.term)
+	s += fmt.Sprintf("Index: %v, ", this.Index)
+	s += fmt.Sprintf("MetaLen: %v, ", len(this.Meta))
+	s += fmt.Sprintf("DataSize: %v, ", this.DataSize)
 
 	return s
 }
 
-func (this *logCoder) WriteSnap(w io.Writer, lr *snapHeader) error {
-	bm := make([]byte, 8*2)
-	binary.LittleEndian.PutUint64(bm, lr.index)
-	binary.LittleEndian.PutUint64(bm[:8], lr.term)
+func (this *SnapHeader) Write(w io.Writer) error {
+	bm := make([]byte, sizeOfSnapHeader)
+	binary.LittleEndian.PutUint64(bm, this.Index)
+	binary.LittleEndian.PutUint32(bm[8:], uint32(len(this.Meta)))
+	binary.LittleEndian.PutUint64(bm[12:], this.DataSize)
 
-	bs := [][]byte{}
-	bs = append(bs, pbutil.MustMarshal(&lr.state))
-	bs = append(bs, pbutil.MustMarshal(&lr.confState))
-	bs = append(bs, bm)
-	buf := make([]byte, 4)
-	for _, b := range bs {
-		binary.LittleEndian.PutUint32(buf[0:], uint32(len(b)))
-		_, err := w.Write(buf)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(b)
+	_, err := w.Write(bm)
+	if err != nil {
+		return err
+	}
+	if this.Meta != nil {
+		_, err = w.Write(this.Meta)
 		if err != nil {
 			return err
 		}
@@ -70,34 +62,24 @@ func (this *logCoder) WriteSnap(w io.Writer, lr *snapHeader) error {
 	return nil
 }
 
-func (this *logCoder) ReadSnap(r io.Reader) (*snapHeader, error) {
-	bs := [][]byte{nil, nil, nil}
-	buf := make([]byte, 4)
-	for i, _ := range bs {
-		n, err := io.ReadFull(r, buf)
-		if err != nil {
-			return nil, err
-		}
-		if n != 4 {
-			return nil, io.ErrUnexpectedEOF
-		}
-		l := binary.LittleEndian.Uint32(buf[0:])
-		b := make([]byte, l)
-		n, err = io.ReadFull(r, b)
-		if err != nil {
-			return nil, err
-		}
-		if uint32(n) != l {
-			return nil, io.ErrUnexpectedEOF
-		}
-		bs[i] = b
+func (this *SnapHeader) Read(r io.Reader) error {
+	buf := make([]byte, sizeOfSnapHeader)
+	n, err := io.ReadFull(r, buf)
+	if n != sizeOfSnapHeader {
+		return io.ErrUnexpectedEOF
 	}
-
-	lr := &snapHeader{}
-	pbutil.MustUnmarshal(&lr.state, bs[0])
-	pbutil.MustUnmarshal(&lr.confState, bs[1])
-	lr.index = binary.LittleEndian.Uint64(bs[2])
-	lr.term = binary.LittleEndian.Uint64(bs[2][:8])
-
-	return lr, nil
+	this.Index = binary.LittleEndian.Uint64(buf[0:])
+	ms := binary.LittleEndian.Uint32(buf[8:])
+	this.DataSize = binary.LittleEndian.Uint64(buf[12:])
+	if ms > 0 {
+		b := make([]byte, ms)
+		_, err = io.ReadFull(r, b)
+		if err != nil {
+			return err
+		}
+		this.Meta = b
+	} else {
+		this.Meta = nil
+	}
+	return nil
 }

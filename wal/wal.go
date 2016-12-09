@@ -23,12 +23,14 @@ import (
 )
 
 const (
-	actionAppend   int = 1
-	actionClose    int = 2
-	actionSync     int = 3
-	actionReset    int = 5
-	actionTruncate int = 6
-	actionCursor   int = 7
+	actionAppend         int = 1
+	actionClose          int = 2
+	actionSync           int = 3
+	actionReset          int = 5
+	actionTruncate       int = 6
+	actionCursor         int = 7
+	actionAddListener    int = 8
+	actionRemoveListener int = 9
 )
 
 type walReq struct {
@@ -45,12 +47,11 @@ type walcore struct {
 	blocks    []*logBlock
 	cursors   *list.List
 	cmu       sync.Mutex
-	emu       sync.Mutex
-	econd     *sync.Cond
 
 	reqCh    chan *walReq
 	closed   uint64
 	needSync bool
+	llist    []WALListener
 }
 
 func errClosedResult() <-chan Result {
@@ -67,7 +68,6 @@ func initWALCore(cfg *Config) (w *walcore, metadata []byte, err error) {
 		reqCh:     make(chan *walReq, cfg.WALQueueSize),
 		closed:    0,
 	}
-	w.econd = sync.NewCond(&w.emu)
 	_, metadata, err = w.doInit()
 
 	if err != nil {
@@ -241,17 +241,31 @@ func (this *walcore) GetCursor(idx uint64) (Cursor, error) {
 	return r, nil
 }
 
-func (this *walcore) GetFollow(idx uint64) (Follow, error) {
-	c, err := this.createCursor(idx)
-	if err != nil {
-		return nil, err
+func (this *walcore) AddListener(lis WALListener) (uint64, error) {
+	if this.isClosed() {
+		return 0, ErrClosed
 	}
-	r := &followImpl{
-		w:          this,
-		c:          c,
-		startIndex: idx,
-		ch:         make(chan *Entry, this.cfg.CursorQueueSize),
+	r := make(chan Result, 1)
+	req := &walReq{
+		action: actionAddListener,
+		p1:     lis,
+		resp:   r,
 	}
-	go r.run()
-	return r, nil
+	this.reqCh <- req
+	rs := <-r
+	return rs.data.(uint64), rs.Err
+}
+
+func (this *walcore) RemoveListener(lis WALListener) {
+	if this.isClosed() {
+		return
+	}
+	r := make(chan Result, 1)
+	req := &walReq{
+		action: actionRemoveListener,
+		p1:     lis,
+		resp:   r,
+	}
+	this.reqCh <- req
+	<-r
 }

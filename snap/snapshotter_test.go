@@ -16,77 +16,56 @@ package wal
 
 import (
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
 	"testing"
 
-	"github.com/catyguan/csf/raft/raftpb"
+	"github.com/stretchr/testify/assert"
 )
 
-var testSnap = &raftpb.Snapshot{
-	Data: []byte("some snapshot"),
-	Metadata: raftpb.SnapshotMetadata{
-		ConfState: raftpb.ConfState{
-			Nodes: []uint64{1, 2, 3},
-		},
-		Index: 1,
-		Term:  1,
-	},
-}
+var (
+	testDir = "c:\\tmp"
+)
 
 func TestSaveAndLoad(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
+
+	data := "hello world"
+	sh := &SnapHeader{
+		Index: 1,
+		Meta:  []byte("version 123"),
+	}
 
 	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(&snapHeader{}, *testSnap)
+	err := ss.SaveSnap(sh, []byte(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	name, lr, err := ss.LoadLastHeader()
+	n, lr, err := ss.LoadLastHeader()
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
+	assert.NotNil(t, lr)
+	if lr == nil {
+		return
+	}
 	plog.Infof("RT = %v", lr.String())
-	g, err2 := ss.LoadSnap(name)
+	_, g, err2 := ss.LoadSnapFile(n)
 	if err2 != nil {
 		t.Fatalf("err = %v, want nil", err2)
 	}
-	if !reflect.DeepEqual(g, testSnap) {
-		t.Errorf("snap = %#v, want %#v", g, testSnap)
-	}
-}
-
-func TestBadCRC(t *testing.T) {
-	dir := path.Join(testDir, "snapshot")
-	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
-
-	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(&snapHeader{}, *testSnap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { crcTable = crc32.MakeTable(crc32.Castagnoli) }()
-	// switch to use another crc table
-	// fake a crc mismatch
-	crcTable = crc32.MakeTable(crc32.Koopman)
-
-	_, err = ss.LoadSnap(fmt.Sprintf("%016x.snap", 1))
-	if err == nil || err != ErrCRCMismatch {
-		t.Errorf("err = %v, want %v", err, ErrCRCMismatch)
-	}
+	assert.Equal(t, string(g), data)
 }
 
 func TestFailback(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
 
 	large := fmt.Sprintf("%016x-%016x-%016x.snap", 0xFFFF, 0xFFFF, 0xFFFF)
 	err := ioutil.WriteFile(path.Join(dir, large), []byte("bad data"), 0666)
@@ -94,8 +73,9 @@ func TestFailback(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	data := "hello world"
 	ss := NewSnapshotter(dir)
-	err = ss.SaveSnap(&snapHeader{}, *testSnap)
+	err = ss.SaveSnap(&SnapHeader{Index: 1}, []byte(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,12 +84,12 @@ func TestFailback(t *testing.T) {
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
-	g, err2 := ss.LoadSnap(n)
+	_, g, err2 := ss.LoadSnapFile(n)
 	if err2 != nil {
 		t.Errorf("err = %v, want nil", err2)
 	}
-	if !reflect.DeepEqual(g, testSnap) {
-		t.Errorf("snap = %#v, want %#v", g, testSnap)
+	if string(g) != data {
+		t.Errorf("snap = %#v, want %#v", g, data)
 	}
 	if f, err := os.Open(path.Join(dir, large) + ".broken"); err != nil {
 		t.Fatal("broken snapshot does not exist")
@@ -120,8 +100,9 @@ func TestFailback(t *testing.T) {
 
 func TestSnapNames(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
+
 	var err error
 
 	for i := 1; i <= 5; i++ {
@@ -148,17 +129,16 @@ func TestSnapNames(t *testing.T) {
 
 func TestLoadNewestSnap(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
+
 	ss := NewSnapshotter(dir)
-	err := ss.SaveSnap(&snapHeader{}, *testSnap)
+	err := ss.SaveSnap(&SnapHeader{Index: 1}, []byte("111"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	newSnap := *testSnap
-	newSnap.Metadata.Index = 5
-	err = ss.SaveSnap(&snapHeader{}, newSnap)
+	err = ss.SaveSnap(&SnapHeader{Index: 5}, []byte("555"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,19 +147,19 @@ func TestLoadNewestSnap(t *testing.T) {
 	if err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
-	g, err2 := ss.LoadSnap(n)
+	_, g, err2 := ss.LoadSnapFile(n)
 	if err2 != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
-	if !reflect.DeepEqual(g, &newSnap) {
-		t.Errorf("snap = %#v, want %#v", g, &newSnap)
+	if string(g) != "555" {
+		t.Errorf("snap = %#v, want %#v", string(g), "555")
 	}
 }
 
 func TestNoSnapshot(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
 
 	ss := NewSnapshotter(dir)
 	_, _, err := ss.LoadLastHeader()
@@ -192,8 +172,8 @@ func TestNoSnapshot(t *testing.T) {
 // ErrNoSnapshot if all the snapshots are broken.
 func TestAllSnapshotBroken(t *testing.T) {
 	dir := path.Join(testDir, "snapshot")
+	os.RemoveAll(dir)
 	os.Mkdir(dir, 0700)
-	defer os.RemoveAll(dir)
 
 	err := ioutil.WriteFile(path.Join(dir, "1.snap"), []byte("bad"), 0x700)
 	if err != nil {

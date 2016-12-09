@@ -15,29 +15,39 @@ package core
 
 import (
 	"context"
+	"sync"
 
 	"github.com/catyguan/csf/core/corepb"
 )
 
-type SimpleServiceInvoker struct {
+type LockerServiceInvoker struct {
+	l                *sync.RWMutex
 	cs               CoreService
 	AsyncChannelSend bool
 }
 
-func (this *SimpleServiceInvoker) impl() {
+func (this *LockerServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
 	_ = ServiceChannel(this)
 }
 
-func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+	var l sync.Locker
+	if req.IsQueryType() {
+		l = this.l.RLocker()
+	} else {
+		l = this.l
+	}
+	l.Lock()
+	defer l.Unlock()
 	return this.cs.ApplyRequest(ctx, req)
 }
 
-func (this *SimpleServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
+func (this *LockerServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
 	r := make(chan *corepb.ChannelResponse, 1)
 	if this.AsyncChannelSend {
 		go func() {
@@ -57,7 +67,7 @@ func (this *SimpleServiceInvoker) SendRequest(ctx context.Context, creq *corepb.
 	}
 }
 
-func (this *SimpleServiceInvoker) doSendRequest(ctx context.Context, creq *corepb.ChannelRequest, r chan *corepb.ChannelResponse) error {
+func (this *LockerServiceInvoker) doSendRequest(ctx context.Context, creq *corepb.ChannelRequest, r chan *corepb.ChannelResponse) error {
 	resp, err := this.InvokeRequest(ctx, creq.Request)
 	err = corepb.HandleError(resp, err)
 	if err != nil {
@@ -69,6 +79,9 @@ func (this *SimpleServiceInvoker) doSendRequest(ctx context.Context, creq *corep
 	return nil
 }
 
-func NewSimpleServiceInvoker(cs CoreService) *SimpleServiceInvoker {
-	return &SimpleServiceInvoker{cs: cs}
+func NewLockerServiceInvoker(cs CoreService, l *sync.RWMutex) *LockerServiceInvoker {
+	if l == nil {
+		l = new(sync.RWMutex)
+	}
+	return &LockerServiceInvoker{cs: cs, l: l}
 }

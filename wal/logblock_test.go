@@ -230,7 +230,7 @@ func TestLogBlockQDump(t *testing.T) {
 }
 
 func TestLogBlockDump(t *testing.T) {
-	p := filepath.Join(testDir, "waltest2")
+	p := filepath.Join(testDir, "waltest")
 	bid := 0
 
 	lb2 := newFirstBlock(p)

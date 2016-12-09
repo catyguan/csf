@@ -83,6 +83,17 @@ type WAL interface {
 	// GetCursor returns a Cursor at the specified index
 	GetCursor(idx uint64) (Cursor, error)
 
-	// GetFollow returns a Follow at the specified index
-	GetFollow(idx uint64) (Follow, error)
+	AddListener(lis WALListener) (uint64, error)
+
+	RemoveListener(lis WALListener)
+}
+
+type WALListener interface {
+	OnReset()
+
+	OnTruncate(idx uint64)
+
+	OnAppendEntry(ents []Entry)
+
+	OnClose()
 }

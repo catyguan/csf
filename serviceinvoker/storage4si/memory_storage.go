@@ -21,21 +21,17 @@ import (
 	"github.com/catyguan/csf/core/corepb"
 )
 
-type memoryEntry struct {
-	index   uint64
-	request *corepb.Request
-}
-
 type MemoryStorage struct {
 	maxSize int
 
 	index uint64
 	head  int
 	size  int
-	ents  []memoryEntry
+	ents  []RequestEntry
 
 	snapIndex uint64
 	snapData  []byte
+	llist     Listeners
 }
 
 func NewMemoryStorage(maxSize int) Storage {
@@ -44,7 +40,7 @@ func NewMemoryStorage(maxSize int) Storage {
 		index:     0,
 		head:      0,
 		size:      0,
-		ents:      make([]memoryEntry, maxSize),
+		ents:      make([]RequestEntry, maxSize),
 		snapIndex: 0,
 	}
 	return r
@@ -65,11 +61,11 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 			this.size = 0
 		} else if idx < t {
 			_, pos := this.seek(idx)
-			if this.ents[pos].index != idx {
+			if this.ents[pos].Index != idx {
 				pos = this.next(pos, 1)
 			}
 			this.size = this.distance(this.head, pos)
-			nt := make([]memoryEntry, this.maxSize)
+			nt := make([]RequestEntry, this.maxSize)
 			p := this.head
 			for i := 0; i < this.maxSize; i++ {
 				if p == pos {
@@ -81,9 +77,10 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 			this.ents = nt
 			this.head = 0
 		}
+		this.llist.OnTruncate(idx)
 	}
 
-	var e *memoryEntry
+	var e *RequestEntry
 	if this.size < this.maxSize {
 		e = &this.ents[this.size]
 		this.size++
@@ -91,9 +88,10 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 		e = &this.ents[this.head]
 		this.head = this.next(this.head, 1)
 	}
-	e.index = idx
-	e.request = req
+	e.Index = idx
+	e.Request = req
 	this.index = idx
+	this.llist.OnSaveRequest(idx, req)
 	return this.index, nil
 }
 
@@ -110,9 +108,9 @@ func (this *MemoryStorage) LoadRequest(start uint64, size int) (uint64, []*corep
 			break
 		}
 		e := &this.ents[pos]
-		if e.index >= start {
-			r = append(r, e.request)
-			ll = e.index
+		if e.Index >= start {
+			r = append(r, e.Request)
+			ll = e.Index
 		}
 		pos = this.next(pos, 1)
 		if pos == t {
@@ -137,11 +135,21 @@ func (this *MemoryStorage) SaveSnapshot(idx uint64, r io.Reader) error {
 	}
 	this.snapData = data
 	this.snapIndex = idx
+	this.llist.OnSaveSanepshot(idx)
 	return nil
 }
 
 func (this *MemoryStorage) LoadLastSnapshot() (uint64, io.Reader, error) {
 	return this.snapIndex, bytes.NewBuffer(this.snapData), nil
+}
+
+func (this *MemoryStorage) AddListener(lis StorageListener) uint64 {
+	this.llist.Add(lis)
+	return this.index
+}
+
+func (this *MemoryStorage) RemoveListener(lis StorageListener) {
+	this.llist.Remove(lis)
 }
 
 func (this *MemoryStorage) Reset() {
@@ -150,6 +158,7 @@ func (this *MemoryStorage) Reset() {
 	this.index = 0
 	this.snapData = nil
 	this.snapIndex = 0
+	this.llist.OnReset()
 }
 
 func (this *MemoryStorage) tail() int {
@@ -187,7 +196,7 @@ func (this *MemoryStorage) distance(s, e int) int {
 }
 
 func (this *MemoryStorage) indexRange() (uint64, uint64) {
-	return this.ents[this.head].index, this.ents[this.tail()].index
+	return this.ents[this.head].Index, this.ents[this.tail()].Index
 }
 
 func (this *MemoryStorage) seek(idx uint64) (bool, int) {
@@ -209,20 +218,20 @@ func (this *MemoryStorage) seek(idx uint64) (bool, int) {
 			step = step / 2
 		}
 
-		i1 := this.ents[pos].index
+		i1 := this.ents[pos].Index
 		if i1 == idx {
 			return true, pos
 		}
 		if i1 > idx {
 			pp := this.prev(pos, 1)
-			i2 := this.ents[pp].index
+			i2 := this.ents[pp].Index
 			if i2 > idx {
 				pos = this.prev(pos, step)
 			} else {
 				return true, pp
 			}
 		} else {
-			i2 := this.ents[this.next(pos, 1)].index
+			i2 := this.ents[this.next(pos, 1)].Index
 			if i2 > idx {
 				return true, pos
 			} else {

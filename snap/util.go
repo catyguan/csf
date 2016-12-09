@@ -16,9 +16,7 @@ package wal
 
 import (
 	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/catyguan/csf/pkg/fileutil"
@@ -46,48 +44,6 @@ func ExistFile(fpath string) bool {
 	return true
 }
 
-func readWalNames(dirpath string) ([]string, error) {
-	names, err := fileutil.ReadDir(dirpath)
-	if err != nil {
-		return nil, err
-	}
-	wnames := checkWalNames(names)
-	if len(wnames) == 0 {
-		return nil, ErrFileNotFound
-	}
-	return wnames, nil
-}
-
-func checkWalNames(names []string) []string {
-	wnames := make([]string, 0)
-	for _, name := range names {
-		if _, _, err := parseWalName(name); err != nil {
-			// don't complain about left over tmp files
-			m := false
-			for _, ext := range validFileExts {
-				if strings.HasSuffix(name, ext) {
-					m = true
-					break
-				}
-			}
-			if !m {
-				plog.Warningf("skipped unexpected non walblock file  %v", name)
-			}
-			continue
-		}
-		wnames = append(wnames, name)
-	}
-	return wnames
-}
-
-func parseWalName(str string) (seq, index uint64, err error) {
-	if !strings.HasSuffix(str, ".wal") {
-		return 0, 0, badWalName
-	}
-	_, err = fmt.Sscanf(str, "%016x-%016x.wal", &seq, &index)
-	return seq, index, err
-}
-
 func checkSnapNames(names []string) []string {
 	snaps := []string{}
 	for _, name := range names {
@@ -107,27 +63,4 @@ func checkSnapNames(names []string) []string {
 		}
 	}
 	return snaps
-}
-
-func blockName(id uint64) string {
-	return fmt.Sprintf("%016x.wal", id)
-}
-
-func allocFileSize(dir, filePath string, size int64) error {
-	fpath := filepath.Join(dir, "walalloc.tmp")
-	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, fileutil.PrivateFileMode)
-	if err != nil {
-		return err
-	}
-	if err = fileutil.Preallocate(f, size, true); err != nil {
-		f.Close()
-		os.Remove(fpath)
-		return err
-	}
-	f.Close()
-	err = os.Rename(fpath, filePath)
-	if err != nil {
-		os.Remove(fpath)
-	}
-	return err
 }

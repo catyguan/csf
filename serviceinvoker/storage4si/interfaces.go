@@ -19,12 +19,17 @@ import (
 	"github.com/catyguan/csf/core/corepb"
 )
 
+type RequestEntry struct {
+	Index   uint64
+	Request *corepb.Request
+}
+
 type Storage interface {
 	// 保存请求 index:ActionIndex, 为0采用Storage内部编号
 	SaveRequest(idx uint64, req *corepb.Request) (uint64, error)
 
 	// 加载请求 [start, start+size)
-	// 返回 uint64-响应结果集最后的数据的index; []*Request- 响应结果;error;
+	// 返回 uint64-响应结果集最后的数据的index; []*Request- 响应结果, nil表示没有数据了;error;
 	LoadRequest(start uint64, size int) (uint64, []*corepb.Request, error)
 
 	// 保存快照, index:快照对应的服务状态Index（包含该Index的结果）
@@ -32,4 +37,21 @@ type Storage interface {
 
 	// 加载快照
 	LoadLastSnapshot() (uint64, io.Reader, error)
+
+	// 添加Listener，返回添加成功时候的LastIndex
+	AddListener(lis StorageListener) uint64
+
+	RemoveListener(lis StorageListener)
+}
+
+type StorageListener interface {
+	OnReset()
+
+	OnTruncate(idx uint64)
+
+	OnSaveRequest(idx uint64, req *corepb.Request)
+
+	OnSaveSanepshot(idx uint64)
+
+	OnClose()
 }

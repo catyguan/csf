@@ -16,19 +16,15 @@
 package wal
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 
+	"github.com/catyguan/csf/pkg/capnslog"
 	"github.com/catyguan/csf/pkg/fileutil"
-	"github.com/catyguan/csf/pkg/pbutil"
-	"github.com/catyguan/csf/raft"
-	"github.com/catyguan/csf/raft/raftpb"
 )
 
 const (
@@ -38,6 +34,8 @@ const (
 var (
 	ErrNoSnapshot    = errors.New("snap: no available snapshot")
 	ErrEmptySnapshot = errors.New("snap: empty snapshot")
+
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "snap")
 )
 
 type Snapshotter struct {
@@ -55,18 +53,10 @@ func (s *Snapshotter) SnapFilePath(id uint64) string {
 	return filepath.Join(s.dir, fname)
 }
 
-func (s *Snapshotter) SaveSnap(lr *snapHeader, snapshot raftpb.Snapshot) error {
-	if raft.IsEmptySnap(snapshot) {
-		return nil
-	}
-	return s.save(lr, &snapshot)
-}
+func (s *Snapshotter) SaveSnap(sh *SnapHeader, data []byte) (err error) {
+	sh.DataSize = uint64(len(data))
 
-func (s *Snapshotter) save(lr *snapHeader, snapshot *raftpb.Snapshot) (err error) {
-	fname := s.SnapFilePath(snapshot.Metadata.Index)
-
-	b1 := pbutil.MustMarshal(snapshot)
-	crc1 := crc32.Update(0, crcTable, b1)
+	fname := s.SnapFilePath(sh.Index)
 
 	f, err2 := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fileutil.PrivateFileMode)
 	if err2 != nil {
@@ -79,28 +69,13 @@ func (s *Snapshotter) save(lr *snapHeader, snapshot *raftpb.Snapshot) (err error
 		}
 	}()
 
-	lih := &logCoder{}
-	err = lih.WriteSnap(f, lr)
+	err = sh.Write(f)
 	if err != nil {
 		return
 	}
-	hb := make([]byte, 8)
-	if hb != nil {
-		binary.LittleEndian.PutUint32(hb[:4], crc1)
-		if _, err = f.Write(hb[:4]); err != nil {
-			return err
-		}
-		binary.LittleEndian.PutUint64(hb, uint64(len(b1)))
-		if _, err = f.Write(hb); err != nil {
-			return err
-		}
-		n, err3 := f.Write(b1)
-		if err3 != nil {
-			return err3
-		}
-		if n < len(b1) {
-			return io.ErrShortWrite
-		}
+	_, err = f.Write(data)
+	if err != nil {
+		return err
 	}
 	err = fileutil.Fsync(f)
 	if err != nil {
@@ -109,102 +84,72 @@ func (s *Snapshotter) save(lr *snapHeader, snapshot *raftpb.Snapshot) (err error
 	return nil
 }
 
-func (s *Snapshotter) LoadLastHeader() (string, *snapHeader, error) {
+func (s *Snapshotter) LoadLastHeader() (string, *SnapHeader, error) {
 	names, err := s.snapNames()
 	if err != nil {
 		return "", nil, err
 	}
-	var lr *snapHeader
+	var sh *SnapHeader
 	var rname string
 	for _, name := range names {
 		f, err2 := os.OpenFile(filepath.Join(s.dir, name), os.O_RDONLY, fileutil.PrivateFileMode)
 		if err2 == nil {
 			defer f.Close()
-			if lr, err = s.readHeader(f); err == nil {
+			if sh, err = s.readHeader(f); err == nil {
 				rname = name
 				break
 			}
 		} else {
 			err = err2
 		}
-		plog.Warningf("load snapshot '%v' fail - %v", name, err)
+		plog.Warningf("read snapshot '%v' header fail - %v", name, err)
 	}
 	if err != nil {
 		return "", nil, ErrNoSnapshot
 	}
-	return rname, lr, nil
+	return filepath.Join(s.dir, rname), sh, nil
 }
 
-func (s *Snapshotter) LoadSnap(name string) (*raftpb.Snapshot, error) {
-	fpath := filepath.Join(s.dir, name)
-	f, err := os.OpenFile(fpath, os.O_RDONLY, fileutil.PrivateFileMode)
+func (s *Snapshotter) onError(err error, f *os.File) {
 	if err != nil {
-		return nil, err
+		f.Close()
+		s.renameBroken(f.Name())
 	}
-	defer f.Close()
-	if _, err = s.readHeader(f); err != nil {
-		return nil, fmt.Errorf("read snapmetadata fail - %v", err)
-	}
-
-	snap, err := s.readSnapshot(f)
-	if err != nil {
-		return nil, fmt.Errorf("read snapshot fail - %v", err)
-	}
-	return snap, nil
 }
 
-func (s *Snapshotter) readHeader(f *os.File) (lr *snapHeader, err error) {
+func (s *Snapshotter) LoadSnap(idx uint64) (sh *SnapHeader, data []byte, err error) {
+	return s.LoadSnapFile(s.SnapFilePath(idx))
+}
+
+func (s *Snapshotter) LoadSnapFile(fpath string) (sh *SnapHeader, data []byte, err error) {
+	f, err2 := os.OpenFile(fpath, os.O_RDONLY, fileutil.PrivateFileMode)
+	if err2 != nil {
+		return nil, nil, err2
+	}
+	sh, err = s.readHeader(f)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read snapshot header fail - %v", err)
+	}
 	defer func() {
-		if err != nil {
-			f.Close()
-			s.renameBroken(f.Name())
-		}
+		s.onError(err, f)
 	}()
-	lih := &logCoder{}
-	lr, err = lih.ReadSnap(f)
-	return
+	data = make([]byte, sh.DataSize)
+	n, err3 := io.ReadFull(f, data)
+	if err3 != nil {
+		return nil, nil, fmt.Errorf("read snapshot fail - %v", err3)
+	}
+	if uint64(n) != sh.DataSize {
+		return nil, nil, io.ErrUnexpectedEOF
+	}
+	return sh, data, nil
 }
 
-// Read reads the snapshot named by snapname and returns the snapshot.
-func (s *Snapshotter) readSnapshot(f *os.File) (snap *raftpb.Snapshot, err error) {
+func (s *Snapshotter) readHeader(f *os.File) (lr *SnapHeader, err error) {
 	defer func() {
-		if err != nil {
-			f.Close()
-			s.renameBroken(f.Name())
-		}
+		s.onError(err, f)
 	}()
-	hb := make([]byte, 8)
-
-	_, err = io.ReadFull(f, hb[:4])
-	if err != nil {
-		return
-	}
-	crc := binary.LittleEndian.Uint32(hb[:4])
-	_, err = io.ReadFull(f, hb)
-	if err != nil {
-		return
-	}
-	sz := binary.LittleEndian.Uint64(hb)
-
-	buf := make([]byte, sz)
-	_, err = io.ReadFull(f, buf)
-	if err != nil {
-		return
-	}
-
-	bcrc := crc32.Update(0, crcTable, buf)
-	if crc != bcrc {
-		plog.Errorf("corrupted snapshot file %v: crc mismatch", f.Name())
-		err = ErrCRCMismatch
-		return
-	}
-
-	snap = &raftpb.Snapshot{}
-	err = snap.Unmarshal(buf)
-	if err != nil {
-		plog.Errorf("corrupted snapshot file %v: %v", f.Name(), err)
-		return
-	}
+	lr = &SnapHeader{}
+	err = lr.Read(f)
 	return
 }
 

@@ -21,7 +21,6 @@ type Config struct {
 	BlockRollSize    uint64        // BLOCK文件需要进行roll的大小，缺省为64M
 	InitMetadata     []byte        // 初始化的Meta数据
 	WALQueueSize     int           // WAL的队列大小，缺省为1000
-	CursorQueueSize  int           // Cursor的队列大小，缺省为100
 	IdleSyncDuration time.Duration // 进行IdleSync的检查时间间隔，缺省为30秒
 }
 
@@ -29,7 +28,6 @@ func NewConfig() *Config {
 	r := &Config{
 		BlockRollSize:    DefaultMaxBlockSize,
 		WALQueueSize:     1000,
-		CursorQueueSize:  100,
 		IdleSyncDuration: 30 * time.Second,
 	}
 	return r

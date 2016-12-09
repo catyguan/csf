@@ -13,8 +13,47 @@
 // limitations under the License.
 package core
 
-import "github.com/catyguan/csf/pkg/capnslog"
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/pkg/capnslog"
+)
 
 var (
+	ErrClosed   = errors.New("closed")
+	ErrNotFound = errors.New("Not Found")
+	ErrNil      = errors.New("Nil Pointer")
+
 	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "core")
 )
+
+func DoSendRequest(sc ServiceChannel, ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+	ch, err := sc.SendRequest(ctx, creq)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case resp := <-ch:
+		if resp == nil {
+			return nil, fmt.Errorf("service channel closed")
+		}
+		return resp, nil
+	case <-ctx.Done():
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		// TODO
+		return nil, nil
+	}
+}
+
+func MakeErrorResponse(r *corepb.Response, err error) *corepb.Response {
+	if r == nil {
+		r = new(corepb.Response)
+	}
+	r.Error = err.Error()
+	return r
+}

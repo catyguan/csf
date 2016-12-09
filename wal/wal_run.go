@@ -43,11 +43,13 @@ func (this *walcore) doSeekBlock(idx uint64) *logBlock {
 func (this *walcore) run() {
 	ti := idleticker.NewTicker(this.cfg.IdleSyncDuration)
 	defer func() {
+		for _, lis := range this.llist {
+			lis.OnClose()
+		}
+		this.llist = nil
+
 		ti.Stop()
 		this.doClose()
-		this.emu.Lock()
-		this.econd.Broadcast()
-		this.emu.Unlock()
 		close(this.reqCh)
 	}()
 
@@ -84,6 +86,16 @@ func (this *walcore) run() {
 				c, err := this.doNewCursor(req.p1.(uint64))
 				if req.resp != nil {
 					req.resp <- Result{Err: err, data: c}
+				}
+			case actionAddListener:
+				r := this.doAddListener(req.p1.(WALListener))
+				if req.resp != nil {
+					req.resp <- Result{Err: nil, data: r}
+				}
+			case actionRemoveListener:
+				this.doRemoveListener(req.p1.(WALListener))
+				if req.resp != nil {
+					req.resp <- Result{Err: nil}
 				}
 			}
 		case <-ti.C:
@@ -150,9 +162,6 @@ func (this *walcore) doAddCursor(c *cursor) {
 
 func (this *walcore) doCloseCursor(lb *logBlock) {
 	this.execCloseCursor(lb)
-	this.emu.Lock()
-	this.econd.Broadcast()
-	this.emu.Unlock()
 }
 
 func (this *walcore) execCloseCursor(lb *logBlock) {
@@ -195,11 +204,6 @@ func (this *walcore) doRemoveCursor(p *cursor) {
 }
 
 func (this *walcore) doAppendEnts(ents []Entry, sync bool) error {
-	defer func() {
-		this.emu.Lock()
-		this.econd.Broadcast()
-		this.emu.Unlock()
-	}()
 	for _, e := range ents {
 		err := this.doAppend(e.Index, e.Data)
 		if err != nil {
@@ -213,6 +217,7 @@ func (this *walcore) doAppendEnts(ents []Entry, sync bool) error {
 			return err
 		}
 	}
+	this.onAppendEntry(ents)
 	return nil
 }
 
@@ -263,6 +268,7 @@ func (this *walcore) doReset() error {
 	if _, _, err := this.doInit(); err != nil {
 		return err
 	}
+	this.onReset()
 	return nil
 }
 
@@ -286,6 +292,7 @@ func (this *walcore) doTruncate(idx uint64) error {
 	this.doCloseCursor(tlb)
 	lidx, err := tlb.Truncate(idx)
 	atomic.StoreUint64(&this.lastIndex, lidx)
+	this.onTruncate(idx)
 	return err
 }
 
@@ -300,4 +307,45 @@ func (this *walcore) doNewCursor(idx uint64) (*cursor, error) {
 	}
 	this.doAddCursor(c)
 	return c, nil
+}
+
+func (this *walcore) doAddListener(lis WALListener) uint64 {
+	for _, l := range this.llist {
+		if l == lis {
+			return this.lastIndex
+		}
+	}
+	this.llist = append(this.llist, lis)
+	return this.lastIndex
+}
+
+func (this *walcore) doRemoveListener(lis WALListener) {
+	for i, l := range this.llist {
+		if l == lis {
+			c := len(this.llist)
+			if i < c-1 {
+				this.llist[i] = this.llist[c-1]
+			}
+			this.llist = this.llist[:c-1]
+			return
+		}
+	}
+}
+
+func (this *walcore) onReset() {
+	for _, lis := range this.llist {
+		lis.OnReset()
+	}
+}
+
+func (this *walcore) onTruncate(idx uint64) {
+	for _, lis := range this.llist {
+		lis.OnTruncate(idx)
+	}
+}
+
+func (this *walcore) onAppendEntry(ents []Entry) {
+	for _, lis := range this.llist {
+		lis.OnAppendEntry(ents)
+	}
 }

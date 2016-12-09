@@ -77,6 +77,7 @@ func TestMemoryOverwrite(t *testing.T) {
 	// var b bool
 	// var pos int
 	ms := NewMemoryStorage(10).(*MemoryStorage)
+	ms.AddListener(NewLogListener("TEST", plog))
 	for i := 1; i <= 5; i++ {
 		ms.SaveRequest(uint64(i)*2, nil)
 	}

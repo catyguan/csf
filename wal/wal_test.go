@@ -58,7 +58,7 @@ func TestWALSave(t *testing.T) {
 	ents := make([]Entry, 0)
 	for i := 0; i < sz; i++ {
 		s := fmt.Sprintf("hello world %v", i)
-		ents = append(ents, Entry{Index: 0, Data: []byte(s)})
+		ents = append(ents, Entry{Index: uint64(i), Data: []byte(s)})
 	}
 	rsc := w.Append(ents, true)
 	rs := <-rsc
@@ -154,6 +154,28 @@ func TestWALTruncate(t *testing.T) {
 	if rs.Err != nil {
 		t.Fatalf("err = %v", rs.Err)
 	}
+
+	time.Sleep(time.Second)
+}
+
+func TestWALListener(t *testing.T) {
+	cfg := tc_config1()
+
+	w, _, err2 := initWALCore(cfg)
+	if err2 != nil {
+		t.Fatalf("err2 = %v", err2)
+	}
+	defer w.Close()
+
+	w.AddListener(NewLogListener("TEST", plog))
+
+	<-w.Reset()
+	ents := make([]Entry, 1)
+	ents[0].Index = 1
+	ents[0].Data = []byte("hello")
+	<-w.Append(ents, false)
+
+	<-w.Truncate(100)
 
 	time.Sleep(time.Second)
 }
