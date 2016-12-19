@@ -54,7 +54,9 @@ func (this *LockerServiceInvoker) SendRequest(ctx context.Context, creq *corepb.
 			err := this.doSendRequest(ctx, creq, r)
 			if err != nil {
 				resp := MakeErrorResponse(nil, err)
-				r <- &corepb.ChannelResponse{Response: resp}
+				re := &corepb.ChannelResponse{}
+				re.Response = *resp
+				r <- re
 			}
 		}()
 		return r, nil
@@ -68,14 +70,14 @@ func (this *LockerServiceInvoker) SendRequest(ctx context.Context, creq *corepb.
 }
 
 func (this *LockerServiceInvoker) doSendRequest(ctx context.Context, creq *corepb.ChannelRequest, r chan *corepb.ChannelResponse) error {
-	resp, err := this.InvokeRequest(ctx, creq.Request)
+	resp, err := this.InvokeRequest(ctx, &creq.Request)
 	err = corepb.HandleError(resp, err)
 	if err != nil {
 		return err
 	}
-	r <- &corepb.ChannelResponse{
-		Response: resp,
-	}
+	re := &corepb.ChannelResponse{}
+	re.Response = *resp
+	r <- re
 	return nil
 }
 

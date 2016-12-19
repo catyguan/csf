@@ -12,21 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package counter
+// Package setupnode defines a csf sample app.
+package main
 
-import (
-	"context"
-
-	"github.com/catyguan/csf/pkg/capnslog"
-)
-
-var (
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "service-counter")
-)
-
-type Counter interface {
-	GetValue(ctx context.Context, key string) (uint64, error)
-	AddValue(ctx context.Context, key string, val uint64) (uint64, error)
-	Sleep(ctx context.Context, mils uint64) error
-	RaiseError(ctx context.Context, err string) error
+func main() {
+	main1()
 }

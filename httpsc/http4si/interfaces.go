@@ -1,4 +1,4 @@
-// Copyright 2016 The CSF Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,22 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-package counter
+package http4si
 
 import (
-	"context"
+	"net/http"
+	"time"
 
-	"github.com/catyguan/csf/pkg/capnslog"
+	"github.com/catyguan/csf/core/corepb"
 )
 
-var (
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "service-counter")
+const (
+	defaultDialTimeout    = 5 * time.Second
+	defaultExecuteTimeout = 60 * time.Second
+
+	reservedInternalFDNum = 150
 )
 
-type Counter interface {
-	GetValue(ctx context.Context, key string) (uint64, error)
-	AddValue(ctx context.Context, key string, val uint64) (uint64, error)
-	Sleep(ctx context.Context, mils uint64) error
-	RaiseError(ctx context.Context, err string) error
+type Converter interface {
+	BuildRequest(url string, creq *corepb.ChannelRequest) (*http.Request, error)
+
+	HandleResponse(resp *http.Response) (*corepb.ChannelResponse, error)
 }

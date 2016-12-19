@@ -11,24 +11,32 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package corepb
+package http4si
 
-func HandleError(resp *Response, err error) error {
-	if err != nil {
-		return err
-	}
-	if resp == nil {
-		return nil
-	}
-	return resp.ToError()
-}
+import (
+	"net"
+	"net/http"
+	"time"
 
-func HandleChannelError(cresp *ChannelResponse, err error) error {
+	"github.com/catyguan/csf/pkg/transport"
+)
+
+func newTransport(info *transport.TLSInfo, dialtimeoutd time.Duration) (*http.Transport, error) {
+	cfg, err := info.ClientConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if cresp == nil {
-		return nil
+
+	t := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout: dialtimeoutd,
+			// value taken from http.DefaultTransport
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		// value taken from http.DefaultTransport
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     cfg,
 	}
-	return cresp.Response.ToError()
+	return t, nil
 }

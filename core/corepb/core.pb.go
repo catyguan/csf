@@ -9,13 +9,13 @@
 		core.proto
 
 	It has these top-level messages:
-		Header
-		RequestInfo
-		Request
-		ChannelRequest
-		ResponseInfo
-		Response
-		ChannelResponse
+		PBHeader
+		PBRequestInfo
+		PBRequest
+		PBChannelRequest
+		PBResponseInfo
+		PBResponse
+		PBChannelResponse
 */
 package corepb
 
@@ -64,91 +64,91 @@ func (x RequestType) String() string {
 }
 func (RequestType) EnumDescriptor() ([]byte, []int) { return fileDescriptorCore, []int{0} }
 
-type Header struct {
+type PBHeader struct {
 	Name  string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	Data  []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *Header) Reset()                    { *m = Header{} }
-func (m *Header) String() string            { return proto.CompactTextString(m) }
-func (*Header) ProtoMessage()               {}
-func (*Header) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{0} }
+func (m *PBHeader) Reset()                    { *m = PBHeader{} }
+func (m *PBHeader) String() string            { return proto.CompactTextString(m) }
+func (*PBHeader) ProtoMessage()               {}
+func (*PBHeader) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{0} }
 
-type RequestInfo struct {
+type PBRequestInfo struct {
 	ID          uint64      `protobuf:"varint,1,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
 	ServiceName string      `protobuf:"bytes,2,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	ServicePath string      `protobuf:"bytes,3,opt,name=service_path,json=servicePath,proto3" json:"service_path,omitempty"`
 	Type        RequestType `protobuf:"varint,4,opt,name=type,proto3,enum=corepb.RequestType" json:"type,omitempty"`
 }
 
-func (m *RequestInfo) Reset()                    { *m = RequestInfo{} }
-func (m *RequestInfo) String() string            { return proto.CompactTextString(m) }
-func (*RequestInfo) ProtoMessage()               {}
-func (*RequestInfo) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{1} }
+func (m *PBRequestInfo) Reset()                    { *m = PBRequestInfo{} }
+func (m *PBRequestInfo) String() string            { return proto.CompactTextString(m) }
+func (*PBRequestInfo) ProtoMessage()               {}
+func (*PBRequestInfo) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{1} }
 
-type Request struct {
-	Info *RequestInfo `protobuf:"bytes,1,opt,name=info" json:"info,omitempty"`
-	Data []byte       `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+type PBRequest struct {
+	Info *PBRequestInfo `protobuf:"bytes,1,opt,name=info" json:"info,omitempty"`
+	Data []byte         `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (m *Request) Reset()                    { *m = Request{} }
-func (m *Request) String() string            { return proto.CompactTextString(m) }
-func (*Request) ProtoMessage()               {}
-func (*Request) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{2} }
+func (m *PBRequest) Reset()                    { *m = PBRequest{} }
+func (m *PBRequest) String() string            { return proto.CompactTextString(m) }
+func (*PBRequest) ProtoMessage()               {}
+func (*PBRequest) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{2} }
 
-type ChannelRequest struct {
-	Request *Request  `protobuf:"bytes,1,opt,name=request" json:"request,omitempty"`
-	Header  []*Header `protobuf:"bytes,2,rep,name=header" json:"header,omitempty"`
+type PBChannelRequest struct {
+	Request *PBRequest  `protobuf:"bytes,1,opt,name=request" json:"request,omitempty"`
+	Header  []*PBHeader `protobuf:"bytes,2,rep,name=header" json:"header,omitempty"`
 }
 
-func (m *ChannelRequest) Reset()                    { *m = ChannelRequest{} }
-func (m *ChannelRequest) String() string            { return proto.CompactTextString(m) }
-func (*ChannelRequest) ProtoMessage()               {}
-func (*ChannelRequest) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{3} }
+func (m *PBChannelRequest) Reset()                    { *m = PBChannelRequest{} }
+func (m *PBChannelRequest) String() string            { return proto.CompactTextString(m) }
+func (*PBChannelRequest) ProtoMessage()               {}
+func (*PBChannelRequest) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{3} }
 
-type ResponseInfo struct {
+type PBResponseInfo struct {
 	RequestID   uint64 `protobuf:"varint,1,opt,name=RequestID,json=requestID,proto3" json:"RequestID,omitempty"`
 	ActionIndex uint64 `protobuf:"varint,2,opt,name=ActionIndex,json=actionIndex,proto3" json:"ActionIndex,omitempty"`
 }
 
-func (m *ResponseInfo) Reset()                    { *m = ResponseInfo{} }
-func (m *ResponseInfo) String() string            { return proto.CompactTextString(m) }
-func (*ResponseInfo) ProtoMessage()               {}
-func (*ResponseInfo) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{4} }
+func (m *PBResponseInfo) Reset()                    { *m = PBResponseInfo{} }
+func (m *PBResponseInfo) String() string            { return proto.CompactTextString(m) }
+func (*PBResponseInfo) ProtoMessage()               {}
+func (*PBResponseInfo) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{4} }
 
-type Response struct {
-	Info  *ResponseInfo `protobuf:"bytes,1,opt,name=info" json:"info,omitempty"`
-	Data  []byte        `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	Error string        `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+type PBResponse struct {
+	Info  *PBResponseInfo `protobuf:"bytes,1,opt,name=info" json:"info,omitempty"`
+	Data  []byte          `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Error string          `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
 }
 
-func (m *Response) Reset()                    { *m = Response{} }
-func (m *Response) String() string            { return proto.CompactTextString(m) }
-func (*Response) ProtoMessage()               {}
-func (*Response) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{5} }
+func (m *PBResponse) Reset()                    { *m = PBResponse{} }
+func (m *PBResponse) String() string            { return proto.CompactTextString(m) }
+func (*PBResponse) ProtoMessage()               {}
+func (*PBResponse) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{5} }
 
-type ChannelResponse struct {
-	Response *Response `protobuf:"bytes,1,opt,name=response" json:"response,omitempty"`
-	Header   []*Header `protobuf:"bytes,2,rep,name=header" json:"header,omitempty"`
+type PBChannelResponse struct {
+	Response *PBResponse `protobuf:"bytes,1,opt,name=response" json:"response,omitempty"`
+	Header   []*PBHeader `protobuf:"bytes,2,rep,name=header" json:"header,omitempty"`
 }
 
-func (m *ChannelResponse) Reset()                    { *m = ChannelResponse{} }
-func (m *ChannelResponse) String() string            { return proto.CompactTextString(m) }
-func (*ChannelResponse) ProtoMessage()               {}
-func (*ChannelResponse) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{6} }
+func (m *PBChannelResponse) Reset()                    { *m = PBChannelResponse{} }
+func (m *PBChannelResponse) String() string            { return proto.CompactTextString(m) }
+func (*PBChannelResponse) ProtoMessage()               {}
+func (*PBChannelResponse) Descriptor() ([]byte, []int) { return fileDescriptorCore, []int{6} }
 
 func init() {
-	proto.RegisterType((*Header)(nil), "corepb.Header")
-	proto.RegisterType((*RequestInfo)(nil), "corepb.RequestInfo")
-	proto.RegisterType((*Request)(nil), "corepb.Request")
-	proto.RegisterType((*ChannelRequest)(nil), "corepb.ChannelRequest")
-	proto.RegisterType((*ResponseInfo)(nil), "corepb.ResponseInfo")
-	proto.RegisterType((*Response)(nil), "corepb.Response")
-	proto.RegisterType((*ChannelResponse)(nil), "corepb.ChannelResponse")
+	proto.RegisterType((*PBHeader)(nil), "corepb.PBHeader")
+	proto.RegisterType((*PBRequestInfo)(nil), "corepb.PBRequestInfo")
+	proto.RegisterType((*PBRequest)(nil), "corepb.PBRequest")
+	proto.RegisterType((*PBChannelRequest)(nil), "corepb.PBChannelRequest")
+	proto.RegisterType((*PBResponseInfo)(nil), "corepb.PBResponseInfo")
+	proto.RegisterType((*PBResponse)(nil), "corepb.PBResponse")
+	proto.RegisterType((*PBChannelResponse)(nil), "corepb.PBChannelResponse")
 	proto.RegisterEnum("corepb.RequestType", RequestType_name, RequestType_value)
 }
-func (m *Header) Marshal() (data []byte, err error) {
+func (m *PBHeader) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -158,7 +158,7 @@ func (m *Header) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *Header) MarshalTo(data []byte) (int, error) {
+func (m *PBHeader) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -184,7 +184,7 @@ func (m *Header) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *RequestInfo) Marshal() (data []byte, err error) {
+func (m *PBRequestInfo) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -194,7 +194,7 @@ func (m *RequestInfo) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *RequestInfo) MarshalTo(data []byte) (int, error) {
+func (m *PBRequestInfo) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -224,7 +224,7 @@ func (m *RequestInfo) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *Request) Marshal() (data []byte, err error) {
+func (m *PBRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -234,7 +234,7 @@ func (m *Request) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *Request) MarshalTo(data []byte) (int, error) {
+func (m *PBRequest) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -258,7 +258,7 @@ func (m *Request) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *ChannelRequest) Marshal() (data []byte, err error) {
+func (m *PBChannelRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -268,7 +268,7 @@ func (m *ChannelRequest) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ChannelRequest) MarshalTo(data []byte) (int, error) {
+func (m *PBChannelRequest) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -298,7 +298,7 @@ func (m *ChannelRequest) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *ResponseInfo) Marshal() (data []byte, err error) {
+func (m *PBResponseInfo) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -308,7 +308,7 @@ func (m *ResponseInfo) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ResponseInfo) MarshalTo(data []byte) (int, error) {
+func (m *PBResponseInfo) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -326,7 +326,7 @@ func (m *ResponseInfo) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *Response) Marshal() (data []byte, err error) {
+func (m *PBResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -336,7 +336,7 @@ func (m *Response) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *Response) MarshalTo(data []byte) (int, error) {
+func (m *PBResponse) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -366,7 +366,7 @@ func (m *Response) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
-func (m *ChannelResponse) Marshal() (data []byte, err error) {
+func (m *PBChannelResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -376,7 +376,7 @@ func (m *ChannelResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *ChannelResponse) MarshalTo(data []byte) (int, error) {
+func (m *PBChannelResponse) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -433,7 +433,7 @@ func encodeVarintCore(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
-func (m *Header) Size() (n int) {
+func (m *PBHeader) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Name)
@@ -451,7 +451,7 @@ func (m *Header) Size() (n int) {
 	return n
 }
 
-func (m *RequestInfo) Size() (n int) {
+func (m *PBRequestInfo) Size() (n int) {
 	var l int
 	_ = l
 	if m.ID != 0 {
@@ -471,7 +471,7 @@ func (m *RequestInfo) Size() (n int) {
 	return n
 }
 
-func (m *Request) Size() (n int) {
+func (m *PBRequest) Size() (n int) {
 	var l int
 	_ = l
 	if m.Info != nil {
@@ -485,7 +485,7 @@ func (m *Request) Size() (n int) {
 	return n
 }
 
-func (m *ChannelRequest) Size() (n int) {
+func (m *PBChannelRequest) Size() (n int) {
 	var l int
 	_ = l
 	if m.Request != nil {
@@ -501,7 +501,7 @@ func (m *ChannelRequest) Size() (n int) {
 	return n
 }
 
-func (m *ResponseInfo) Size() (n int) {
+func (m *PBResponseInfo) Size() (n int) {
 	var l int
 	_ = l
 	if m.RequestID != 0 {
@@ -513,7 +513,7 @@ func (m *ResponseInfo) Size() (n int) {
 	return n
 }
 
-func (m *Response) Size() (n int) {
+func (m *PBResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Info != nil {
@@ -531,7 +531,7 @@ func (m *Response) Size() (n int) {
 	return n
 }
 
-func (m *ChannelResponse) Size() (n int) {
+func (m *PBChannelResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Response != nil {
@@ -560,7 +560,7 @@ func sovCore(x uint64) (n int) {
 func sozCore(x uint64) (n int) {
 	return sovCore(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Header) Unmarshal(data []byte) error {
+func (m *PBHeader) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -583,10 +583,10 @@ func (m *Header) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Header: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBHeader: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Header: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBHeader: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -699,7 +699,7 @@ func (m *Header) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *RequestInfo) Unmarshal(data []byte) error {
+func (m *PBRequestInfo) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -722,10 +722,10 @@ func (m *RequestInfo) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: RequestInfo: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBRequestInfo: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: RequestInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBRequestInfo: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -845,7 +845,7 @@ func (m *RequestInfo) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *Request) Unmarshal(data []byte) error {
+func (m *PBRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -868,10 +868,10 @@ func (m *Request) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Request: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Request: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -901,7 +901,7 @@ func (m *Request) Unmarshal(data []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Info == nil {
-				m.Info = &RequestInfo{}
+				m.Info = &PBRequestInfo{}
 			}
 			if err := m.Info.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
@@ -959,7 +959,7 @@ func (m *Request) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *ChannelRequest) Unmarshal(data []byte) error {
+func (m *PBChannelRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -982,10 +982,10 @@ func (m *ChannelRequest) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ChannelRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBChannelRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ChannelRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBChannelRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1015,7 +1015,7 @@ func (m *ChannelRequest) Unmarshal(data []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Request == nil {
-				m.Request = &Request{}
+				m.Request = &PBRequest{}
 			}
 			if err := m.Request.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
@@ -1047,7 +1047,7 @@ func (m *ChannelRequest) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Header = append(m.Header, &Header{})
+			m.Header = append(m.Header, &PBHeader{})
 			if err := m.Header[len(m.Header)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -1073,7 +1073,7 @@ func (m *ChannelRequest) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *ResponseInfo) Unmarshal(data []byte) error {
+func (m *PBResponseInfo) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1096,10 +1096,10 @@ func (m *ResponseInfo) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ResponseInfo: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBResponseInfo: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ResponseInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBResponseInfo: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1161,7 +1161,7 @@ func (m *ResponseInfo) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *Response) Unmarshal(data []byte) error {
+func (m *PBResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1184,10 +1184,10 @@ func (m *Response) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Response: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Response: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1217,7 +1217,7 @@ func (m *Response) Unmarshal(data []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Info == nil {
-				m.Info = &ResponseInfo{}
+				m.Info = &PBResponseInfo{}
 			}
 			if err := m.Info.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
@@ -1304,7 +1304,7 @@ func (m *Response) Unmarshal(data []byte) error {
 	}
 	return nil
 }
-func (m *ChannelResponse) Unmarshal(data []byte) error {
+func (m *PBChannelResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1327,10 +1327,10 @@ func (m *ChannelResponse) Unmarshal(data []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ChannelResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: PBChannelResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ChannelResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PBChannelResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1360,7 +1360,7 @@ func (m *ChannelResponse) Unmarshal(data []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Response == nil {
-				m.Response = &Response{}
+				m.Response = &PBResponse{}
 			}
 			if err := m.Response.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
@@ -1392,7 +1392,7 @@ func (m *ChannelResponse) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Header = append(m.Header, &Header{})
+			m.Header = append(m.Header, &PBHeader{})
 			if err := m.Header[len(m.Header)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -1526,33 +1526,34 @@ var (
 func init() { proto.RegisterFile("core.proto", fileDescriptorCore) }
 
 var fileDescriptorCore = []byte{
-	// 445 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x8c, 0x52, 0xd1, 0x6e, 0xd3, 0x30,
-	0x14, 0x9d, 0xd3, 0x2c, 0x5d, 0x6f, 0xaa, 0x2e, 0x32, 0x7d, 0x88, 0x10, 0xaa, 0x42, 0x1e, 0x20,
-	0x20, 0x54, 0xa4, 0xf1, 0x8e, 0x34, 0xb6, 0x0c, 0x2a, 0x44, 0x01, 0x6f, 0x15, 0xf0, 0x02, 0xf2,
-	0xda, 0xbb, 0x36, 0xd2, 0xb0, 0x83, 0x93, 0x4d, 0xec, 0x1f, 0xf8, 0xb0, 0x3d, 0xf2, 0x09, 0xd0,
-	0x2f, 0x41, 0x76, 0x9c, 0x64, 0x14, 0x21, 0xed, 0xed, 0xfa, 0xf8, 0xf8, 0x9c, 0x7b, 0xcf, 0x35,
-	0xc0, 0x5c, 0x2a, 0x1c, 0xe7, 0x4a, 0x96, 0x92, 0x7a, 0xba, 0xce, 0x4f, 0xef, 0x0e, 0x97, 0x72,
-	0x29, 0x0d, 0xf4, 0x54, 0x57, 0xd5, 0x6d, 0x7c, 0x04, 0xde, 0x2b, 0xe4, 0x0b, 0x54, 0x94, 0x82,
-	0x2b, 0xf8, 0x57, 0x0c, 0x49, 0x44, 0x92, 0x1e, 0x33, 0x35, 0x1d, 0xc2, 0xf6, 0x25, 0x3f, 0xbf,
-	0xc0, 0xd0, 0x31, 0x60, 0x75, 0xd0, 0xcc, 0x05, 0x2f, 0x79, 0xd8, 0x89, 0x48, 0xd2, 0x67, 0xa6,
-	0x8e, 0x7f, 0x10, 0xf0, 0x19, 0x7e, 0xbb, 0xc0, 0xa2, 0x9c, 0x88, 0x33, 0x49, 0x07, 0xe0, 0x4c,
-	0x0e, 0x8d, 0x96, 0xcb, 0x9c, 0xec, 0x90, 0xde, 0x87, 0x7e, 0x81, 0xea, 0x32, 0x9b, 0xe3, 0x17,
-	0xe3, 0x52, 0x09, 0xfa, 0x16, 0x9b, 0x6a, 0xb3, 0x1b, 0x94, 0x9c, 0x97, 0x2b, 0x23, 0xdf, 0x52,
-	0xde, 0xf1, 0x72, 0x45, 0x1f, 0x82, 0x5b, 0x5e, 0xe5, 0x18, 0xba, 0x11, 0x49, 0x06, 0x7b, 0x77,
-	0xc6, 0xd5, 0x68, 0x63, 0x6b, 0x7c, 0x72, 0x95, 0x23, 0x33, 0x84, 0xf8, 0x08, 0xba, 0x16, 0xd4,
-	0x6f, 0x32, 0x71, 0x26, 0x4d, 0x2f, 0xfe, 0x3f, 0x6f, 0x74, 0xb3, 0xcc, 0x10, 0x9a, 0xb1, 0x9c,
-	0x1b, 0x63, 0xcd, 0x61, 0x70, 0xb0, 0xe2, 0x42, 0xe0, 0x79, 0x2d, 0xf7, 0x08, 0xba, 0xaa, 0x2a,
-	0xad, 0xe2, 0xee, 0x86, 0x22, 0xab, 0xef, 0xe9, 0x03, 0xf0, 0x56, 0x26, 0xdb, 0xd0, 0x89, 0x3a,
-	0x89, 0xbf, 0x37, 0xa8, 0x99, 0x55, 0xe2, 0xcc, 0xde, 0xc6, 0x53, 0xe8, 0x33, 0x2c, 0x72, 0x29,
-	0x0a, 0x34, 0xd9, 0xdd, 0x83, 0x5e, 0xdd, 0x5d, 0x1d, 0x61, 0x4f, 0xd5, 0x00, 0x8d, 0xc0, 0xdf,
-	0x9f, 0x97, 0x99, 0x14, 0x13, 0xb1, 0xc0, 0xef, 0xa6, 0x5b, 0x97, 0xf9, 0xbc, 0x85, 0xe2, 0xcf,
-	0xb0, 0x53, 0xeb, 0xd1, 0xe4, 0xaf, 0xe9, 0x87, 0x6d, 0xaf, 0xad, 0xdf, 0xff, 0xc7, 0xd7, 0xfb,
-	0x47, 0xa5, 0xa4, 0xb2, 0xbb, 0xa8, 0x0e, 0xf1, 0x12, 0x76, 0x9b, 0x50, 0xac, 0xcd, 0x13, 0xd8,
-	0x51, 0xb6, 0xb6, 0x56, 0xc1, 0xa6, 0x15, 0x6b, 0x18, 0xb7, 0x0d, 0xe6, 0xf1, 0xf3, 0xe6, 0x4f,
-	0xe9, 0xd5, 0x52, 0x00, 0x6f, 0x36, 0x7d, 0x3d, 0x7d, 0xfb, 0x21, 0xd8, 0xa2, 0x3d, 0xd8, 0x7e,
-	0x3f, 0x4b, 0xd9, 0xa7, 0x80, 0x50, 0x1f, 0xba, 0xe9, 0xc7, 0xf4, 0x60, 0x76, 0x92, 0x06, 0x8e,
-	0x3e, 0xbc, 0x49, 0x8f, 0x8f, 0xf7, 0x5f, 0xa6, 0x41, 0xe7, 0x45, 0x70, 0xfd, 0x7b, 0xb4, 0x75,
-	0xbd, 0x1e, 0x91, 0x9f, 0xeb, 0x11, 0xf9, 0xb5, 0x1e, 0x91, 0x53, 0xcf, 0xfc, 0xfa, 0x67, 0x7f,
-	0x02, 0x00, 0x00, 0xff, 0xff, 0xad, 0x5e, 0x65, 0x76, 0x21, 0x03, 0x00, 0x00,
+	// 453 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x8c, 0x53, 0x51, 0x6f, 0xd3, 0x30,
+	0x18, 0x9c, 0xd3, 0xac, 0x5b, 0xbe, 0x8c, 0x2a, 0x33, 0x03, 0x45, 0x08, 0x45, 0x21, 0x2f, 0x84,
+	0x21, 0x05, 0xa9, 0xbc, 0x23, 0x2d, 0x5b, 0xc4, 0x0a, 0xa2, 0x04, 0x6f, 0x15, 0xf0, 0x84, 0xdc,
+	0xd6, 0x5b, 0x22, 0x6d, 0x76, 0x70, 0xb2, 0x89, 0xfd, 0x09, 0x7e, 0xd7, 0x1e, 0xf9, 0x09, 0xd0,
+	0x5f, 0x82, 0xe2, 0x38, 0x4d, 0xa6, 0x09, 0x89, 0xb7, 0xf3, 0xe7, 0xf3, 0xdd, 0xf9, 0x9c, 0x00,
+	0x2c, 0x84, 0x64, 0x51, 0x21, 0x45, 0x25, 0xf0, 0xb0, 0xc6, 0xc5, 0xfc, 0xc9, 0xde, 0xb9, 0x38,
+	0x17, 0x6a, 0xf4, 0xaa, 0x46, 0xcd, 0x6e, 0x70, 0x0c, 0xdb, 0x69, 0x7c, 0xcc, 0xe8, 0x92, 0x49,
+	0x8c, 0xc1, 0xe4, 0xf4, 0x92, 0xb9, 0xc8, 0x47, 0xa1, 0x45, 0x14, 0xc6, 0x7b, 0xb0, 0x79, 0x4d,
+	0x2f, 0xae, 0x98, 0x6b, 0xa8, 0x61, 0xb3, 0xa8, 0x99, 0x4b, 0x5a, 0x51, 0x77, 0xe0, 0xa3, 0x70,
+	0x87, 0x28, 0x1c, 0xfc, 0x44, 0xf0, 0x20, 0x8d, 0x09, 0xfb, 0x7e, 0xc5, 0xca, 0x6a, 0xc2, 0xcf,
+	0x04, 0x1e, 0x81, 0x31, 0x39, 0x52, 0x6a, 0x26, 0x31, 0xf2, 0x23, 0xfc, 0x0c, 0x76, 0x4a, 0x26,
+	0xaf, 0xf3, 0x05, 0xfb, 0xa6, 0x7c, 0x1a, 0x49, 0x5b, 0xcf, 0xa6, 0xb5, 0x5d, 0x8f, 0x52, 0xd0,
+	0x2a, 0x53, 0x06, 0x1d, 0x25, 0xa5, 0x55, 0x86, 0x9f, 0x83, 0x59, 0xdd, 0x14, 0xcc, 0x35, 0x7d,
+	0x14, 0x8e, 0xc6, 0x0f, 0xa3, 0xe6, 0x7a, 0x91, 0x36, 0x3e, 0xbd, 0x29, 0x18, 0x51, 0x84, 0xe0,
+	0x1d, 0x58, 0xeb, 0x3c, 0xf8, 0x05, 0x98, 0x39, 0x3f, 0x13, 0x2a, 0x8d, 0x3d, 0x7e, 0xd4, 0x9e,
+	0xba, 0x13, 0x98, 0x28, 0xca, 0xfa, 0x72, 0x46, 0xef, 0x72, 0x39, 0x38, 0x69, 0x7c, 0x98, 0x51,
+	0xce, 0xd9, 0x45, 0x2b, 0xf9, 0x12, 0xb6, 0x64, 0x03, 0xb5, 0xea, 0xee, 0x3d, 0x55, 0xd2, 0x32,
+	0x70, 0x08, 0xc3, 0x4c, 0xb5, 0xec, 0x1a, 0xfe, 0x20, 0xb4, 0xc7, 0x4e, 0xc7, 0x6d, 0xda, 0x27,
+	0x7a, 0x3f, 0x48, 0x61, 0x54, 0x9f, 0x2f, 0x0b, 0xc1, 0x4b, 0xa6, 0x7a, 0x7c, 0x0a, 0x56, 0x9b,
+	0xb2, 0xad, 0xd3, 0x92, 0xed, 0x00, 0xfb, 0x60, 0x1f, 0x2c, 0xaa, 0x5c, 0xf0, 0x09, 0x5f, 0xb2,
+	0x1f, 0x2a, 0xb5, 0x49, 0x6c, 0xda, 0x8d, 0x82, 0x39, 0x40, 0xa7, 0x88, 0xf7, 0xef, 0x34, 0xf1,
+	0xb8, 0x9f, 0xb9, 0xf3, 0xfc, 0x77, 0x15, 0xf5, 0x17, 0xc1, 0xa4, 0x14, 0x52, 0xbf, 0x4d, 0xb3,
+	0x08, 0x2e, 0x61, 0xb7, 0x57, 0x90, 0xb6, 0x8a, 0x60, 0x5b, 0x6a, 0xac, 0xed, 0xf0, 0x7d, 0x3b,
+	0xb2, 0xe6, 0xfc, 0x7f, 0x49, 0xfb, 0x6f, 0xc0, 0xee, 0x3d, 0x38, 0x06, 0x18, 0xce, 0xa6, 0xef,
+	0xa7, 0x1f, 0x3f, 0x3b, 0x1b, 0xd8, 0x82, 0xcd, 0x4f, 0xb3, 0x84, 0x7c, 0x75, 0x10, 0xb6, 0x61,
+	0x2b, 0xf9, 0x92, 0x1c, 0xce, 0x4e, 0x13, 0xc7, 0xa8, 0x17, 0x1f, 0x92, 0x93, 0x93, 0x83, 0xb7,
+	0x89, 0x33, 0x88, 0x9d, 0xdb, 0x3f, 0xde, 0xc6, 0xed, 0xca, 0x43, 0xbf, 0x56, 0x1e, 0xfa, 0xbd,
+	0xf2, 0xd0, 0x7c, 0xa8, 0xfe, 0x87, 0xd7, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0x83, 0x2c, 0x78,
+	0x39, 0x3b, 0x03, 0x00, 0x00,
 }

@@ -16,9 +16,12 @@ package counter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
+	"time"
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
@@ -49,22 +52,28 @@ func (this *CounterService) VerifyRequest(ctx context.Context, req *corepb.Reque
 }
 
 func (this *CounterService) ApplyRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
-	action := req.Info.ServicePath
+	action := req.ServicePath
 	data := req.Data
-	plog.Infof("%v ApplyRequest - %s(%v)", req.Info.ServiceName, action, len(data))
+	plog.Infof("%v ApplyRequest - %s(%v)", req.ServiceName, action, len(data))
 	switch action {
 	case SP_GET:
 		info := &CounterInfo{}
 		pbutil.MustUnmarshal(info, req.Data)
+		if info.Name == "sleep" {
+			time.Sleep(time.Millisecond * time.Duration(info.Value))
+		}
+		if strings.HasPrefix(info.Name, "error:") {
+			return nil, errors.New(info.Name)
+		}
 		info.Value = this.ep.GetValue(info.Name)
 		r := pbutil.MustMarshal(info)
-		return req.CreateResponse(r), nil
+		return req.CreateResponse(r, nil), nil
 	case SP_ADD:
 		info := &CounterInfo{}
 		pbutil.MustUnmarshal(info, req.Data)
 		info.Value = this.ep.AddValue(info.Name, info.Value)
 		r := pbutil.MustMarshal(info)
-		return req.CreateResponse(r), nil
+		return req.CreateResponse(r, nil), nil
 	default:
 		return nil, fmt.Errorf("unknow action %s", action)
 	}

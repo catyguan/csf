@@ -71,7 +71,9 @@ func (this *SingeThreadServiceInvoker) doRun(ready chan interface{}, closef chan
 				a.rch1 <- r
 			}
 			if a.rch2 != nil {
-				a.rch2 <- &corepb.ChannelResponse{Response: r}
+				re := &corepb.ChannelResponse{}
+				re.Response = *r
+				a.rch2 <- re
 			}
 		}
 	}
@@ -97,7 +99,7 @@ func (this *SingeThreadServiceInvoker) InvokeRequest(ctx context.Context, req *c
 }
 
 func (this *SingeThreadServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	req := creq.Request
+	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err

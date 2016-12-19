@@ -8,7 +8,7 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
-message Header {
+message PBHeader {
   string name = 1;
   string value = 2;
   bytes data = 3;
@@ -21,35 +21,35 @@ enum RequestType {
   MESSAGE = 3;
 }
 
-message RequestInfo {
+message PBRequestInfo {
   uint64 ID = 1;
   string service_name = 2;
   string service_path = 3;
   RequestType type = 4;
 }
 
-message Request {
-  RequestInfo info = 1;
+message PBRequest {
+  PBRequestInfo info = 1;
   bytes data  = 2;
 }
 
-message ChannelRequest {
-  Request request = 1;
-  repeated Header header = 2;
+message PBChannelRequest {
+  PBRequest request = 1;
+  repeated PBHeader header = 2;
 }
 
-message ResponseInfo {
+message PBResponseInfo {
   uint64 RequestID = 1;
   uint64 ActionIndex = 2;
 }
 
-message Response {
-  ResponseInfo info = 1;
+message PBResponse {
+  PBResponseInfo info = 1;
   bytes data = 2;
   string error = 3;
 }
 
-message ChannelResponse {
-  Response response = 1;
-  repeated Header header = 2;
+message PBChannelResponse {
+  PBResponse response = 1;
+  repeated PBHeader header = 2;
 }

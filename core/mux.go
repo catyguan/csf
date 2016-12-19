@@ -90,13 +90,16 @@ func (this *ServiceMux) match(sname string, path string) *muxHandler {
 }
 
 func (this *ServiceMux) handler(r *corepb.Request) *muxHandler {
-	if r == nil || r.Info == nil {
+	if r == nil {
 		return nil
 	}
 	this.mu.RLock()
-	h := this.match(r.Info.ServiceName, r.Info.ServicePath)
+	h := this.match(r.ServiceName, r.ServicePath)
 	this.mu.RUnlock()
-	if h == nil && this.next != nil {
+	if h != nil {
+		return h
+	}
+	if this.next != nil {
 		return this.next.handler(r)
 	}
 	return nil
@@ -114,20 +117,21 @@ func (this *ServiceMux) InvokeRequest(ctx context.Context, req *corepb.Request) 
 		return h.si.InvokeRequest(ctx, req)
 	}
 	if h.sc != nil {
-		creq := &corepb.ChannelRequest{Request: req}
+		creq := &corepb.ChannelRequest{}
+		creq.Request = *req
 		r, err := DoSendRequest(h.sc, ctx, creq)
 		if err != nil {
 			return nil, err
 		}
 		if r != nil {
-			return r.Response, nil
+			return &r.Response, nil
 		}
 	}
 	return nil, nil
 }
 
 func (this *ServiceMux) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	h := this.handler(creq.Request)
+	h := this.handler(&creq.Request)
 	if h == nil {
 		return nil, ErrNotFound
 	}
@@ -138,14 +142,14 @@ func (this *ServiceMux) SendRequest(ctx context.Context, creq *corepb.ChannelReq
 		return h.sc.SendRequest(ctx, creq)
 	}
 	if h.si != nil {
-		resp, err := h.si.InvokeRequest(ctx, creq.Request)
+		resp, err := h.si.InvokeRequest(ctx, &creq.Request)
 		if err != nil {
 			return nil, err
 		}
 		r := make(chan *corepb.ChannelResponse, 1)
-		r <- &corepb.ChannelResponse{
-			Response: resp,
-		}
+		re := &corepb.ChannelResponse{}
+		re.Response = *resp
+		r <- re
 		return r, nil
 	}
 	return nil, nil

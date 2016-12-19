@@ -63,4 +63,21 @@ func (this *CounterInvoker) AddValue(ctx context.Context, key string, val uint64
 	return rinfo.Value, nil
 }
 
+func (this *CounterInvoker) Sleep(ctx context.Context, mils uint64) error {
+	obj := &CounterInfo{Name: "sleep", Value: mils}
+	data := pbutil.MustMarshal(obj)
+	req := corepb.NewQueryRequest(SERVICE_NAME, SP_GET, data)
+	resp, err := this.si.InvokeRequest(ctx, req)
+	err = corepb.HandleError(resp, err)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *CounterInvoker) RaiseError(ctx context.Context, err string) error {
+	_, err0 := this.GetValue(ctx, "error:"+err)
+	return err0
+}
+
 // END: 业务
