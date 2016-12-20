@@ -22,15 +22,14 @@ import (
 
 type muxHandler struct {
 	si ServiceInvoker
-	sc ServiceChannel
 }
 
 func (this *muxHandler) NotEmpty() bool {
-	return this.si != nil || this.sc != nil
+	return this.si != nil
 }
 
 func (this *muxHandler) Empty() bool {
-	return this.si == nil && this.sc == nil
+	return this.si == nil
 }
 
 type muxEntry struct {
@@ -56,7 +55,6 @@ func NewServiceMux() *ServiceMux {
 
 func (this *ServiceMux) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceChannel(this)
 }
 
 func (this *ServiceMux) SetNext(mux *ServiceMux) {
@@ -105,32 +103,7 @@ func (this *ServiceMux) handler(r *corepb.Request) *muxHandler {
 	return nil
 }
 
-func (this *ServiceMux) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
-	h := this.handler(req)
-	if h == nil {
-		return nil, ErrNotFound
-	}
-	if h.Empty() {
-		return nil, ErrNotFound
-	}
-	if h.si != nil {
-		return h.si.InvokeRequest(ctx, req)
-	}
-	if h.sc != nil {
-		creq := &corepb.ChannelRequest{}
-		creq.Request = *req
-		r, err := DoSendRequest(h.sc, ctx, creq)
-		if err != nil {
-			return nil, err
-		}
-		if r != nil {
-			return &r.Response, nil
-		}
-	}
-	return nil, nil
-}
-
-func (this *ServiceMux) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
+func (this *ServiceMux) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	h := this.handler(&creq.Request)
 	if h == nil {
 		return nil, ErrNotFound
@@ -138,29 +111,14 @@ func (this *ServiceMux) SendRequest(ctx context.Context, creq *corepb.ChannelReq
 	if h.Empty() {
 		return nil, ErrNotFound
 	}
-	if h.sc != nil {
-		return h.sc.SendRequest(ctx, creq)
-	}
 	if h.si != nil {
-		resp, err := h.si.InvokeRequest(ctx, &creq.Request)
-		if err != nil {
-			return nil, err
-		}
-		r := make(chan *corepb.ChannelResponse, 1)
-		re := &corepb.ChannelResponse{}
-		re.Response = *resp
-		r <- re
-		return r, nil
+		return h.si.InvokeRequest(ctx, creq)
 	}
 	return nil, nil
 }
 
 func (this *ServiceMux) AddInvoker(s string, si ServiceInvoker) bool {
 	return this.execAdd(s, muxHandler{si: si})
-}
-
-func (this *ServiceMux) AddChannel(s string, sc ServiceChannel) bool {
-	return this.execAdd(s, muxHandler{sc: sc})
 }
 
 func (this *ServiceMux) execAdd(s string, h muxHandler) bool {
@@ -178,10 +136,6 @@ func (this *ServiceMux) execAdd(s string, h muxHandler) bool {
 
 func (this *ServiceMux) HandleInvoker(s, p string, si ServiceInvoker) bool {
 	return this.execHandle(s, p, muxHandler{si: si})
-}
-
-func (this *ServiceMux) HandleChannel(s, p string, sc ServiceChannel) bool {
-	return this.execHandle(s, p, muxHandler{sc: sc})
 }
 
 func (this *ServiceMux) execHandle(s, p string, h muxHandler) bool {

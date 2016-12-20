@@ -36,7 +36,6 @@ func (this *DefaultConverter) BuildRequest(hreq *http.Request) (*corepb.ChannelR
 	}
 	r := &corepb.ChannelRequest{}
 	err = r.Unmarshal(b)
-	plog.Infof("XXX %v - %v - %v", b, r, err)
 	if err != nil {
 		return nil, err
 	}

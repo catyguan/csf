@@ -79,6 +79,14 @@ type ChannelResponse struct {
 	Header []*PBHeader
 }
 
+func MakeChannelResponse(o *Response) *ChannelResponse {
+	r := &ChannelResponse{}
+	if o != nil {
+		r.Response = *o
+	}
+	return r
+}
+
 func (m *ChannelResponse) ToCPB(pb *PBChannelResponse) {
 	pb.Response = &PBResponse{}
 	m.Response.ToPB(pb.Response)

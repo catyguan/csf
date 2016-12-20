@@ -28,10 +28,10 @@ type LockerServiceInvoker struct {
 
 func (this *LockerServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceChannel(this)
 }
 
-func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -44,41 +44,12 @@ func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, req *corepb
 	}
 	l.Lock()
 	defer l.Unlock()
-	return this.cs.ApplyRequest(ctx, req)
-}
-
-func (this *LockerServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	r := make(chan *corepb.ChannelResponse, 1)
-	if this.AsyncChannelSend {
-		go func() {
-			err := this.doSendRequest(ctx, creq, r)
-			if err != nil {
-				resp := MakeErrorResponse(nil, err)
-				re := &corepb.ChannelResponse{}
-				re.Response = *resp
-				r <- re
-			}
-		}()
-		return r, nil
-	} else {
-		err := this.doSendRequest(ctx, creq, r)
-		if err != nil {
-			return nil, err
-		}
-		return r, nil
+	resp, err2 := this.cs.ApplyRequest(ctx, req)
+	err2 = corepb.HandleError(resp, err2)
+	if err2 != nil {
+		return nil, err2
 	}
-}
-
-func (this *LockerServiceInvoker) doSendRequest(ctx context.Context, creq *corepb.ChannelRequest, r chan *corepb.ChannelResponse) error {
-	resp, err := this.InvokeRequest(ctx, &creq.Request)
-	err = corepb.HandleError(resp, err)
-	if err != nil {
-		return err
-	}
-	re := &corepb.ChannelResponse{}
-	re.Response = *resp
-	r <- re
-	return nil
+	return corepb.MakeChannelResponse(resp), nil
 }
 
 func NewLockerServiceInvoker(cs CoreService, l *sync.RWMutex) *LockerServiceInvoker {

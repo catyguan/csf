@@ -28,7 +28,7 @@ import (
 
 func testClient() (*HttpServiceInvoker, error) {
 	cfg := &Config{}
-	cfg.URL = "http://localhost:8086/counter"
+	cfg.URL = "http://localhost:8086/service"
 	cfg.ExcecuteTimeout = 10 * time.Second
 	si, err := NewHttpServiceInvoker(cfg, nil)
 	return si, err

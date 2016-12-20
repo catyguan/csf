@@ -21,7 +21,7 @@ import (
 )
 
 type ServiceInvoker interface {
-	InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error)
+	InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error)
 }
 
 type CoreService interface {
@@ -39,10 +39,6 @@ type CoreService interface {
 	ApplySnapshot(ctx context.Context, r io.Reader) error
 }
 
-type ServiceChannel interface {
-	SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error)
-}
-
 type ServiceChannelHandler interface {
-	SendRequest(ctx context.Context, nextChannel ServiceChannel, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error)
+	HandleRequest(ctx context.Context, si ServiceInvoker, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error)
 }

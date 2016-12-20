@@ -16,7 +16,6 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/pkg/capnslog"
@@ -30,24 +29,20 @@ var (
 	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "core")
 )
 
-func DoSendRequest(sc ServiceChannel, ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
-	ch, err := sc.SendRequest(ctx, creq)
+func Invoke(si ServiceInvoker, ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+	creq := &corepb.ChannelRequest{}
+	creq.Request = *req
+	cresp, err := si.InvokeRequest(ctx, creq)
+	err = corepb.HandleChannelError(cresp, err)
 	if err != nil {
 		return nil, err
 	}
-	select {
-	case resp := <-ch:
-		if resp == nil {
-			return nil, fmt.Errorf("service channel closed")
-		}
-		return resp, nil
-	case <-ctx.Done():
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		// TODO
-		return nil, nil
+	if cresp != nil {
+		return &cresp.Response, nil
 	}
+	resp := &corepb.Response{}
+	resp.Bind(req)
+	return resp, nil
 }
 
 func MakeErrorResponse(r *corepb.Response, err error) *corepb.Response {

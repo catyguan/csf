@@ -39,7 +39,7 @@ func main1() {
 	mux.AddInvoker(counter.SERVICE_NAME, si)
 
 	port := httpport.NewPort(pcfg)
-	err0 := port.Start("/counter", mux, nil)
+	err0 := port.Start("/service", mux, nil)
 	if err0 != nil {
 		fmt.Printf("start fail - %v", err0)
 		return

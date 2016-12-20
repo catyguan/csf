@@ -61,12 +61,9 @@ func NewHttpServiceInvoker(cfg *Config, c Converter) (*HttpServiceInvoker, error
 
 func (this *HttpServiceInvoker) impl() {
 	_ = core.ServiceInvoker(this)
-	_ = core.ServiceChannel(this)
 }
 
-func (this *HttpServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
-	creq := &corepb.ChannelRequest{}
-	creq.Request = *req
+func (this *HttpServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	hreq, err := this.converter.BuildRequest(this.cfg.URL, creq)
 	if err != nil {
 		return nil, err
@@ -82,32 +79,5 @@ func (this *HttpServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.R
 	if err2 != nil {
 		return nil, err2
 	}
-	return &r.Response, nil
-}
-
-func (this *HttpServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	hreq, err := this.converter.BuildRequest(this.cfg.URL, creq)
-	if err != nil {
-		return nil, err
-	}
-
-	rch := make(chan *corepb.ChannelResponse, 1)
-	nctx, _ := context.WithTimeout(ctx, this.cfg.ExcecuteTimeout)
-	hreq.WithContext(nctx)
-	go func() {
-		hresp, err1 := this.cl.Do(hreq)
-		if err1 != nil {
-			resp := &corepb.ChannelResponse{}
-			resp.Response = *core.MakeErrorResponse(nil, err1)
-			rch <- resp
-			return
-		}
-		r, err2 := this.converter.HandleResponse(hresp)
-		if err2 != nil {
-			r := &corepb.ChannelResponse{}
-			r.Response = *core.MakeErrorResponse(nil, err2)
-		}
-		rch <- r
-	}()
-	return rch, nil
+	return r, nil
 }

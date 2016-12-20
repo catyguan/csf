@@ -49,7 +49,6 @@ func NewSingeThreadServiceInvoker(cs CoreService, queueSize int) *SingeThreadSer
 
 func (this *SingeThreadServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceChannel(this)
 }
 
 func (this *SingeThreadServiceInvoker) doRun(ready chan interface{}, closef chan interface{}) {
@@ -79,7 +78,8 @@ func (this *SingeThreadServiceInvoker) doRun(ready chan interface{}, closef chan
 	}
 }
 
-func (this *SingeThreadServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+func (this *SingeThreadServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -95,26 +95,11 @@ func (this *SingeThreadServiceInvoker) InvokeRequest(ctx context.Context, req *c
 	}
 	this.actions <- a
 	re := <-c
-	return re, nil
-}
-
-func (this *SingeThreadServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	req := &creq.Request
-	_, err := this.cs.VerifyRequest(ctx, req)
-	if err != nil {
-		return nil, err
+	err2 := corepb.HandleError(re, nil)
+	if err2 != nil {
+		return nil, err2
 	}
-	c := make(chan *corepb.ChannelResponse, 1)
-	a := &actionOfSTI{
-		ctx:  ctx,
-		req:  req,
-		rch2: c,
-	}
-	if this.IsClosed() {
-		return nil, ErrClosed
-	}
-	this.actions <- a
-	return c, nil
+	return corepb.MakeChannelResponse(re), nil
 }
 
 func (this *SingeThreadServiceInvoker) IsClosed() bool {

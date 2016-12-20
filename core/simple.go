@@ -26,49 +26,20 @@ type SimpleServiceInvoker struct {
 
 func (this *SimpleServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceChannel(this)
 }
 
-func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return this.cs.ApplyRequest(ctx, req)
-}
-
-func (this *SimpleServiceInvoker) SendRequest(ctx context.Context, creq *corepb.ChannelRequest) (<-chan *corepb.ChannelResponse, error) {
-	r := make(chan *corepb.ChannelResponse, 1)
-	if this.AsyncChannelSend {
-		go func() {
-			err := this.doSendRequest(ctx, creq, r)
-			if err != nil {
-				resp := MakeErrorResponse(nil, err)
-				re := &corepb.ChannelResponse{}
-				re.Response = *resp
-				r <- re
-			}
-		}()
-		return r, nil
-	} else {
-		err := this.doSendRequest(ctx, creq, r)
-		if err != nil {
-			return nil, err
-		}
-		return r, nil
+	resp, err2 := this.cs.ApplyRequest(ctx, req)
+	err2 = corepb.HandleError(resp, err)
+	if err2 != nil {
+		return nil, err2
 	}
-}
-
-func (this *SimpleServiceInvoker) doSendRequest(ctx context.Context, creq *corepb.ChannelRequest, r chan *corepb.ChannelResponse) error {
-	resp, err := this.InvokeRequest(ctx, &creq.Request)
-	err = corepb.HandleError(resp, err)
-	if err != nil {
-		return err
-	}
-	re := &corepb.ChannelResponse{}
-	re.Response = *resp
-	r <- re
-	return nil
+	return corepb.MakeChannelResponse(resp), nil
 }
 
 func NewSimpleServiceInvoker(cs CoreService) *SimpleServiceInvoker {

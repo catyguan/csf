@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/catyguan/csf/core"
-	"github.com/catyguan/csf/core/corepb"
 )
 
 type Handler struct {
@@ -37,34 +36,18 @@ func (this *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	ctx := context.Background()
 	ctx, _ = context.WithTimeout(ctx, this.execTimeout)
-	respc, err2 := this.mux.SendRequest(ctx, cr)
+	cresp, err2 := this.mux.InvokeRequest(ctx, cr)
 	if err2 != nil {
 		http.Error(w, err2.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if respc == nil {
-		tmpc := make(chan *corepb.ChannelResponse, 1)
-		tmpc <- new(corepb.ChannelResponse)
-		respc = tmpc
+	if cresp != nil {
+		cresp.Bind(&cr.Request)
 	}
-
-	select {
-	case resp := <-respc:
-		if resp != nil {
-			resp.Bind(&cr.Request)
-		}
-		err3 := this.converter.WriteResponse(w, resp)
-		if err3 != nil {
-			http.Error(w, err3.Error(), http.StatusInternalServerError)
-			return
-		}
-	case <-ctx.Done():
-		if ctx.Err() == context.DeadlineExceeded {
-			http.Error(w, "timeout", http.StatusGatewayTimeout)
-			return
-		}
-		http.Error(w, "cancel", http.StatusInternalServerError)
+	err3 := this.converter.WriteResponse(w, cresp)
+	if err3 != nil {
+		http.Error(w, err3.Error(), http.StatusInternalServerError)
 		return
 	}
 }

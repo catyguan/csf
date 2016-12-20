@@ -39,7 +39,7 @@ func (this *CounterInvoker) GetValue(ctx context.Context, key string) (uint64, e
 	obj := &CounterInfo{Name: key}
 	data := pbutil.MustMarshal(obj)
 	req := corepb.NewQueryRequest(SERVICE_NAME, SP_GET, data)
-	resp, err := this.si.InvokeRequest(ctx, req)
+	resp, err := core.Invoke(this.si, ctx, req)
 	err = corepb.HandleError(resp, err)
 	if err != nil {
 		return 0, err
@@ -53,7 +53,7 @@ func (this *CounterInvoker) AddValue(ctx context.Context, key string, val uint64
 	obj := &CounterInfo{Name: key, Value: val}
 	data := pbutil.MustMarshal(obj)
 	req := corepb.NewExecuteRequest(SERVICE_NAME, SP_ADD, data)
-	resp, err := this.si.InvokeRequest(ctx, req)
+	resp, err := core.Invoke(this.si, ctx, req)
 	err = corepb.HandleError(resp, err)
 	if err != nil {
 		return 0, err
@@ -67,7 +67,7 @@ func (this *CounterInvoker) Sleep(ctx context.Context, mils uint64) error {
 	obj := &CounterInfo{Name: "sleep", Value: mils}
 	data := pbutil.MustMarshal(obj)
 	req := corepb.NewQueryRequest(SERVICE_NAME, SP_GET, data)
-	resp, err := this.si.InvokeRequest(ctx, req)
+	resp, err := core.Invoke(this.si, ctx, req)
 	err = corepb.HandleError(resp, err)
 	if err != nil {
 		return err

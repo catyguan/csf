@@ -52,23 +52,9 @@ var debugResponse = &corepb.Response{}
 func TestSimple(t *testing.T) {
 	ds := newDebugService(debugResponse, nil)
 	si := NewSimpleServiceInvoker(ds)
-	r, err := si.InvokeRequest(context.Background(), corepb.NewQueryRequest("tservice", "tpath", []byte("hello world")))
+	r, err := Invoke(si, context.Background(), corepb.NewQueryRequest("tservice", "tpath", []byte("hello world")))
 	assert.NoError(t, err)
 	assert.Equal(t, r, debugResponse)
-}
-
-func TestAsyncChannelSend(t *testing.T) {
-	ds := newDebugService(debugResponse, nil)
-	ds.wt = 1000
-	si := NewLockerServiceInvoker(ds, nil)
-	si.AsyncChannelSend = true
-	req := corepb.NewQueryRequest("tservice", "tpath", []byte("hello world"))
-	r, err := si.SendRequest(context.Background(), &corepb.ChannelRequest{Request: req})
-	plog.Infof("wait")
-	resp := <-r
-	plog.Infof("done")
-	assert.NoError(t, err)
-	assert.Equal(t, resp.Response, debugResponse)
 }
 
 func TestLocker(t *testing.T) {
@@ -83,8 +69,8 @@ func TestLocker(t *testing.T) {
 		ctx := context.Background()
 		req := corepb.NewQueryRequest("tservice", "tpath", []byte("query"))
 		for i := 0; i < 10; i++ {
-			req.Info.ID = uint64(i + 1)
-			r, err := si.InvokeRequest(ctx, req)
+			req.ID = uint64(i + 1)
+			r, err := Invoke(si, ctx, req)
 			assert.NoError(t, err)
 			assert.Equal(t, r, debugResponse)
 		}
@@ -94,8 +80,8 @@ func TestLocker(t *testing.T) {
 		ctx := context.Background()
 		req := corepb.NewExecuteRequest("tservice", "tpath", []byte("execute"))
 		for i := 0; i < 10; i++ {
-			req.Info.ID = uint64(i + 1)
-			r, err := si.InvokeRequest(ctx, req)
+			req.ID = uint64(i + 1)
+			r, err := Invoke(si, ctx, req)
 			assert.NoError(t, err)
 			assert.Equal(t, r, debugResponse)
 		}
@@ -119,8 +105,8 @@ func TestSingleTbhread(t *testing.T) {
 		ctx := context.Background()
 		req := corepb.NewQueryRequest("tservice", "tpath", []byte("query"))
 		for i := 0; i < 10; i++ {
-			req.Info.ID = uint64(i + 1)
-			r, err := si.InvokeRequest(ctx, req)
+			req.ID = uint64(i + 1)
+			r, err := Invoke(si, ctx, req)
 			assert.NoError(t, err)
 			assert.Equal(t, r, debugResponse)
 		}
@@ -130,8 +116,8 @@ func TestSingleTbhread(t *testing.T) {
 		ctx := context.Background()
 		req := corepb.NewExecuteRequest("tservice", "tpath", []byte("execute"))
 		for i := 0; i < 11; i++ {
-			req.Info.ID = uint64(i + 1)
-			r, err := si.InvokeRequest(ctx, req)
+			req.ID = uint64(i + 1)
+			r, err := Invoke(si, ctx, req)
 			assert.NoError(t, err)
 			assert.Equal(t, r, debugResponse)
 		}
@@ -140,19 +126,4 @@ func TestSingleTbhread(t *testing.T) {
 	go f2()
 
 	wg.Wait()
-}
-
-func TestContextTimeout(t *testing.T) {
-	ds := newDebugService(debugResponse, nil)
-	ds.wt = 2000
-	si := NewSingeThreadServiceInvoker(ds, 100)
-	defer si.Close()
-
-	ctx := context.Background()
-	ctx2, _ := context.WithTimeout(ctx, 1*time.Second)
-	req := corepb.NewQueryRequest("tservice", "tpath", []byte("query"))
-	r, err := DoSendRequest(si, ctx2, &corepb.ChannelRequest{Request: req})
-	assert.Error(t, err)
-	plog.Infof("timeout - %v", err)
-	assert.Nil(t, r)
 }
