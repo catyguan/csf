@@ -35,8 +35,14 @@ func (this *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := context.Background()
-	ctx, _ = context.WithTimeout(ctx, this.execTimeout)
-	cresp, err2 := this.mux.InvokeRequest(ctx, cr)
+	nctx, cancel := context.WithTimeout(ctx, this.execTimeout)
+	dl, _ := nctx.Deadline()
+	tm := time.AfterFunc(dl.Sub(time.Now()), func() {
+		cancel()
+		plog.Warningf("execute timeout")
+	})
+	cresp, err2 := this.mux.InvokeRequest(nctx, cr)
+	tm.Stop()
 	if err2 != nil {
 		http.Error(w, err2.Error(), http.StatusInternalServerError)
 		return

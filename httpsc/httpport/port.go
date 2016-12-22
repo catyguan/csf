@@ -64,10 +64,14 @@ func NewPort(cfg *Config) *Port {
 	return r
 }
 
+func (this *Port) BuildHttpMux(m *http.ServeMux, p string, sm *core.ServiceMux, c Converter) {
+	h := NewHandler(sm, c, this.cfg.ExcecuteTimeout)
+	m.Handle(p, h)
+}
+
 func (this *Port) Start(pattern string, mux *core.ServiceMux, c Converter) error {
-	h := NewHandler(mux, c, this.cfg.ExcecuteTimeout)
 	hmux := http.NewServeMux()
-	hmux.Handle(pattern, h)
+	this.BuildHttpMux(hmux, pattern, mux, c)
 	return this.StartServe(hmux)
 }
 

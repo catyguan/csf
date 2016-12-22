@@ -1,0 +1,23 @@
+syntax = "proto3";
+package masterslave;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+message PBRequestFollow {
+  uint64 sessionId = 2;
+}
+
+message PBLastSnapshot {
+  uint64 index = 1;
+  bytes  data = 2;
+}
+
+message PBResponseFollow {
+  uint64 sessionId = 1;
+  PBLastSnapshot snapshot = 2;
+  repeated bytes requests = 3;
+}

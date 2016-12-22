@@ -21,13 +21,13 @@ import (
 )
 
 type LockerServiceInvoker struct {
-	l                *sync.RWMutex
-	cs               CoreService
-	AsyncChannelSend bool
+	l  *sync.RWMutex
+	cs CoreService
 }
 
 func (this *LockerServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
+	_ = ServiceContainer(this)
 }
 
 func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
@@ -50,6 +50,12 @@ func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, creq *corep
 		return nil, err2
 	}
 	return corepb.MakeChannelResponse(resp), nil
+}
+
+func (this *LockerServiceInvoker) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+	this.l.Lock()
+	defer this.l.Unlock()
+	return sfunc(ctx, this.cs)
 }
 
 func NewLockerServiceInvoker(cs CoreService, l *sync.RWMutex) *LockerServiceInvoker {

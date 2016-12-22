@@ -16,12 +16,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/catyguan/csf/core"
+	"github.com/catyguan/csf/httpsc/http4si"
 	"github.com/catyguan/csf/httpsc/httpport"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/service/counter"
@@ -30,12 +32,20 @@ import (
 	"github.com/catyguan/csf/storage4si/masterslave"
 )
 
-func main1() {
+func main2() {
+
+	var sport, mport int
+	flag.IntVar(&sport, "p", 8087, "service port")
+	flag.IntVar(&mport, "m", 8086, "main port")
+	flag.Parse()
 
 	storageSize := 32
 	ms := storage4si.NewMemoryStorage(storageSize)
 	smux := core.NewServiceMux()
 	pmux := core.NewServiceMux()
+	amux := core.NewServiceMux()
+
+	var ssi *storage4si.StorageServiceInvoker
 
 	if true {
 
@@ -51,11 +61,42 @@ func main1() {
 			return
 		}
 		defer si.Close()
+		ssi = si
 
 		sc := core.NewServiceChannel()
 		sc.Next(schlog.NewLogger("TCSERVER")).Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
+	}
+
+	if true {
+
+		cfg := &http4si.Config{}
+		cfg.URL = fmt.Sprintf("http://localhost:%d/peer", mport)
+		cfg.ExcecuteTimeout = 30 * time.Second
+		si, err := http4si.NewHttpServiceInvoker(cfg, nil)
+		if err != nil {
+			fmt.Printf("init err - %v", err)
+			return
+		}
+
+		cfg2 := masterslave.NewSlaveConfig()
+		cfg2.Apply = masterslave.NewSlaveStorageInvokerApply(ssi)
+		cfg2.Master = masterslave.NewMasterAPI(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), si)
+		service := masterslave.NewSlaveService(cfg2)
+		err = service.Run()
+		if err != nil {
+			fmt.Printf("start slave fail - %v", err)
+			return
+		}
+		defer service.Close()
+
+		si2 := core.NewSimpleServiceInvoker(service)
+
+		sc := core.NewServiceChannel()
+		sc.Next(schlog.NewLogger("SLAVE")).Sink(si2)
+
+		pmux.AddInvoker(masterslave.DefaultSlaveServiceName(counter.SERVICE_NAME), sc)
 	}
 
 	if true {
@@ -65,7 +106,7 @@ func main1() {
 		si := core.NewSimpleServiceInvoker(service)
 
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("MASTER")).Sink(si)
+		sc.Sink(si)
 
 		pmux.AddInvoker(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), sc)
 	}
@@ -73,12 +114,13 @@ func main1() {
 	hmux := http.NewServeMux()
 
 	pcfg := &httpport.Config{}
-	pcfg.Addr = ":8086"
+	pcfg.Addr = fmt.Sprintf(":%d", sport)
 	pcfg.Host = ""
 
 	port := httpport.NewPort(pcfg)
 	port.BuildHttpMux(hmux, "/service", smux, nil)
 	port.BuildHttpMux(hmux, "/peer", pmux, nil)
+	port.BuildHttpMux(hmux, "/admin", amux, nil)
 
 	err0 := port.StartServe(hmux)
 	if err0 != nil {

@@ -44,7 +44,7 @@ func NewMessageRequest(serviceName, servicePath string, data []byte) *Request {
 
 func (m *Request) String() string {
 	s := m.PBRequestInfo.String()
-	s = fmt.Sprintf("%s, Data = %v", s, len(m.Data))
+	s = fmt.Sprintf("%s Data:%v", s, len(m.Data))
 	return s
 }
 
@@ -111,7 +111,7 @@ type ChannelRequest struct {
 
 func (m *ChannelRequest) String() string {
 	s := m.PBRequestInfo.String()
-	s = fmt.Sprintf("%s, Data=%v, Header=%v", s, len(m.Data), m.Header)
+	s = fmt.Sprintf("%s Data:%v Header:%v", s, len(m.Data), m.Header)
 	return s
 }
 

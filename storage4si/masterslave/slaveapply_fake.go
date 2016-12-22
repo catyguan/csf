@@ -1,4 +1,4 @@
-// Copyright 2015 The CSF Authors
+// Copyright 2016 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,16 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package storage4si
 
-import (
-	"errors"
+package masterslave
 
-	"github.com/catyguan/csf/pkg/capnslog"
-)
+import "github.com/catyguan/csf/core/corepb"
 
-var (
-	ErrConflict = errors.New("conflict")
+type fakeSlaveApply struct {
+}
 
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal4si")
-)
+func (this *fakeSlaveApply) ApplySnapshot(idx uint64, data []byte) error {
+	return nil
+}
+
+func (this *fakeSlaveApply) ApplyRequests(reqlist []*corepb.Request) error {
+	return nil
+}

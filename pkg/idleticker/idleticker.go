@@ -25,6 +25,7 @@ type Ticker struct {
 	atime  time.Time
 	du     time.Duration
 	closec chan interface{}
+	f      func()
 	mu     sync.Mutex
 }
 
@@ -47,6 +48,10 @@ func NewTicker(d time.Duration) *Ticker {
 	return t
 }
 
+func (this *Ticker) OnIdle(f func()) {
+	this.f = f
+}
+
 func (this *Ticker) run(c chan time.Time) {
 	this.mu.Lock()
 	this.atime = time.Now()
@@ -57,6 +62,9 @@ func (this *Ticker) run(c chan time.Time) {
 		d := n.Sub(this.atime)
 		this.mu.Unlock()
 		if d >= this.du {
+			if this.f != nil {
+				this.f()
+			}
 			select {
 			case c <- n:
 			default:

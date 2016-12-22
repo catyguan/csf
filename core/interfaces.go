@@ -24,6 +24,12 @@ type ServiceInvoker interface {
 	InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error)
 }
 
+type ServiceFunc func(ctx context.Context, cs CoreService) error
+
+type ServiceContainer interface {
+	ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error
+}
+
 type CoreService interface {
 	// 检验请求数据是否正确（可Apply）
 	// 返回 bool - 该请求需要保存; error - 错误

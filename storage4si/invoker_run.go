@@ -18,32 +18,27 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"sync/atomic"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/pkg/runobj"
 )
 
-func (this *StorageServiceInvoker) doRun(ready chan error, closef chan interface{}) {
-	defer func() {
-		close(closef)
-	}()
+func (this *StorageServiceInvoker) doRun(ready chan error, ach <-chan *runobj.ActionRequest, p interface{}) {
 	errRC := this.doRecover()
 	if errRC != nil {
-		atomic.StoreUint64(&this.closed, 2)
 		ready <- errRC
 		return
-	} else {
-		close(ready)
 	}
+	close(ready)
 	for {
 		select {
-		case a := <-this.actions:
+		case a := <-ach:
 			if a == nil {
 				return
 			}
 			r, err := this.doAction(a)
-			if a.resp != nil {
-				a.resp <- responseOfSSI{result: r, err: err}
+			if a.Resp != nil {
+				a.Resp <- &runobj.ActionResponse{R1: r, Err: err}
 			}
 		}
 	}
@@ -74,11 +69,15 @@ func (this *StorageServiceInvoker) doRecover() error {
 		return err
 	}
 	this.lastIndex = idx
+	cc, errB := this.storage.BeginLoad(idx + 1)
+	if errB != nil {
+		plog.Warningf("storage begin load (%v) fail - %v", idx+1, errB)
+		return errB
+	}
 	for {
-		idx++
-		last, reqs, err2 := this.storage.LoadRequest(idx, 128)
+		last, reqs, err2 := this.storage.LoadRequest(cc, 128, nil)
 		if err2 != nil {
-			plog.Infof("storage load request(%v) fail - %v", idx, err2)
+			plog.Warningf("storage load request(%v) fail - %v", cc, err2)
 			return err2
 		}
 		if reqs == nil {
@@ -87,34 +86,58 @@ func (this *StorageServiceInvoker) doRecover() error {
 		for _, req := range reqs {
 			_, err2 = this.cs.ApplyRequest(ctx, req)
 			if err2 != nil {
-				plog.Infof("service recover apply request fail - %v", err2)
+				plog.Warningf("service recover apply request fail - %v", err2)
 			}
 		}
 		this.lastIndex = last
-		idx = last
 	}
 	return nil
 }
 
-func (this *StorageServiceInvoker) doAction(a *actionOfSSI) (interface{}, error) {
-	switch a.typ {
+func (this *StorageServiceInvoker) doAction(a *runobj.ActionRequest) (interface{}, error) {
+	switch a.Type {
 	case 1:
 		return this.doRequest(a)
 	case 2:
 		// snap
 		return this.doSnapshot(context.Background())
+	case 3:
+		ctx := a.P1.(context.Context)
+		rlist := a.P2.([]*corepb.Request)
+		for _, req := range rlist {
+			s, err := this.cs.VerifyRequest(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			resp, err1 := this.doApplyRequest(ctx, req, s)
+			err1 = corepb.HandleError(resp, err1)
+			if err1 != nil {
+				return nil, err1
+			}
+		}
+		return nil, nil
+	case 4:
+		ctx := a.P1.(context.Context)
+		idx := a.P2.(uint64)
+		data := a.P3.([]byte)
+		return nil, this.doApplySnapshot(ctx, idx, data)
 	default:
-		return nil, fmt.Errorf("unknow action type(%v)", a.typ)
+		return nil, fmt.Errorf("unknow action type(%v)", a.Type)
 	}
 }
 
-func (this *StorageServiceInvoker) doRequest(a *actionOfSSI) (*corepb.Response, error) {
-	ctx := a.p1.(context.Context)
-	req := a.p2.(*corepb.Request)
-	s := a.p3.(bool)
+func (this *StorageServiceInvoker) doRequest(a *runobj.ActionRequest) (*corepb.Response, error) {
+	ctx := a.P1.(context.Context)
+	req := a.P2.(*corepb.Request)
+	s := a.P3.(bool)
+	return this.doApplyRequest(ctx, req, s)
+
+}
+
+func (this *StorageServiceInvoker) doApplyRequest(ctx context.Context, req *corepb.Request, save bool) (*corepb.Response, error) {
 	li := this.lastIndex
 
-	if s {
+	if save {
 		sidx, err := this.storage.SaveRequest(0, req)
 		if err != nil {
 			return nil, err
@@ -127,8 +150,11 @@ func (this *StorageServiceInvoker) doRequest(a *actionOfSSI) (*corepb.Response, 
 		this.lastIndex = li
 		return nil, err
 	}
+	if resp != nil {
+		resp.ActionIndex = this.lastIndex
+	}
 
-	if s && this.snapCount > 0 {
+	if save && this.snapCount > 0 {
 		if this.lastIndex%uint64(this.snapCount) == 0 {
 			_, err = this.doSnapshot(ctx)
 			if err != nil {
@@ -153,4 +179,18 @@ func (this *StorageServiceInvoker) doSnapshot(ctx context.Context) (uint64, erro
 		return 0, err
 	}
 	return this.lastIndex, nil
+}
+
+func (this *StorageServiceInvoker) doApplySnapshot(ctx context.Context, idx uint64, data []byte) error {
+	rs, ok := this.storage.(Rebuildable)
+	if !ok {
+		return fmt.Errorf("can not ApplySnapshot")
+	}
+	err := rs.ApplySnapshot(idx, data)
+	if err != nil {
+		return err
+	}
+	this.lastIndex = idx
+	r := bytes.NewBuffer(data)
+	return this.cs.ApplySnapshot(ctx, r)
 }

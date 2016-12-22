@@ -13,7 +13,10 @@
 // limitations under the License.
 package corepb
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type Response struct {
 	PBResponseInfo
@@ -77,6 +80,12 @@ func (this *Response) Bind(req *Request) {
 type ChannelResponse struct {
 	Response
 	Header []*PBHeader
+}
+
+func (m *ChannelResponse) String() string {
+	s := m.PBResponseInfo.String()
+	s = fmt.Sprintf("{%s Data:%v Header:%v}", s, len(m.Data), m.Header)
+	return s
 }
 
 func MakeChannelResponse(o *Response) *ChannelResponse {

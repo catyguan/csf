@@ -15,64 +15,58 @@ package core
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/pkg/runobj"
 )
-
-type actionOfSTI struct {
-	ctx  context.Context
-	req  *corepb.Request
-	rch1 chan *corepb.Response
-	rch2 chan *corepb.ChannelResponse
-}
 
 type SingeThreadServiceInvoker struct {
 	cs CoreService
 
-	closed  uint64
-	closech chan interface{}
-	actions chan *actionOfSTI
+	ro *runobj.RunObj
 }
 
 func NewSingeThreadServiceInvoker(cs CoreService, queueSize int) *SingeThreadServiceInvoker {
 	r := &SingeThreadServiceInvoker{
-		cs:      cs,
-		closech: make(chan interface{}, 0),
-		actions: make(chan *actionOfSTI, queueSize),
+		cs: cs,
+		ro: runobj.NewRunObj(queueSize),
 	}
-	rd := make(chan interface{}, 0)
-	go r.doRun(rd, r.closech)
-	<-rd
+	r.ro.Run(r.doRun, nil)
 	return r
 }
 
 func (this *SingeThreadServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
+	_ = ServiceContainer(this)
 }
 
-func (this *SingeThreadServiceInvoker) doRun(ready chan interface{}, closef chan interface{}) {
-	defer func() {
-		close(closef)
-	}()
+func (this *SingeThreadServiceInvoker) doRun(ready chan error, ach <-chan *runobj.ActionRequest, p interface{}) {
 	close(ready)
 	for {
 		select {
-		case a := <-this.actions:
+		case a := <-ach:
 			if a == nil {
 				return
 			}
-			r, err := this.cs.ApplyRequest(a.ctx, a.req)
-			if err != nil {
-				r = MakeErrorResponse(r, err)
-			}
-			if a.rch1 != nil {
-				a.rch1 <- r
-			}
-			if a.rch2 != nil {
-				re := &corepb.ChannelResponse{}
-				re.Response = *r
-				a.rch2 <- re
+
+			switch a.Type {
+			case 1:
+				ctx := a.P1.(context.Context)
+				req := a.P2.(*corepb.Request)
+				r, err := this.cs.ApplyRequest(ctx, req)
+				if a.Resp != nil {
+					if err != nil {
+						r = MakeErrorResponse(r, err)
+					}
+					a.Resp <- &runobj.ActionResponse{R1: r, Err: err}
+				}
+			case 2:
+				ctx := a.P1.(context.Context)
+				sf := a.P2.(ServiceFunc)
+				err := sf(ctx, this.cs)
+				if a.Resp != nil {
+					a.Resp <- &runobj.ActionResponse{Err: err}
+				}
 			}
 		}
 	}
@@ -84,32 +78,43 @@ func (this *SingeThreadServiceInvoker) InvokeRequest(ctx context.Context, creq *
 	if err != nil {
 		return nil, err
 	}
-	c := make(chan *corepb.Response, 1)
-	a := &actionOfSTI{
-		ctx:  ctx,
-		req:  req,
-		rch1: c,
+	a := &runobj.ActionRequest{
+		Type: 1,
+		P1:   ctx,
+		P2:   req,
 	}
-	if this.IsClosed() {
-		return nil, ErrClosed
+	ar, err1 := this.ro.ContextCall(ctx, a)
+	if err1 != nil {
+		return nil, err1
 	}
-	this.actions <- a
-	re := <-c
-	err2 := corepb.HandleError(re, nil)
+	var resp *corepb.Response
+	if ar.R1 != nil {
+		resp = ar.R1.(*corepb.Response)
+	}
+	err2 := corepb.HandleError(resp, ar.Err)
 	if err2 != nil {
 		return nil, err2
 	}
-	return corepb.MakeChannelResponse(re), nil
+	return corepb.MakeChannelResponse(resp), nil
 }
 
 func (this *SingeThreadServiceInvoker) IsClosed() bool {
-	return atomic.LoadUint64(&this.closed) > 0
+	return this.ro.IsClosed()
 }
 
 func (this *SingeThreadServiceInvoker) Close() {
-	if !atomic.CompareAndSwapUint64(&this.closed, 0, 1) {
-		return
+	this.ro.Close()
+}
+
+func (this *SingeThreadServiceInvoker) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+	a := &runobj.ActionRequest{
+		Type: 2,
+		P1:   ctx,
+		P2:   sfunc,
 	}
-	this.actions <- nil
-	<-this.closech
+	ar, err1 := this.ro.ContextCall(ctx, a)
+	if err1 != nil {
+		return err1
+	}
+	return ar.Err
 }

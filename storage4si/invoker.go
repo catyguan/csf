@@ -15,10 +15,10 @@ package storage4si
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/pkg/runobj"
 )
 
 type Config struct {
@@ -42,9 +42,7 @@ type StorageServiceInvoker struct {
 	snapCount int
 	lastIndex uint64
 
-	closed  uint64
-	closech chan interface{}
-	actions chan *actionOfSSI
+	ro *runobj.RunObj
 }
 
 func NewStorageServiceInvoker(cfg *Config) *StorageServiceInvoker {
@@ -52,83 +50,92 @@ func NewStorageServiceInvoker(cfg *Config) *StorageServiceInvoker {
 		cs:        cfg.Service,
 		storage:   cfg.Storage,
 		snapCount: cfg.SnapCount,
-		actions:   make(chan *actionOfSSI, cfg.QueueSize),
+		ro:        runobj.NewRunObj(cfg.QueueSize),
 	}
 	return r
 }
 
+func (this *StorageServiceInvoker) impl() {
+	_ = core.ServiceInvoker(this)
+}
+
 func (this *StorageServiceInvoker) Run() error {
-	rd := make(chan error, 1)
-	this.closech = make(chan interface{}, 0)
-	go this.doRun(rd, this.closech)
-	err := <-rd
-	return err
+	return this.ro.Run(this.doRun, nil)
 }
 
-type actionOfSSI struct {
-	typ  int
-	p1   interface{}
-	p2   interface{}
-	p3   interface{}
-	resp chan responseOfSSI
-}
-
-type responseOfSSI struct {
-	result interface{}
-	err    error
-}
-
-func (this *StorageServiceInvoker) InvokeRequest(ctx context.Context, req *corepb.Request) (*corepb.Response, error) {
+func (this *StorageServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+	req := &creq.Request
 	s, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	c := make(chan responseOfSSI, 1)
-	a := &actionOfSSI{
-		typ:  1,
-		p1:   ctx,
-		p2:   req,
-		p3:   s,
-		resp: c,
+	a := &runobj.ActionRequest{
+		Type: 1,
+		P1:   ctx,
+		P2:   req,
+		P3:   s,
 	}
-	if this.IsClosed() {
-		return nil, ErrClosed
+	ar, err1 := this.ro.ContextCall(ctx, a)
+	if err1 != nil {
+		return nil, err1
 	}
-	this.actions <- a
-	re := <-c
 	var resp *corepb.Response
-	if re.result != nil {
-		resp = re.result.(*corepb.Response)
+	if ar.R1 != nil {
+		resp = ar.R1.(*corepb.Response)
 	}
-	return resp, re.err
+	err = corepb.HandleError(resp, ar.Err)
+	if err != nil {
+		return nil, err
+	}
+	return corepb.MakeChannelResponse(resp), nil
 }
 
 func (this *StorageServiceInvoker) MakeSnapshot() (uint64, error) {
-	c := make(chan responseOfSSI, 1)
-	a := &actionOfSSI{
-		typ:  2,
-		resp: c,
+	a := &runobj.ActionRequest{
+		Type: 2,
 	}
-	if this.IsClosed() {
-		return 0, ErrClosed
+	re, err := this.ro.Call(a)
+	if err != nil {
+		return 0, err
 	}
-	this.actions <- a
-	re := <-c
 	var resp uint64
-	if re.result == nil {
-		resp = re.result.(uint64)
+	if re.R1 != nil {
+		resp = re.R1.(uint64)
 	}
-	return resp, re.err
+	return resp, nil
+}
+
+func (this *StorageServiceInvoker) ApplyRequests(ctx context.Context, rlist []*corepb.Request) error {
+	a := &runobj.ActionRequest{
+		Type: 3,
+		P1:   ctx,
+		P2:   rlist,
+	}
+	ar, err := this.ro.ContextCall(ctx, a)
+	if err != nil {
+		return err
+	}
+	return ar.Err
+}
+
+func (this *StorageServiceInvoker) ApplySnapshot(ctx context.Context, idx uint64, data []byte) error {
+	a := &runobj.ActionRequest{
+		Type: 4,
+		P1:   ctx,
+		P2:   idx,
+		P3:   data,
+	}
+	ar, err := this.ro.ContextCall(ctx, a)
+	if err != nil {
+		return err
+	}
+	return ar.Err
 }
 
 func (this *StorageServiceInvoker) IsClosed() bool {
-	return atomic.LoadUint64(&this.closed) > 0
+	return this.ro.IsClosed()
 }
 
 func (this *StorageServiceInvoker) Close() {
-	if !atomic.CompareAndSwapUint64(&this.closed, 0, 1) {
-		return
-	}
-	this.actions <- nil
-	<-this.closech
+	this.ro.Close()
 }

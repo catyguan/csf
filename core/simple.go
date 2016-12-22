@@ -26,6 +26,7 @@ type SimpleServiceInvoker struct {
 
 func (this *SimpleServiceInvoker) impl() {
 	_ = ServiceInvoker(this)
+	_ = ServiceContainer(this)
 }
 
 func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
@@ -35,11 +36,15 @@ func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, creq *corep
 		return nil, err
 	}
 	resp, err2 := this.cs.ApplyRequest(ctx, req)
-	err2 = corepb.HandleError(resp, err)
+	err2 = corepb.HandleError(resp, err2)
 	if err2 != nil {
 		return nil, err2
 	}
 	return corepb.MakeChannelResponse(resp), nil
+}
+
+func (this *SimpleServiceInvoker) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+	return sfunc(ctx, this.cs)
 }
 
 func NewSimpleServiceInvoker(cs CoreService) *SimpleServiceInvoker {

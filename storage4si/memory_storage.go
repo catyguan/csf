@@ -15,8 +15,10 @@ package storage4si
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"sync"
 
 	"github.com/catyguan/csf/core/corepb"
 )
@@ -32,6 +34,7 @@ type MemoryStorage struct {
 	snapIndex uint64
 	snapData  []byte
 	llist     Listeners
+	mu        sync.Mutex
 }
 
 func NewMemoryStorage(maxSize int) Storage {
@@ -46,7 +49,15 @@ func NewMemoryStorage(maxSize int) Storage {
 	return r
 }
 
+func (this *MemoryStorage) impl() {
+	_ = Storage(this)
+	_ = Rebuildable(this)
+}
+
 func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64, error) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
 	if idx == 0 {
 		idx = this.index + 1
 	}
@@ -56,6 +67,7 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 	if this.size > 0 {
 		// check overwrite idx
 		h, t := this.indexRange()
+		tru := true
 		if idx <= h {
 			this.head = 0
 			this.size = 0
@@ -76,8 +88,12 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 			}
 			this.ents = nt
 			this.head = 0
+		} else {
+			tru = false
 		}
-		this.llist.OnTruncate(idx)
+		if tru {
+			this.llist.OnTruncate(idx)
+		}
 	}
 
 	var e *RequestEntry
@@ -95,9 +111,31 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 	return this.index, nil
 }
 
-func (this *MemoryStorage) LoadRequest(start uint64, size int) (uint64, []*corepb.Request, error) {
-	ok, pos := this.seek(start)
+type cursorOfMemoryStorage struct {
+	start uint64
+}
+
+func (this *cursorOfMemoryStorage) String() string {
+	return fmt.Sprintf("Index:%d", this.start)
+}
+
+func (this *MemoryStorage) BeginLoad(start uint64) (interface{}, error) {
+	if start == 0 {
+		start = 1
+	}
+	return &cursorOfMemoryStorage{start: start}, nil
+}
+
+func (this *MemoryStorage) LoadRequest(c interface{}, size int, lis StorageListener) (uint64, []*corepb.Request, error) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
+	cc := c.(*cursorOfMemoryStorage)
+	ok, pos := this.seek(cc.start)
 	if !ok {
+		if lis != nil {
+			this.doAddListener(lis)
+		}
 		return 0, nil, nil
 	}
 	ll := uint64(0)
@@ -108,30 +146,44 @@ func (this *MemoryStorage) LoadRequest(start uint64, size int) (uint64, []*corep
 			break
 		}
 		e := &this.ents[pos]
-		if e.Index >= start {
+		if e.Index >= cc.start {
 			r = append(r, e.Request)
 			ll = e.Index
 		}
-		pos = this.next(pos, 1)
 		if pos == t {
 			break
 		}
+		pos = this.next(pos, 1)
 	}
 	if len(r) == 0 {
 		r = nil
+		if lis != nil {
+			this.doAddListener(lis)
+		}
 	}
+	cc.start = ll + 1
 	return ll, r, nil
 }
 
+func (this *MemoryStorage) EndLoad(c interface{}) error {
+	return nil
+}
+
 func (this *MemoryStorage) SaveSnapshot(idx uint64, r io.Reader) error {
-	if idx < this.snapIndex {
-		plog.Warningf("skip older snapshot(%v), now(%v)", idx, this.snapIndex)
-		return nil
-	}
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
+	}
+	return this.doSaveSnapshot(idx, data)
+}
+
+func (this *MemoryStorage) doSaveSnapshot(idx uint64, data []byte) error {
+	if idx < this.snapIndex {
+		plog.Warningf("skip older snapshot(%v), now(%v)", idx, this.snapIndex)
+		return nil
 	}
 	this.snapData = data
 	this.snapIndex = idx
@@ -139,20 +191,40 @@ func (this *MemoryStorage) SaveSnapshot(idx uint64, r io.Reader) error {
 	return nil
 }
 
+func (this *MemoryStorage) ApplySnapshot(idx uint64, data []byte) error {
+	this.Reset()
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.doSaveSnapshot(idx, data)
+}
+
 func (this *MemoryStorage) LoadLastSnapshot() (uint64, io.Reader, error) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
 	return this.snapIndex, bytes.NewBuffer(this.snapData), nil
 }
 
 func (this *MemoryStorage) AddListener(lis StorageListener) uint64 {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.doAddListener(lis)
+}
+
+func (this *MemoryStorage) doAddListener(lis StorageListener) uint64 {
 	this.llist.Add(lis)
 	return this.index
 }
 
 func (this *MemoryStorage) RemoveListener(lis StorageListener) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	this.llist.Remove(lis)
 }
 
 func (this *MemoryStorage) Reset() {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	this.size = 0
 	this.head = 0
 	this.index = 0
@@ -243,5 +315,7 @@ func (this *MemoryStorage) seek(idx uint64) (bool, int) {
 }
 
 func (this *MemoryStorage) Count() int {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	return this.size
 }

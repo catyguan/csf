@@ -28,7 +28,7 @@ import (
 
 func testClient() (*HttpServiceInvoker, error) {
 	cfg := &Config{}
-	cfg.URL = "http://localhost:8086/service"
+	cfg.URL = "http://localhost:8090/service"
 	cfg.ExcecuteTimeout = 10 * time.Second
 	si, err := NewHttpServiceInvoker(cfg, nil)
 	return si, err
@@ -47,6 +47,23 @@ func TestBase(t *testing.T) {
 	ctx, _ := context.WithTimeout(octx, 10*time.Second)
 	c := counter.NewCounter(si)
 	v, err2 := c.AddValue(ctx, "test", 1)
+	assert.NoError(t, err2)
+	assert.Equal(t, uint64(1), v)
+}
+
+func TestGet(t *testing.T) {
+	time.AfterFunc(11*time.Second, func() {
+		fmt.Printf("exec timeout")
+		os.Exit(-1)
+	})
+
+	si, err := testClient()
+	assert.NoError(t, err)
+
+	octx := context.Background()
+	ctx, _ := context.WithTimeout(octx, 10*time.Second)
+	c := counter.NewCounter(si)
+	v, err2 := c.GetValue(ctx, "test")
 	assert.NoError(t, err2)
 	assert.Equal(t, uint64(1), v)
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 The CSF Authors
+// Copyright 2016 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,16 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package storage4si
 
-import (
-	"errors"
+package runobj
 
-	"github.com/catyguan/csf/pkg/capnslog"
-)
+import "sync/atomic"
 
-var (
-	ErrConflict = errors.New("conflict")
-
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal4si")
-)
+func (this *RunObj) doRun(ready chan error, rf RunFunc, p interface{}) {
+	defer func() {
+		atomic.StoreUint64(&this.closed, 2)
+		close(this.closef)
+	}()
+	rf(ready, this.actions, p)
+}
