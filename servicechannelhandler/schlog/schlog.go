@@ -39,12 +39,12 @@ func (this *Logger) impl() {
 
 func (this *Logger) HandleRequest(ctx context.Context, si core.ServiceInvoker, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	iid := atomic.AddUint64(&this.iid, 1)
-	this.plog.Infof("[%d] request - %s", iid, creq)
+	this.plog.Infof("[%d] IN  - %s", iid, creq)
 	r, err := si.InvokeRequest(ctx, creq)
 	if err != nil {
-		this.plog.Infof("[%d] error   - %v", iid, err)
+		this.plog.Infof("[%d] ERR - %v", iid, err)
 	} else {
-		this.plog.Infof("[%d] response- %s", iid, r)
+		this.plog.Infof("[%d] OUT - %s", iid, r)
 	}
 	return r, err
 }

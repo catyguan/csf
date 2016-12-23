@@ -16,9 +16,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/catyguan/csf/core"
@@ -28,20 +31,52 @@ import (
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
 	"github.com/catyguan/csf/storage4si"
 	"github.com/catyguan/csf/storage4si/masterslave"
+	"github.com/catyguan/csf/storage4si/walstorage"
 )
 
 func main1() {
 
-	storageSize := 32
-	ms := storage4si.NewMemoryStorage(storageSize)
 	smux := core.NewServiceMux()
 	pmux := core.NewServiceMux()
+	amux := core.NewServiceMux()
+	var ms storage4si.Storage
+	var snapcount int
+	var dir string
+
+	cdir, errDir := os.Getwd()
+	if errDir != nil {
+		fmt.Printf("error - %s", cdir)
+		return
+	}
+
+	flag.IntVar(&snapcount, "sc", 16, "snapcount")
+	flag.StringVar(&dir, "d", filepath.Join(cdir, "wal"), "WAL dir")
+	flag.Parse()
+
+	if false {
+		storageSize := snapcount * 2
+		ms = storage4si.NewMemoryStorage(storageSize)
+	}
 
 	if true {
+		scfg := walstorage.NewConfig()
+		scfg.Dir = dir
+		scfg.BlockRollSize = 16 * 1024
+		scfg.Symbol = "tcserver"
 
+		ws, err := walstorage.NewWALStorage(scfg)
+		if err != nil {
+			fmt.Printf("open WALStorage fail - %v", err)
+			return
+		}
+		defer ws.Close()
+		ms = ws
+	}
+
+	if true {
 		s := counter.NewCounterService()
 		cfg := storage4si.NewConfig()
-		cfg.SnapCount = storageSize / 2
+		cfg.SnapCount = snapcount
 		cfg.Storage = ms
 		cfg.Service = s
 		si := storage4si.NewStorageServiceInvoker(cfg)
@@ -53,7 +88,8 @@ func main1() {
 		defer si.Close()
 
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("TCSERVER")).Sink(si)
+		sc.Next(schlog.NewLogger("TCSERVER"))
+		sc.Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
 	}
@@ -65,7 +101,8 @@ func main1() {
 		si := core.NewSimpleServiceInvoker(service)
 
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("MASTER")).Sink(si)
+		sc.Next(schlog.NewLogger("MASTER"))
+		sc.Sink(si)
 
 		pmux.AddInvoker(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), sc)
 	}
@@ -79,6 +116,7 @@ func main1() {
 	port := httpport.NewPort(pcfg)
 	port.BuildHttpMux(hmux, "/service", smux, nil)
 	port.BuildHttpMux(hmux, "/peer", pmux, nil)
+	port.BuildHttpMux(hmux, "/admin", amux, nil)
 
 	err0 := port.StartServe(hmux)
 	if err0 != nil {

@@ -191,9 +191,14 @@ func (this *masterEP) LastSnapshot(sid uint64) (uint64, []byte, error) {
 	if err1 != nil {
 		return 0, nil, err1
 	}
-	b, err2 := ioutil.ReadAll(r)
-	if err2 != nil {
-		return 0, nil, err2
+	var b []byte
+	if r == nil {
+		b = make([]byte, 0, 0)
+	} else {
+		b, err = ioutil.ReadAll(r)
+		if err != nil {
+			return 0, nil, err
+		}
 	}
 	sa.lastIndex = lidx
 	return lidx, b, nil

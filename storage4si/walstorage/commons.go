@@ -11,10 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package wal4storage
+package walstorage
 
 import "github.com/catyguan/csf/pkg/capnslog"
 
 var (
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal4storage")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "walstorage")
 )

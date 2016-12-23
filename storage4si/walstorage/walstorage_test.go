@@ -1,0 +1,235 @@
+// Copyright 2015 The CSF Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package walstorage
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/catyguan/csf/core"
+	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/service/counter"
+	"github.com/catyguan/csf/storage4si"
+	"github.com/catyguan/csf/storage4si/masterslave"
+	"github.com/catyguan/csf/wal"
+	"github.com/stretchr/testify/assert"
+)
+
+var (
+	testDir = "c:\\tmp"
+)
+
+func doTestCall1(t *testing.T, c counter.Counter) {
+	ctx := context.Background()
+
+	v, err := c.GetValue(ctx, "test")
+	assert.NoError(t, err)
+	assert.True(t, 0 == v)
+	v, err = c.AddValue(ctx, "test", 1)
+	assert.NoError(t, err)
+	assert.True(t, 1 == v)
+	v, err = c.AddValue(ctx, "test", 10)
+	assert.NoError(t, err)
+	assert.True(t, 11 == v)
+	v, err = c.GetValue(ctx, "test")
+	assert.NoError(t, err)
+	assert.True(t, 11 == v)
+}
+
+func TestBase(t *testing.T) {
+	dir := filepath.Join(testDir, "ws1")
+	os.RemoveAll(dir)
+
+	scfg := NewConfig()
+	scfg.Dir = dir
+	scfg.BlockRollSize = 16 * 1024
+	scfg.Symbol = "test"
+
+	ms, err := NewWALStorage(scfg)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer ms.Close()
+
+	cfg := storage4si.NewConfig()
+	cfg.Storage = ms
+	cfg.Service = counter.NewCounterService()
+	si := storage4si.NewStorageServiceInvoker(cfg)
+
+	err = si.Run()
+	assert.NoError(t, err)
+	defer si.Close()
+
+	c := counter.NewCounter(si)
+	doTestCall1(t, c)
+}
+
+func TestRecover(t *testing.T) {
+	dir := filepath.Join(testDir, "ws1")
+
+	scfg := NewConfig()
+	scfg.Dir = dir
+	scfg.BlockRollSize = 16 * 1024
+	scfg.Symbol = "test"
+
+	ms, err := NewWALStorage(scfg)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer ms.Close()
+
+	cfg := storage4si.NewConfig()
+	cfg.Storage = ms
+	cfg.Service = counter.NewCounterService()
+	si := storage4si.NewStorageServiceInvoker(cfg)
+
+	si.Run()
+	defer si.Close()
+
+	c := counter.NewCounter(si)
+	v2, err2 := c.GetValue(context.Background(), "test")
+	assert.NoError(t, err2)
+	assert.True(t, 11 == v2)
+}
+
+func TestRecoverSnapshot(t *testing.T) {
+	dir := filepath.Join(testDir, "ws1")
+
+	scfg := NewConfig()
+	scfg.Dir = dir
+	scfg.BlockRollSize = 16 * 1024
+	scfg.Symbol = "test"
+
+	ms, err := NewWALStorage(scfg)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer ms.Close()
+
+	cfg := storage4si.NewConfig()
+	cfg.Storage = ms
+	cfg.Service = counter.NewCounterService()
+	si := storage4si.NewStorageServiceInvoker(cfg)
+	si.Run()
+	defer si.Close()
+
+	if _, lr, err := ms.snap.LoadLastHeader(); lr == nil {
+		if !assert.NoError(t, err) {
+			return
+		}
+		plog.Infof("no snapshot, create it & exit")
+		_, err = si.MakeSnapshot()
+		assert.NoError(t, err)
+		return
+	}
+
+	c := counter.NewCounter(si)
+	v, err := c.GetValue(context.Background(), "test")
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(11), v)
+}
+
+func TestMasterSlaveProcess(t *testing.T) {
+	dir := filepath.Join(testDir, "ws2")
+	if false {
+		errX := wal.DumpBlockLogIndex(dir, 0, func(s string) {
+			plog.Info(s)
+		})
+		assert.NoError(t, errX)
+		return
+	}
+	os.RemoveAll(dir)
+
+	scfg := NewConfig()
+	scfg.Dir = dir
+	scfg.BlockRollSize = 16 * 1024
+	scfg.Symbol = "test2"
+
+	ms, err := NewWALStorage(scfg)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer ms.Close()
+
+	cfg := masterslave.NewMasterConfig()
+	cfg.Storage = ms
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceInvoker(service)
+	api := masterslave.NewMasterAPI("test2", si)
+
+	ctx := context.Background()
+	sid, err := api.Begin(ctx)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.True(t, sid > 0) {
+		return
+	}
+	defer api.End(ctx, sid)
+
+	lidx, snapshot, err2 := api.LastSnapshot(ctx, sid)
+	assert.NoError(t, err2)
+	assert.Equal(t, uint64(0), lidx)
+	assert.Nil(t, snapshot)
+
+	for i := 1; i <= 10; i++ {
+		req := &corepb.Request{}
+		req.ID = uint64(i)
+		_, errX := ms.SaveRequest(0, req)
+		assert.NoError(t, errX)
+	}
+
+	for i := 0; i < 2; i++ {
+		rlist, err3 := api.Process(ctx, sid)
+		assert.NoError(t, err3)
+		if i == 0 {
+			assert.Equal(t, 10, len(rlist))
+		} else {
+			assert.Equal(t, 0, len(rlist))
+		}
+		plog.Infof("simple process %d: %v", i+1, rlist)
+	}
+
+	if api != nil {
+		go func() {
+			plog.Infof("async save request begin")
+			for i := 1; i <= 10; i++ {
+				req := &corepb.Request{}
+				req.ID = uint64(10 + i)
+				_, errX := ms.SaveRequest(0, req)
+				assert.NoError(t, errX)
+
+				if i == 9 {
+					time.Sleep(time.Millisecond * 100)
+				}
+			}
+			plog.Infof("async save request end")
+		}()
+		c := 0
+		for i := 0; i < 10; i++ {
+			rlist, err4 := api.Process(ctx, sid)
+			assert.NoError(t, err4)
+			plog.Infof("process %d: %v", i, rlist)
+			c += len(rlist)
+			if c >= 10 {
+				break
+			}
+		}
+		assert.Equal(t, 10, c)
+	}
+}

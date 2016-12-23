@@ -27,6 +27,7 @@ import (
 	"github.com/catyguan/csf/httpsc/httpport"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/service/counter"
+	"github.com/catyguan/csf/servicechannelhandler/schblocker"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
 	"github.com/catyguan/csf/storage4si"
 	"github.com/catyguan/csf/storage4si/masterslave"
@@ -63,8 +64,12 @@ func main2() {
 		defer si.Close()
 		ssi = si
 
+		bl := schblocker.NewBlocker().ReadOnly()
+
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("TCSERVER")).Sink(si)
+		sc.Next(schlog.NewLogger("TCSERVER"))
+		sc.Next(bl)
+		sc.Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
 	}
@@ -94,7 +99,8 @@ func main2() {
 		si2 := core.NewSimpleServiceInvoker(service)
 
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("SLAVE")).Sink(si2)
+		sc.Next(schlog.NewLogger("SLAVE"))
+		sc.Sink(si2)
 
 		pmux.AddInvoker(masterslave.DefaultSlaveServiceName(counter.SERVICE_NAME), sc)
 	}

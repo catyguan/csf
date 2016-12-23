@@ -15,7 +15,11 @@ package wal
 
 import (
 	"errors"
+	"fmt"
 	"hash/crc32"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/catyguan/csf/pkg/capnslog"
 )
@@ -96,4 +100,45 @@ type WALListener interface {
 	OnAppendEntry(ents []Entry)
 
 	OnClose()
+}
+
+func DumpBlockLogIndex(dir string, bid uint64, printer func(s string)) error {
+	p := dir
+
+	fname := filepath.Join(p, blockName(uint64(bid)))
+	f, err := os.OpenFile(fname, os.O_RDONLY, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	lih := &logCoder{}
+
+	lh, err2 := lih.ReadHeader(f)
+	if err2 != nil {
+		return err2
+	}
+	printer(fmt.Sprintf("header = %v", lh.String()))
+
+	var lli *logIndex
+	for {
+		li, _, err3 := lih.ReadRecord(f)
+		if err3 != nil {
+			if err3 == io.EOF {
+				printer(fmt.Sprintf("dump end"))
+				break
+			}
+			return err3
+		}
+		if lli != nil {
+			li.Index = lli.Index + 1
+			li.Pos = lli.EndPos()
+		} else {
+			li.Index = lh.Index + 1
+			li.Pos = uint64(lh.Size())
+		}
+		lli = li
+		printer(fmt.Sprintf("index = %v", li.String()))
+	}
+	return nil
 }

@@ -27,8 +27,9 @@ import (
 )
 
 func testClient() (*HttpServiceInvoker, error) {
+	port := 8086
 	cfg := &Config{}
-	cfg.URL = "http://localhost:8090/service"
+	cfg.URL = fmt.Sprintf("http://localhost:%d/service", port)
 	cfg.ExcecuteTimeout = 10 * time.Second
 	si, err := NewHttpServiceInvoker(cfg, nil)
 	return si, err

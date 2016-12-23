@@ -130,3 +130,9 @@ func (m *ChannelResponse) Unmarshal(data []byte) error {
 	m.FromCPB(pb)
 	return nil
 }
+
+func (m *ChannelResponse) Copy() *ChannelResponse {
+	r := new(ChannelResponse)
+	*r = *m
+	return r
+}

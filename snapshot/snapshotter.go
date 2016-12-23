@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package snap stores raft nodes' states with snapshots.
-package wal
+package snapshot
 
 import (
 	"errors"
