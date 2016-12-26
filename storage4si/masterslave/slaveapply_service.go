@@ -24,10 +24,10 @@ import (
 )
 
 type SlaveServiceApply struct {
-	sc core.ServiceContainer
+	sc core.ServiceHolder
 }
 
-func NewSlaveServiceApply(sc core.ServiceContainer) *SlaveServiceApply {
+func NewSlaveServiceApply(sc core.ServiceHolder) *SlaveServiceApply {
 	return &SlaveServiceApply{sc: sc}
 }
 
@@ -56,21 +56,21 @@ func (this *SlaveServiceApply) ApplyRequests(reqlist []*corepb.Request) error {
 	})
 }
 
-type SlaveStorageInvokerApply struct {
-	ssi *storage4si.StorageServiceInvoker
+type SlaveStorageContainerApply struct {
+	ssc *storage4si.StorageServiceContainer
 }
 
-func NewSlaveStorageInvokerApply(ssi *storage4si.StorageServiceInvoker) *SlaveStorageInvokerApply {
-	r := &SlaveStorageInvokerApply{ssi: ssi}
+func NewSlaveStorageContainerApply(ssc *storage4si.StorageServiceContainer) *SlaveStorageContainerApply {
+	r := &SlaveStorageContainerApply{ssc: ssc}
 	return r
 }
 
-func (this *SlaveStorageInvokerApply) ApplySnapshot(idx uint64, data []byte) error {
+func (this *SlaveStorageContainerApply) ApplySnapshot(idx uint64, data []byte) error {
 	ctx := context.Background()
-	return this.ssi.ApplySnapshot(ctx, idx, data)
+	return this.ssc.ApplySnapshot(ctx, idx, data)
 }
 
-func (this *SlaveStorageInvokerApply) ApplyRequests(reqlist []*corepb.Request) error {
+func (this *SlaveStorageContainerApply) ApplyRequests(reqlist []*corepb.Request) error {
 	ctx := context.Background()
-	return this.ssi.ApplyRequests(ctx, reqlist)
+	return this.ssc.ApplyRequests(ctx, reqlist)
 }

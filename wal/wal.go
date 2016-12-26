@@ -52,6 +52,7 @@ type walcore struct {
 	closed   uint64
 	needSync bool
 	llist    []WALListener
+	newone   bool
 }
 
 func errClosedResult() <-chan Result {
@@ -68,7 +69,7 @@ func initWALCore(cfg *Config) (w *walcore, metadata []byte, err error) {
 		reqCh:     make(chan *walReq, cfg.WALQueueSize),
 		closed:    0,
 	}
-	_, metadata, err = w.doInit()
+	metadata, err = w.doInit()
 
 	if err != nil {
 		w.doClose()
@@ -80,14 +81,14 @@ func initWALCore(cfg *Config) (w *walcore, metadata []byte, err error) {
 	return w, metadata, nil
 }
 
-func (this *walcore) doInit() (bool, []byte, error) {
-	newone := false
+func (this *walcore) doInit() ([]byte, error) {
+	this.newone = false
 	if !ExistDir(this.cfg.Dir) {
 		plog.Infof("init walcore at %v", this.cfg.Dir)
 		err := fileutil.CreateDirAll(this.cfg.Dir)
 		if err != nil {
 			plog.Warningf("init walcore fail - %v", err)
-			return false, nil, err
+			return nil, err
 		}
 	}
 	var rmeta []byte
@@ -102,7 +103,7 @@ func (this *walcore) doInit() (bool, []byte, error) {
 		this.doAppendBlock(flb)
 		this.lastIndex = 0
 		rmeta = this.cfg.InitMetadata
-		newone = true
+		this.newone = true
 	} else {
 		lb := flb
 		for {
@@ -110,7 +111,7 @@ func (this *walcore) doInit() (bool, []byte, error) {
 			err := lb.Open(llb)
 			if err != nil {
 				plog.Warningf("open WAL block[%v] fail - %v", lb.id, err)
-				return false, nil, err
+				return nil, err
 			}
 			if rmeta == nil {
 				rmeta = lb.Header.MetaData
@@ -124,7 +125,7 @@ func (this *walcore) doInit() (bool, []byte, error) {
 		}
 	}
 
-	return newone, rmeta, nil
+	return rmeta, nil
 }
 
 func (this *walcore) isClosed() bool {
@@ -134,6 +135,10 @@ func (this *walcore) isClosed() bool {
 // WAL implements
 func NewWAL(cfg *Config) (WAL, []byte, error) {
 	return initWALCore(cfg)
+}
+
+func (this *walcore) IsNew() bool {
+	return this.newone
 }
 
 // Append

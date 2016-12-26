@@ -19,17 +19,17 @@ import (
 	"github.com/catyguan/csf/core/corepb"
 )
 
-type SimpleServiceInvoker struct {
+type SimpleServiceContainer struct {
 	cs               CoreService
 	AsyncChannelSend bool
 }
 
-func (this *SimpleServiceInvoker) impl() {
+func (this *SimpleServiceContainer) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceContainer(this)
+	_ = ServiceHolder(this)
 }
 
-func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+func (this *SimpleServiceContainer) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
@@ -43,10 +43,10 @@ func (this *SimpleServiceInvoker) InvokeRequest(ctx context.Context, creq *corep
 	return corepb.MakeChannelResponse(resp), nil
 }
 
-func (this *SimpleServiceInvoker) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+func (this *SimpleServiceContainer) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
 	return sfunc(ctx, this.cs)
 }
 
-func NewSimpleServiceInvoker(cs CoreService) *SimpleServiceInvoker {
-	return &SimpleServiceInvoker{cs: cs}
+func NewSimpleServiceContainer(cs CoreService) *SimpleServiceContainer {
+	return &SimpleServiceContainer{cs: cs}
 }

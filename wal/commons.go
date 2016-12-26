@@ -90,6 +90,8 @@ type WAL interface {
 	AddListener(lis WALListener) (uint64, error)
 
 	RemoveListener(lis WALListener)
+
+	IsNew() bool
 }
 
 type WALListener interface {

@@ -20,17 +20,17 @@ import (
 	"github.com/catyguan/csf/core/corepb"
 )
 
-type LockerServiceInvoker struct {
+type LockerServiceContainer struct {
 	l  *sync.RWMutex
 	cs CoreService
 }
 
-func (this *LockerServiceInvoker) impl() {
+func (this *LockerServiceContainer) impl() {
 	_ = ServiceInvoker(this)
-	_ = ServiceContainer(this)
+	_ = ServiceHolder(this)
 }
 
-func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+func (this *LockerServiceContainer) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
@@ -52,15 +52,15 @@ func (this *LockerServiceInvoker) InvokeRequest(ctx context.Context, creq *corep
 	return corepb.MakeChannelResponse(resp), nil
 }
 
-func (this *LockerServiceInvoker) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+func (this *LockerServiceContainer) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
 	this.l.Lock()
 	defer this.l.Unlock()
 	return sfunc(ctx, this.cs)
 }
 
-func NewLockerServiceInvoker(cs CoreService, l *sync.RWMutex) *LockerServiceInvoker {
+func NewLockerServiceContainer(cs CoreService, l *sync.RWMutex) *LockerServiceContainer {
 	if l == nil {
 		l = new(sync.RWMutex)
 	}
-	return &LockerServiceInvoker{cs: cs, l: l}
+	return &LockerServiceContainer{cs: cs, l: l}
 }

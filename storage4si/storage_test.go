@@ -121,7 +121,7 @@ func TestMemoryOverwrite(t *testing.T) {
 
 func createCounter() (counter.Counter, *counter.CounterService) {
 	s := counter.NewCounterService()
-	si := core.NewSimpleServiceInvoker(s)
+	si := core.NewSimpleServiceContainer(s)
 	return counter.NewCounter(si), s
 }
 
@@ -147,7 +147,7 @@ func TestBase(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Storage = ms
 	cfg.Service = counter.NewCounterService()
-	si := NewStorageServiceInvoker(cfg)
+	si := NewStorageServiceContainer(cfg)
 
 	err := si.Run()
 	assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestRecover(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Storage = ms
 	cfg.Service = counter.NewCounterService()
-	si := NewStorageServiceInvoker(cfg)
+	si := NewStorageServiceContainer(cfg)
 
 	si.Run()
 	defer si.Close()
@@ -175,7 +175,7 @@ func TestRecover(t *testing.T) {
 	cfg2 := NewConfig()
 	cfg2.Storage = ms
 	cfg2.Service = counter.NewCounterService()
-	si2 := NewStorageServiceInvoker(cfg2)
+	si2 := NewStorageServiceContainer(cfg2)
 
 	si2.Run()
 	defer si2.Close()
@@ -192,7 +192,7 @@ func TestRecoverSnapshot(t *testing.T) {
 	cfg.SnapCount = 10
 	cfg.Storage = ms
 	cfg.Service = counter.NewCounterService()
-	si := NewStorageServiceInvoker(cfg)
+	si := NewStorageServiceContainer(cfg)
 
 	si.Run()
 	defer si.Close()
@@ -208,7 +208,7 @@ func TestRecoverSnapshot(t *testing.T) {
 	cfg2 := NewConfig()
 	cfg2.Storage = ms
 	cfg2.Service = counter.NewCounterService()
-	si2 := NewStorageServiceInvoker(cfg2)
+	si2 := NewStorageServiceContainer(cfg2)
 
 	si2.Run()
 	defer si2.Close()

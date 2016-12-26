@@ -1,0 +1,31 @@
+syntax = "proto3";
+package raft4si;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// wal saved snapshot struct
+message PBSnapshot {
+  bytes snapdata = 1;
+  bytes hard_state = 2;
+}
+
+// Raft propose struct 
+message PBPropose {
+  uint64 ProposeID = 2;
+  bytes Request = 1;
+}
+
+// wal saved Entry struct
+message PBEntry {
+	bytes entry = 1;
+	bytes hard_state = 2;
+}
+
+// send to service Message struct
+message PBLeadershipUpdateMessage {
+	bool local_leader = 1;
+}

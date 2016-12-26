@@ -265,7 +265,7 @@ func (this *walcore) doReset() error {
 	if err := this.doDelete(); err != nil {
 		return err
 	}
-	if _, _, err := this.doInit(); err != nil {
+	if _, err := this.doInit(); err != nil {
 		return err
 	}
 	this.onReset()

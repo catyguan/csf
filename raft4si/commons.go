@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,27 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+package raft4si
 
-package client
+import "github.com/catyguan/csf/pkg/capnslog"
 
-import "fmt"
+var (
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "raft4si")
 
-type ClusterError struct {
-	Errors []error
-}
-
-func (ce *ClusterError) Error() string {
-	s := ErrClusterUnavailable.Error()
-	for i, e := range ce.Errors {
-		s += fmt.Sprintf("; error #%d: %s\n", i, e)
-	}
-	return s
-}
-
-func (ce *ClusterError) Detail() string {
-	s := ""
-	for i, e := range ce.Errors {
-		s += fmt.Sprintf("error #%d: %s\n", i, e)
-	}
-	return s
-}
+	RaftRPCPath = "rpc@raft4si"
+)

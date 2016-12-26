@@ -37,7 +37,21 @@ type HttpServiceInvoker struct {
 	converter Converter
 }
 
+func NewHttpServiceInvokerWithURL(url string) (*HttpServiceInvoker, error) {
+	cfg := &Config{}
+	cfg.URL = url
+	return NewHttpServiceInvoker(cfg, nil)
+}
+
 func NewHttpServiceInvoker(cfg *Config, c Converter) (*HttpServiceInvoker, error) {
+	tr, err := NewTransport(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return CreateInvoker(cfg, tr, nil, c), nil
+}
+
+func CreateInvoker(cfg *Config, tr *http.Transport, cl *http.Client, c Converter) *HttpServiceInvoker {
 	r := &HttpServiceInvoker{}
 	r.cfg = cfg
 	r.converter = c
@@ -47,16 +61,11 @@ func NewHttpServiceInvoker(cfg *Config, c Converter) (*HttpServiceInvoker, error
 	if r.cfg.ExcecuteTimeout == 0 {
 		r.cfg.ExcecuteTimeout = defaultExecuteTimeout
 	}
-	if r.cfg.DialTimeout == 0 {
-		r.cfg.DialTimeout = defaultDialTimeout
+	if cl == nil {
+		cl = CreateClient(cfg, tr)
 	}
-
-	tr, err := newTransport(&r.cfg.TLSInfo, r.cfg.DialTimeout)
-	if err != nil {
-		return nil, err
-	}
-	r.cl = &http.Client{Transport: tr}
-	return r, nil
+	r.cl = cl
+	return r
 }
 
 func (this *HttpServiceInvoker) impl() {
@@ -67,6 +76,9 @@ func (this *HttpServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.
 	hreq, err := this.converter.BuildRequest(this.cfg.URL, creq)
 	if err != nil {
 		return nil, err
+	}
+	if this.cfg.Host != "" {
+		hreq.Host = this.cfg.Host
 	}
 
 	nctx, _ := context.WithTimeout(ctx, this.cfg.ExcecuteTimeout)

@@ -144,6 +144,20 @@ func (s *Snapshotter) LoadSnapFile(fpath string) (sh *SnapHeader, data []byte, e
 	return sh, data, nil
 }
 
+func (s *Snapshotter) Reset() error {
+	names, err := s.snapNames()
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err2 := os.Remove(filepath.Join(s.dir, name))
+		if err2 != nil {
+			return err2
+		}
+	}
+	return nil
+}
+
 func (s *Snapshotter) readHeader(f *os.File) (lr *SnapHeader, err error) {
 	defer func() {
 		s.onError(err, f)

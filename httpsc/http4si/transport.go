@@ -17,11 +17,15 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/catyguan/csf/pkg/transport"
 )
 
-func newTransport(info *transport.TLSInfo, dialtimeoutd time.Duration) (*http.Transport, error) {
+func NewTransport(cf *Config) (*http.Transport, error) {
+	info := &cf.TLSInfo
+	dialtimeoutd := cf.DialTimeout
+	if dialtimeoutd == 0 {
+		dialtimeoutd = defaultDialTimeout
+	}
+
 	cfg, err := info.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -39,4 +43,11 @@ func newTransport(info *transport.TLSInfo, dialtimeoutd time.Duration) (*http.Tr
 		TLSClientConfig:     cfg,
 	}
 	return t, nil
+}
+
+func CreateClient(cf *Config, tr http.RoundTripper) *http.Client {
+	if tr == nil {
+		tr = http.DefaultTransport
+	}
+	return &http.Client{Transport: tr}
 }

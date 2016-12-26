@@ -26,7 +26,7 @@ type ServiceInvoker interface {
 
 type ServiceFunc func(ctx context.Context, cs CoreService) error
 
-type ServiceContainer interface {
+type ServiceHolder interface {
 	ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error
 }
 

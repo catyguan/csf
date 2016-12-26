@@ -19,7 +19,6 @@ import (
 	"io"
 	"io/ioutil"
 	"sync"
-	"time"
 
 	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/snapshot"
@@ -28,20 +27,14 @@ import (
 )
 
 type Config struct {
-	Dir              string
-	BlockRollSize    uint64
-	Symbol           string
-	WALQueueSize     int
-	IdleSyncDuration time.Duration
-	AutoSync         bool
+	wal.Config
+	Symbol   string
+	AutoSync bool
 }
 
 func NewConfig() *Config {
-	old := wal.NewConfig()
 	r := new(Config)
-	r.BlockRollSize = old.BlockRollSize
-	r.WALQueueSize = old.WALQueueSize
-	r.IdleSyncDuration = old.IdleSyncDuration
+	wal.InitConfig(&r.Config)
 	return r
 }
 
@@ -61,11 +54,8 @@ func NewWALStorage(cfg *Config) (*WALStorage, error) {
 	r.snap = snapshot.NewSnapshotter(cfg.Dir)
 
 	wcfg := wal.NewConfig()
-	wcfg.Dir = cfg.Dir
-	wcfg.BlockRollSize = cfg.BlockRollSize
+	*wcfg = cfg.Config
 	wcfg.InitMetadata = []byte(cfg.Symbol)
-	wcfg.WALQueueSize = cfg.WALQueueSize
-	wcfg.IdleSyncDuration = cfg.IdleSyncDuration
 
 	w, meta, err := wal.NewWAL(wcfg)
 	if err != nil {

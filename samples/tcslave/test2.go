@@ -46,7 +46,7 @@ func main2() {
 	pmux := core.NewServiceMux()
 	amux := core.NewServiceMux()
 
-	var ssi *storage4si.StorageServiceInvoker
+	var ssi *storage4si.StorageServiceContainer
 
 	if true {
 
@@ -55,7 +55,7 @@ func main2() {
 		cfg.SnapCount = storageSize / 2
 		cfg.Storage = ms
 		cfg.Service = s
-		si := storage4si.NewStorageServiceInvoker(cfg)
+		si := storage4si.NewStorageServiceContainer(cfg)
 		errS := si.Run()
 		if errS != nil {
 			fmt.Printf("run StorageServiceInvoker fail - %v", errS)
@@ -86,7 +86,7 @@ func main2() {
 		}
 
 		cfg2 := masterslave.NewSlaveConfig()
-		cfg2.Apply = masterslave.NewSlaveStorageInvokerApply(ssi)
+		cfg2.Apply = masterslave.NewSlaveStorageContainerApply(ssi)
 		cfg2.Master = masterslave.NewMasterAPI(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), si)
 		service := masterslave.NewSlaveService(cfg2)
 		err = service.Run()
@@ -96,7 +96,7 @@ func main2() {
 		}
 		defer service.Close()
 
-		si2 := core.NewSimpleServiceInvoker(service)
+		si2 := core.NewLockerServiceContainer(service, nil)
 
 		sc := core.NewServiceChannel()
 		sc.Next(schlog.NewLogger("SLAVE"))
@@ -109,7 +109,7 @@ func main2() {
 		cfg := masterslave.NewMasterConfig()
 		cfg.Storage = ms
 		service := masterslave.NewMasterService(cfg)
-		si := core.NewSimpleServiceInvoker(service)
+		si := core.NewLockerServiceContainer(service, nil)
 
 		sc := core.NewServiceChannel()
 		sc.Sink(si)

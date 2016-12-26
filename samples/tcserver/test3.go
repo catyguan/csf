@@ -27,62 +27,47 @@ import (
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/httpsc/httpport"
 	"github.com/catyguan/csf/pkg/osutil"
+	"github.com/catyguan/csf/raft4si"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
-	"github.com/catyguan/csf/storage4si"
-	"github.com/catyguan/csf/storage4si/masterslave"
-	"github.com/catyguan/csf/storage4si/walstorage"
 )
 
-func main1() {
+func main3() {
 
 	smux := core.NewServiceMux()
 	pmux := core.NewServiceMux()
 	amux := core.NewServiceMux()
-	var ms storage4si.Storage
-	var snapcount int
-	var dir string
 
+	var dir string
 	cdir, errDir := os.Getwd()
 	if errDir != nil {
 		fmt.Printf("error - %s", cdir)
 		return
 	}
 
-	flag.IntVar(&snapcount, "sc", 16, "snapcount")
 	flag.StringVar(&dir, "d", filepath.Join(cdir, "wal"), "WAL dir")
 	flag.Parse()
 
-	if false {
-		storageSize := snapcount * 2
-		ms = storage4si.NewMemoryStorage(storageSize)
-	}
-
-	if true {
-		scfg := walstorage.NewConfig()
-		scfg.Dir = dir
-		scfg.BlockRollSize = 16 * 1024
-		scfg.Symbol = "tcserver"
-
-		ws, err := walstorage.NewWALStorage(scfg)
-		if err != nil {
-			fmt.Printf("open WALStorage fail - %v", err)
-			return
-		}
-		defer ws.Close()
-		ms = ws
-	}
-
 	if true {
 		s := counter.NewCounterService()
-		cfg := storage4si.NewConfig()
-		cfg.SnapCount = snapcount
-		cfg.Storage = ms
-		cfg.Service = s
-		si := storage4si.NewStorageServiceContainer(cfg)
+
+		peers := make([]raft4si.RaftPeer, 1)
+		peers[0] = raft4si.RaftPeer{NodeID: 1}
+
+		cfg := raft4si.NewConfig()
+		cfg.MemoryMode = true
+		cfg.WALDir = dir
+		cfg.BlockRollSize = 16 * 1024
+		cfg.Symbol = "tcserver3"
+		cfg.ClusterID = 1
+		cfg.InitPeers = peers
+		cfg.SnapCount = 16
+
+		si := raft4si.NewRaftServiceContainer(s, cfg)
+
 		errS := si.Run()
 		if errS != nil {
-			fmt.Printf("run StorageServiceInvoker fail - %v", errS)
+			fmt.Printf("run RaftServiceContainer fail - %v", errS)
 			return
 		}
 		defer si.Close()
@@ -92,19 +77,6 @@ func main1() {
 		sc.Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
-	}
-
-	if true {
-		cfg := masterslave.NewMasterConfig()
-		cfg.Storage = ms
-		service := masterslave.NewMasterService(cfg)
-		si := core.NewSimpleServiceContainer(service)
-
-		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("MASTER"))
-		sc.Sink(si)
-
-		pmux.AddInvoker(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), sc)
 	}
 
 	hmux := http.NewServeMux()

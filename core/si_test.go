@@ -51,7 +51,7 @@ var debugResponse = &corepb.Response{}
 
 func TestSimple(t *testing.T) {
 	ds := newDebugService(debugResponse, nil)
-	si := NewSimpleServiceInvoker(ds)
+	si := NewSimpleServiceContainer(ds)
 	r, err := Invoke(si, context.Background(), corepb.NewQueryRequest("tservice", "tpath", []byte("hello world")))
 	assert.NoError(t, err)
 	assert.Equal(t, r, debugResponse)
@@ -59,7 +59,7 @@ func TestSimple(t *testing.T) {
 
 func TestLocker(t *testing.T) {
 	ds := newDebugService(debugResponse, nil)
-	si := NewLockerServiceInvoker(ds, nil)
+	si := NewLockerServiceContainer(ds, nil)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -94,7 +94,7 @@ func TestLocker(t *testing.T) {
 
 func TestSingleTbhread(t *testing.T) {
 	ds := newDebugService(debugResponse, nil)
-	si := NewSingeThreadServiceInvoker(ds, 100)
+	si := NewSingeThreadServiceContainer(ds, 100)
 	defer si.Close()
 
 	wg := sync.WaitGroup{}

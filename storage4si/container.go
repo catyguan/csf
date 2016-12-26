@@ -36,7 +36,7 @@ func NewConfig() *Config {
 	return cfg
 }
 
-type StorageServiceInvoker struct {
+type StorageServiceContainer struct {
 	cs        core.CoreService
 	storage   Storage
 	snapCount int
@@ -45,8 +45,8 @@ type StorageServiceInvoker struct {
 	ro *runobj.RunObj
 }
 
-func NewStorageServiceInvoker(cfg *Config) *StorageServiceInvoker {
-	r := &StorageServiceInvoker{
+func NewStorageServiceContainer(cfg *Config) *StorageServiceContainer {
+	r := &StorageServiceContainer{
 		cs:        cfg.Service,
 		storage:   cfg.Storage,
 		snapCount: cfg.SnapCount,
@@ -55,15 +55,15 @@ func NewStorageServiceInvoker(cfg *Config) *StorageServiceInvoker {
 	return r
 }
 
-func (this *StorageServiceInvoker) impl() {
+func (this *StorageServiceContainer) impl() {
 	_ = core.ServiceInvoker(this)
 }
 
-func (this *StorageServiceInvoker) Run() error {
+func (this *StorageServiceContainer) Run() error {
 	return this.ro.Run(this.doRun, nil)
 }
 
-func (this *StorageServiceInvoker) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+func (this *StorageServiceContainer) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	req := &creq.Request
 	s, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
@@ -90,7 +90,7 @@ func (this *StorageServiceInvoker) InvokeRequest(ctx context.Context, creq *core
 	return corepb.MakeChannelResponse(resp), nil
 }
 
-func (this *StorageServiceInvoker) MakeSnapshot() (uint64, error) {
+func (this *StorageServiceContainer) MakeSnapshot() (uint64, error) {
 	a := &runobj.ActionRequest{
 		Type: 2,
 	}
@@ -105,7 +105,7 @@ func (this *StorageServiceInvoker) MakeSnapshot() (uint64, error) {
 	return resp, nil
 }
 
-func (this *StorageServiceInvoker) ApplyRequests(ctx context.Context, rlist []*corepb.Request) error {
+func (this *StorageServiceContainer) ApplyRequests(ctx context.Context, rlist []*corepb.Request) error {
 	a := &runobj.ActionRequest{
 		Type: 3,
 		P1:   ctx,
@@ -118,7 +118,7 @@ func (this *StorageServiceInvoker) ApplyRequests(ctx context.Context, rlist []*c
 	return ar.Err
 }
 
-func (this *StorageServiceInvoker) ApplySnapshot(ctx context.Context, idx uint64, data []byte) error {
+func (this *StorageServiceContainer) ApplySnapshot(ctx context.Context, idx uint64, data []byte) error {
 	a := &runobj.ActionRequest{
 		Type: 4,
 		P1:   ctx,
@@ -132,10 +132,10 @@ func (this *StorageServiceInvoker) ApplySnapshot(ctx context.Context, idx uint64
 	return ar.Err
 }
 
-func (this *StorageServiceInvoker) IsClosed() bool {
+func (this *StorageServiceContainer) IsClosed() bool {
 	return this.ro.IsClosed()
 }
 
-func (this *StorageServiceInvoker) Close() {
+func (this *StorageServiceContainer) Close() {
 	this.ro.Close()
 }

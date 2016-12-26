@@ -25,10 +25,13 @@ type Config struct {
 }
 
 func NewConfig() *Config {
-	r := &Config{
-		BlockRollSize:    DefaultMaxBlockSize,
-		WALQueueSize:     1000,
-		IdleSyncDuration: 30 * time.Second,
-	}
+	r := &Config{}
+	InitConfig(r)
 	return r
+}
+
+func InitConfig(c *Config) {
+	c.BlockRollSize = DefaultMaxBlockSize
+	c.WALQueueSize = 1000
+	c.IdleSyncDuration = 30 * time.Second
 }

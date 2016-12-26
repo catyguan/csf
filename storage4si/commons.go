@@ -22,5 +22,5 @@ import (
 var (
 	ErrConflict = errors.New("conflict")
 
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "wal4si")
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "storage4si")
 )
