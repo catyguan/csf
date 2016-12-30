@@ -9,10 +9,16 @@
 		raft4si.proto
 
 	It has these top-level messages:
+		PBPeer
+		PBMembers
 		PBSnapshot
 		PBPropose
 		PBEntry
 		PBLeadershipUpdateMessage
+		PBAddNodeActionRequest
+		PBAddNodeActionResponse
+		PBUpdateNodeActionRequest
+		PBRemoveNodeActionRequest
 */
 package raft4si
 
@@ -34,27 +40,62 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
+type PBPeer struct {
+	NodeId       uint64 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	PeerLocation string `protobuf:"bytes,2,opt,name=peer_location,json=peerLocation,proto3" json:"peer_location,omitempty"`
+}
+
+func (m *PBPeer) Reset()                    { *m = PBPeer{} }
+func (m *PBPeer) String() string            { return proto.CompactTextString(m) }
+func (*PBPeer) ProtoMessage()               {}
+func (*PBPeer) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{0} }
+
+type PBMembers struct {
+	MemberIdSeq uint64    `protobuf:"varint,1,opt,name=member_id_seq,json=memberIdSeq,proto3" json:"member_id_seq,omitempty"`
+	Peers       []*PBPeer `protobuf:"bytes,2,rep,name=peers" json:"peers,omitempty"`
+}
+
+func (m *PBMembers) Reset()                    { *m = PBMembers{} }
+func (m *PBMembers) String() string            { return proto.CompactTextString(m) }
+func (*PBMembers) ProtoMessage()               {}
+func (*PBMembers) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{1} }
+
+func (m *PBMembers) GetPeers() []*PBPeer {
+	if m != nil {
+		return m.Peers
+	}
+	return nil
+}
+
 // wal saved snapshot struct
 type PBSnapshot struct {
-	Snapdata  []byte `protobuf:"bytes,1,opt,name=snapdata,proto3" json:"snapdata,omitempty"`
-	HardState []byte `protobuf:"bytes,2,opt,name=hard_state,json=hardState,proto3" json:"hard_state,omitempty"`
+	Snapdata  []byte     `protobuf:"bytes,1,opt,name=snapdata,proto3" json:"snapdata,omitempty"`
+	HardState []byte     `protobuf:"bytes,2,opt,name=hard_state,json=hardState,proto3" json:"hard_state,omitempty"`
+	Members   *PBMembers `protobuf:"bytes,3,opt,name=members" json:"members,omitempty"`
 }
 
 func (m *PBSnapshot) Reset()                    { *m = PBSnapshot{} }
 func (m *PBSnapshot) String() string            { return proto.CompactTextString(m) }
 func (*PBSnapshot) ProtoMessage()               {}
-func (*PBSnapshot) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{0} }
+func (*PBSnapshot) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{2} }
+
+func (m *PBSnapshot) GetMembers() *PBMembers {
+	if m != nil {
+		return m.Members
+	}
+	return nil
+}
 
 // Raft propose struct
 type PBPropose struct {
-	ProposeID uint64 `protobuf:"varint,2,opt,name=ProposeID,json=proposeID,proto3" json:"ProposeID,omitempty"`
-	Request   []byte `protobuf:"bytes,1,opt,name=Request,json=request,proto3" json:"Request,omitempty"`
+	ProposeId uint64 `protobuf:"varint,2,opt,name=propose_id,json=proposeId,proto3" json:"propose_id,omitempty"`
+	Request   []byte `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 }
 
 func (m *PBPropose) Reset()                    { *m = PBPropose{} }
 func (m *PBPropose) String() string            { return proto.CompactTextString(m) }
 func (*PBPropose) ProtoMessage()               {}
-func (*PBPropose) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{1} }
+func (*PBPropose) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{3} }
 
 // wal saved Entry struct
 type PBEntry struct {
@@ -65,7 +106,7 @@ type PBEntry struct {
 func (m *PBEntry) Reset()                    { *m = PBEntry{} }
 func (m *PBEntry) String() string            { return proto.CompactTextString(m) }
 func (*PBEntry) ProtoMessage()               {}
-func (*PBEntry) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{2} }
+func (*PBEntry) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{4} }
 
 // send to service Message struct
 type PBLeadershipUpdateMessage struct {
@@ -75,14 +116,138 @@ type PBLeadershipUpdateMessage struct {
 func (m *PBLeadershipUpdateMessage) Reset()                    { *m = PBLeadershipUpdateMessage{} }
 func (m *PBLeadershipUpdateMessage) String() string            { return proto.CompactTextString(m) }
 func (*PBLeadershipUpdateMessage) ProtoMessage()               {}
-func (*PBLeadershipUpdateMessage) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{3} }
+func (*PBLeadershipUpdateMessage) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{5} }
+
+// Request/Response
+// AddNode
+type PBAddNodeActionRequest struct {
+	Peer *PBPeer `protobuf:"bytes,1,opt,name=peer" json:"peer,omitempty"`
+}
+
+func (m *PBAddNodeActionRequest) Reset()                    { *m = PBAddNodeActionRequest{} }
+func (m *PBAddNodeActionRequest) String() string            { return proto.CompactTextString(m) }
+func (*PBAddNodeActionRequest) ProtoMessage()               {}
+func (*PBAddNodeActionRequest) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{6} }
+
+func (m *PBAddNodeActionRequest) GetPeer() *PBPeer {
+	if m != nil {
+		return m.Peer
+	}
+	return nil
+}
+
+type PBAddNodeActionResponse struct {
+	NodeId uint64 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+}
+
+func (m *PBAddNodeActionResponse) Reset()                    { *m = PBAddNodeActionResponse{} }
+func (m *PBAddNodeActionResponse) String() string            { return proto.CompactTextString(m) }
+func (*PBAddNodeActionResponse) ProtoMessage()               {}
+func (*PBAddNodeActionResponse) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{7} }
+
+// UpdateNode
+type PBUpdateNodeActionRequest struct {
+	Peer *PBPeer `protobuf:"bytes,1,opt,name=peer" json:"peer,omitempty"`
+}
+
+func (m *PBUpdateNodeActionRequest) Reset()                    { *m = PBUpdateNodeActionRequest{} }
+func (m *PBUpdateNodeActionRequest) String() string            { return proto.CompactTextString(m) }
+func (*PBUpdateNodeActionRequest) ProtoMessage()               {}
+func (*PBUpdateNodeActionRequest) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{8} }
+
+func (m *PBUpdateNodeActionRequest) GetPeer() *PBPeer {
+	if m != nil {
+		return m.Peer
+	}
+	return nil
+}
+
+// RemoveNode
+type PBRemoveNodeActionRequest struct {
+	NodeId uint64 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+}
+
+func (m *PBRemoveNodeActionRequest) Reset()                    { *m = PBRemoveNodeActionRequest{} }
+func (m *PBRemoveNodeActionRequest) String() string            { return proto.CompactTextString(m) }
+func (*PBRemoveNodeActionRequest) ProtoMessage()               {}
+func (*PBRemoveNodeActionRequest) Descriptor() ([]byte, []int) { return fileDescriptorRaft4Si, []int{9} }
 
 func init() {
+	proto.RegisterType((*PBPeer)(nil), "raft4si.PBPeer")
+	proto.RegisterType((*PBMembers)(nil), "raft4si.PBMembers")
 	proto.RegisterType((*PBSnapshot)(nil), "raft4si.PBSnapshot")
 	proto.RegisterType((*PBPropose)(nil), "raft4si.PBPropose")
 	proto.RegisterType((*PBEntry)(nil), "raft4si.PBEntry")
 	proto.RegisterType((*PBLeadershipUpdateMessage)(nil), "raft4si.PBLeadershipUpdateMessage")
+	proto.RegisterType((*PBAddNodeActionRequest)(nil), "raft4si.PBAddNodeActionRequest")
+	proto.RegisterType((*PBAddNodeActionResponse)(nil), "raft4si.PBAddNodeActionResponse")
+	proto.RegisterType((*PBUpdateNodeActionRequest)(nil), "raft4si.PBUpdateNodeActionRequest")
+	proto.RegisterType((*PBRemoveNodeActionRequest)(nil), "raft4si.PBRemoveNodeActionRequest")
 }
+func (m *PBPeer) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBPeer) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.NodeId))
+	}
+	if len(m.PeerLocation) > 0 {
+		data[i] = 0x12
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(len(m.PeerLocation)))
+		i += copy(data[i:], m.PeerLocation)
+	}
+	return i, nil
+}
+
+func (m *PBMembers) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBMembers) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.MemberIdSeq != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.MemberIdSeq))
+	}
+	if len(m.Peers) > 0 {
+		for _, msg := range m.Peers {
+			data[i] = 0x12
+			i++
+			i = encodeVarintRaft4Si(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
 func (m *PBSnapshot) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -110,6 +275,16 @@ func (m *PBSnapshot) MarshalTo(data []byte) (int, error) {
 		i = encodeVarintRaft4Si(data, i, uint64(len(m.HardState)))
 		i += copy(data[i:], m.HardState)
 	}
+	if m.Members != nil {
+		data[i] = 0x1a
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.Members.Size()))
+		n1, err := m.Members.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n1
+	}
 	return i, nil
 }
 
@@ -134,10 +309,10 @@ func (m *PBPropose) MarshalTo(data []byte) (int, error) {
 		i = encodeVarintRaft4Si(data, i, uint64(len(m.Request)))
 		i += copy(data[i:], m.Request)
 	}
-	if m.ProposeID != 0 {
+	if m.ProposeId != 0 {
 		data[i] = 0x10
 		i++
-		i = encodeVarintRaft4Si(data, i, uint64(m.ProposeID))
+		i = encodeVarintRaft4Si(data, i, uint64(m.ProposeId))
 	}
 	return i, nil
 }
@@ -200,6 +375,108 @@ func (m *PBLeadershipUpdateMessage) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
+func (m *PBAddNodeActionRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBAddNodeActionRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Peer != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.Peer.Size()))
+		n2, err := m.Peer.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	return i, nil
+}
+
+func (m *PBAddNodeActionResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBAddNodeActionResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.NodeId))
+	}
+	return i, nil
+}
+
+func (m *PBUpdateNodeActionRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBUpdateNodeActionRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Peer != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.Peer.Size()))
+		n3, err := m.Peer.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	return i, nil
+}
+
+func (m *PBRemoveNodeActionRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PBRemoveNodeActionRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		data[i] = 0x8
+		i++
+		i = encodeVarintRaft4Si(data, i, uint64(m.NodeId))
+	}
+	return i, nil
+}
+
 func encodeFixed64Raft4Si(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	data[offset+1] = uint8(v >> 8)
@@ -227,6 +504,34 @@ func encodeVarintRaft4Si(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
+func (m *PBPeer) Size() (n int) {
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		n += 1 + sovRaft4Si(uint64(m.NodeId))
+	}
+	l = len(m.PeerLocation)
+	if l > 0 {
+		n += 1 + l + sovRaft4Si(uint64(l))
+	}
+	return n
+}
+
+func (m *PBMembers) Size() (n int) {
+	var l int
+	_ = l
+	if m.MemberIdSeq != 0 {
+		n += 1 + sovRaft4Si(uint64(m.MemberIdSeq))
+	}
+	if len(m.Peers) > 0 {
+		for _, e := range m.Peers {
+			l = e.Size()
+			n += 1 + l + sovRaft4Si(uint64(l))
+		}
+	}
+	return n
+}
+
 func (m *PBSnapshot) Size() (n int) {
 	var l int
 	_ = l
@@ -236,6 +541,10 @@ func (m *PBSnapshot) Size() (n int) {
 	}
 	l = len(m.HardState)
 	if l > 0 {
+		n += 1 + l + sovRaft4Si(uint64(l))
+	}
+	if m.Members != nil {
+		l = m.Members.Size()
 		n += 1 + l + sovRaft4Si(uint64(l))
 	}
 	return n
@@ -248,8 +557,8 @@ func (m *PBPropose) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovRaft4Si(uint64(l))
 	}
-	if m.ProposeID != 0 {
-		n += 1 + sovRaft4Si(uint64(m.ProposeID))
+	if m.ProposeId != 0 {
+		n += 1 + sovRaft4Si(uint64(m.ProposeId))
 	}
 	return n
 }
@@ -277,6 +586,44 @@ func (m *PBLeadershipUpdateMessage) Size() (n int) {
 	return n
 }
 
+func (m *PBAddNodeActionRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Peer != nil {
+		l = m.Peer.Size()
+		n += 1 + l + sovRaft4Si(uint64(l))
+	}
+	return n
+}
+
+func (m *PBAddNodeActionResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		n += 1 + sovRaft4Si(uint64(m.NodeId))
+	}
+	return n
+}
+
+func (m *PBUpdateNodeActionRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Peer != nil {
+		l = m.Peer.Size()
+		n += 1 + l + sovRaft4Si(uint64(l))
+	}
+	return n
+}
+
+func (m *PBRemoveNodeActionRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.NodeId != 0 {
+		n += 1 + sovRaft4Si(uint64(m.NodeId))
+	}
+	return n
+}
+
 func sovRaft4Si(x uint64) (n int) {
 	for {
 		n++
@@ -289,6 +636,204 @@ func sovRaft4Si(x uint64) (n int) {
 }
 func sozRaft4Si(x uint64) (n int) {
 	return sovRaft4Si(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *PBPeer) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBPeer: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBPeer: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
+			}
+			m.NodeId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.NodeId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PeerLocation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PeerLocation = string(data[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PBMembers) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBMembers: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBMembers: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MemberIdSeq", wireType)
+			}
+			m.MemberIdSeq = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.MemberIdSeq |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peers", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Peers = append(m.Peers, &PBPeer{})
+			if err := m.Peers[len(m.Peers)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *PBSnapshot) Unmarshal(data []byte) error {
 	l := len(data)
@@ -381,6 +926,39 @@ func (m *PBSnapshot) Unmarshal(data []byte) error {
 				m.HardState = []byte{}
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Members", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Members == nil {
+				m.Members = &PBMembers{}
+			}
+			if err := m.Members.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRaft4Si(data[iNdEx:])
@@ -464,9 +1042,9 @@ func (m *PBPropose) Unmarshal(data []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ProposeID", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ProposeId", wireType)
 			}
-			m.ProposeID = 0
+			m.ProposeId = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowRaft4Si
@@ -476,7 +1054,7 @@ func (m *PBPropose) Unmarshal(data []byte) error {
 				}
 				b := data[iNdEx]
 				iNdEx++
-				m.ProposeID |= (uint64(b) & 0x7F) << shift
+				m.ProposeId |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -684,6 +1262,310 @@ func (m *PBLeadershipUpdateMessage) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+func (m *PBAddNodeActionRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBAddNodeActionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBAddNodeActionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Peer == nil {
+				m.Peer = &PBPeer{}
+			}
+			if err := m.Peer.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PBAddNodeActionResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBAddNodeActionResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBAddNodeActionResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
+			}
+			m.NodeId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.NodeId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PBUpdateNodeActionRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBUpdateNodeActionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBUpdateNodeActionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Peer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Peer == nil {
+				m.Peer = &PBPeer{}
+			}
+			if err := m.Peer.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PBRemoveNodeActionRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRaft4Si
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PBRemoveNodeActionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PBRemoveNodeActionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
+			}
+			m.NodeId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRaft4Si
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				m.NodeId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRaft4Si(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRaft4Si
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipRaft4Si(data []byte) (n int, err error) {
 	l := len(data)
 	iNdEx := 0
@@ -792,21 +1674,32 @@ var (
 func init() { proto.RegisterFile("raft4si.proto", fileDescriptorRaft4Si) }
 
 var fileDescriptorRaft4Si = []byte{
-	// 247 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x84, 0x90, 0xb1, 0x4a, 0xc4, 0x40,
-	0x10, 0x86, 0x59, 0x51, 0x73, 0x19, 0x63, 0xb3, 0x5c, 0x11, 0x0f, 0x0d, 0x9a, 0xca, 0x4a, 0x0b,
-	0xad, 0xaf, 0x58, 0x15, 0x11, 0x14, 0x96, 0x1c, 0xd6, 0xc7, 0x68, 0xc6, 0xe4, 0x20, 0x64, 0xd7,
-	0x9d, 0xb5, 0xf0, 0x0d, 0x2d, 0x7d, 0x04, 0xc9, 0x93, 0xc8, 0x6e, 0xa2, 0xed, 0x75, 0xf3, 0x7f,
-	0x33, 0xfb, 0xf1, 0xb3, 0x70, 0xe8, 0xf0, 0xcd, 0x5f, 0xf3, 0xe6, 0xc2, 0x3a, 0xe3, 0x8d, 0x4c,
-	0xa6, 0xb8, 0x98, 0x37, 0xa6, 0x31, 0x91, 0x5d, 0x86, 0x69, 0x5c, 0x97, 0xf7, 0x00, 0x5a, 0xad,
-	0x7a, 0xb4, 0xdc, 0x1a, 0x2f, 0x17, 0x30, 0xe3, 0x1e, 0x6d, 0x8d, 0x1e, 0x73, 0x71, 0x2a, 0xce,
-	0xb3, 0xea, 0x3f, 0xcb, 0x13, 0x80, 0x16, 0x5d, 0xbd, 0x66, 0x8f, 0x9e, 0xf2, 0x9d, 0xb8, 0x4d,
-	0x03, 0x59, 0x05, 0x50, 0xde, 0x40, 0xaa, 0x95, 0x76, 0xc6, 0x1a, 0x26, 0x99, 0x43, 0x52, 0xd1,
-	0xfb, 0x07, 0xb1, 0x9f, 0x34, 0x89, 0x1b, 0xa3, 0x3c, 0x86, 0x74, 0x3a, 0x7a, 0xb8, 0x8d, 0x92,
-	0xdd, 0x2a, 0xb5, 0x7f, 0xa0, 0x5c, 0x42, 0xa2, 0xd5, 0x5d, 0xef, 0xdd, 0xa7, 0x9c, 0xc3, 0x1e,
-	0x85, 0x61, 0x12, 0x8c, 0x61, 0x5b, 0x89, 0x25, 0x1c, 0x69, 0xf5, 0x48, 0x58, 0x93, 0xe3, 0x76,
-	0x63, 0x9f, 0x43, 0x73, 0x7a, 0x22, 0x66, 0x6c, 0x48, 0x9e, 0x41, 0xd6, 0x99, 0x57, 0xec, 0xd6,
-	0x5d, 0x3c, 0x88, 0xe2, 0x59, 0x75, 0x10, 0xd9, 0xf8, 0x46, 0x65, 0x5f, 0x43, 0x21, 0xbe, 0x87,
-	0x42, 0xfc, 0x0c, 0x85, 0x78, 0xd9, 0x8f, 0x5f, 0x74, 0xf5, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x4d,
-	0x9b, 0xc1, 0x64, 0x52, 0x01, 0x00, 0x00,
+	// 426 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x9c, 0x52, 0x51, 0x6b, 0x13, 0x41,
+	0x10, 0xe6, 0xd2, 0x36, 0xd7, 0x4c, 0x2e, 0x08, 0x4b, 0xb1, 0x67, 0xc1, 0x10, 0xb7, 0x08, 0xf7,
+	0x20, 0x15, 0x62, 0x5f, 0x2d, 0xf6, 0x50, 0x21, 0xd0, 0xca, 0xb1, 0x41, 0x5f, 0x8f, 0x6d, 0x77,
+	0x4c, 0x0e, 0x92, 0xdb, 0xcb, 0xee, 0x56, 0xf0, 0x1f, 0xfa, 0xe8, 0x4f, 0x90, 0xfc, 0x12, 0x99,
+	0xdd, 0x8d, 0x08, 0xb6, 0x08, 0x7d, 0x9b, 0xf9, 0x66, 0xe6, 0xfb, 0xbe, 0x99, 0x5d, 0x18, 0x19,
+	0xf9, 0xd5, 0x9d, 0xdb, 0xe6, 0xac, 0x33, 0xda, 0x69, 0x96, 0xc6, 0xf4, 0xe4, 0x68, 0xa1, 0x17,
+	0xda, 0x63, 0xaf, 0x29, 0x0a, 0x65, 0xfe, 0x11, 0xfa, 0x55, 0x59, 0x21, 0x1a, 0x76, 0x0c, 0x69,
+	0xab, 0x15, 0xd6, 0x8d, 0xca, 0x93, 0x49, 0x52, 0xec, 0x8b, 0x3e, 0xa5, 0x33, 0xc5, 0x4e, 0x61,
+	0xd4, 0x21, 0x9a, 0x7a, 0xa5, 0x6f, 0xa5, 0x6b, 0x74, 0x9b, 0xf7, 0x26, 0x49, 0x31, 0x10, 0x19,
+	0x81, 0x57, 0x11, 0xe3, 0x5f, 0x60, 0x50, 0x95, 0xd7, 0xb8, 0xbe, 0x41, 0x63, 0x19, 0x87, 0xd1,
+	0xda, 0x87, 0x75, 0xa3, 0x6a, 0x8b, 0x9b, 0x48, 0x38, 0x0c, 0xe0, 0x4c, 0xcd, 0x71, 0xc3, 0x5e,
+	0xc2, 0x01, 0x11, 0xd8, 0xbc, 0x37, 0xd9, 0x2b, 0x86, 0xd3, 0x27, 0x67, 0x3b, 0xdb, 0xc1, 0x8e,
+	0x08, 0x55, 0x7e, 0x07, 0x50, 0x95, 0xf3, 0x56, 0x76, 0x76, 0xa9, 0x1d, 0x3b, 0x81, 0x43, 0xdb,
+	0xca, 0x4e, 0x49, 0x27, 0x3d, 0x67, 0x26, 0xfe, 0xe4, 0xec, 0x39, 0xc0, 0x52, 0x1a, 0x55, 0x5b,
+	0x27, 0x1d, 0x7a, 0x8f, 0x99, 0x18, 0x10, 0x32, 0x27, 0x80, 0xbd, 0x82, 0x34, 0xc8, 0xdb, 0x7c,
+	0x6f, 0x92, 0x14, 0xc3, 0x29, 0xfb, 0x4b, 0x31, 0x1a, 0x17, 0xbb, 0x16, 0xfe, 0x9e, 0xd6, 0xa9,
+	0x8c, 0xee, 0xb4, 0x45, 0x96, 0x43, 0x6a, 0x70, 0x73, 0x87, 0xd6, 0x45, 0xd1, 0x5d, 0x4a, 0x9a,
+	0x5d, 0x68, 0xa2, 0xb3, 0xf5, 0xfc, 0x96, 0x83, 0x88, 0xcc, 0x14, 0xbf, 0x80, 0xb4, 0x2a, 0x3f,
+	0xb4, 0xce, 0x7c, 0x67, 0x47, 0x70, 0x80, 0x14, 0x44, 0x86, 0x90, 0xfc, 0xc7, 0x33, 0xbf, 0x80,
+	0x67, 0x55, 0x79, 0x85, 0x52, 0xa1, 0xb1, 0xcb, 0xa6, 0xfb, 0x4c, 0x8b, 0xe2, 0x35, 0x5a, 0x2b,
+	0x17, 0xc8, 0x5e, 0x40, 0x46, 0x2f, 0xb2, 0xaa, 0x57, 0xbe, 0xc1, 0x13, 0x1f, 0x8a, 0xa1, 0xc7,
+	0xc2, 0x0c, 0x7f, 0x0b, 0x4f, 0xab, 0xf2, 0x52, 0xa9, 0x4f, 0x5a, 0xe1, 0xe5, 0x2d, 0xbd, 0x93,
+	0x88, 0xc6, 0x4f, 0x61, 0x9f, 0xee, 0xeb, 0x87, 0xee, 0x39, 0xbe, 0x2f, 0xf2, 0x29, 0x1c, 0xff,
+	0x33, 0x6e, 0x3b, 0xdd, 0x5a, 0x7c, 0xf0, 0xb3, 0xf0, 0x77, 0x64, 0x39, 0x18, 0x7d, 0xa4, 0xea,
+	0x39, 0x31, 0x08, 0x5c, 0xeb, 0x6f, 0xf7, 0x30, 0x3c, 0xa4, 0x5b, 0x66, 0x3f, 0xb6, 0xe3, 0xe4,
+	0xe7, 0x76, 0x9c, 0xfc, 0xda, 0x8e, 0x93, 0x9b, 0xbe, 0xff, 0xdc, 0x6f, 0x7e, 0x07, 0x00, 0x00,
+	0xff, 0xff, 0x1a, 0xe1, 0x30, 0xea, 0x0c, 0x03, 0x00, 0x00,
 }

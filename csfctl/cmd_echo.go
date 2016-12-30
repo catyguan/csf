@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rafthttp
+package csfctl
 
-import (
-	"errors"
-	"net/http"
-)
+import "context"
 
-func (t *roundTripperBlocker) RoundTrip(req *http.Request) (*http.Response, error) {
-	c := make(chan struct{}, 1)
-	t.mu.Lock()
-	t.cancel[req] = c
-	t.mu.Unlock()
-	select {
-	case <-t.unblockc:
-		return &http.Response{StatusCode: http.StatusNoContent, Body: &nopReadCloser{}}, nil
-	case <-req.Cancel:
-		return nil, errors.New("request canceled")
-	case <-c:
-		return nil, errors.New("request canceled")
+func CreateECHOCommand() *Command {
+	return &Command{
+		Name:        "echo",
+		Usage:       "echo <content>",
+		Description: `print content to Env output`,
+		Aliases:     []string{"print"},
+		Args:        Flags{},
+		Action:      HandleECHOCommand,
 	}
+}
+
+func HandleECHOCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Command, args []string) error {
+	str := ""
+	if len(args) > 0 {
+		str = args[0]
+	}
+	env.Println(str)
+	return nil
 }

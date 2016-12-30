@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,5 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package rafthttp implements HTTP transportation layer for etcd/raft pkg.
-package rafthttp
+package csfctl
+
+import "context"
+
+func CreateEXITCommand() *Command {
+	return &Command{
+		Name:        "exit",
+		Description: "exit current executing Env",
+		Aliases:     []string{"quit"},
+		// Flags: ArgFlags{
+		// 	ArgFlag{Name: "forever, f", Usage: "forever check the health every 10 second until CTRL+C"},
+		// },
+		Action: handleExitCommand,
+	}
+}
+
+func handleExitCommand(ctx context.Context, env *Env, pwd *CommandDir, _ *Command, args []string) error {
+	env.Printf("exit ENV[%p]\n", env)
+	env.PopEnv()
+	return nil
+}

@@ -136,3 +136,55 @@ func (m *ChannelResponse) Copy() *ChannelResponse {
 	*r = *m
 	return r
 }
+
+func (m *ChannelResponse) AddHeader(n string, data []byte) {
+	h := &PBHeader{}
+	h.Name = n
+	h.Data = data
+	m.Header = append(m.Header, h)
+}
+
+func (m *ChannelResponse) AddStringHeader(n string, s string) {
+	h := &PBHeader{}
+	h.Name = n
+	h.Value = s
+	m.Header = append(m.Header, h)
+}
+
+func (m *ChannelResponse) SetHeader(n string, data []byte) {
+	h := m.GetHeaderInfo(n)
+	if h == nil {
+		m.AddHeader(n, data)
+	} else {
+		h.Data = data
+	}
+}
+
+func (m *ChannelResponse) SetStringHeader(n string, s string) {
+	h := m.GetHeaderInfo(n)
+	if h == nil {
+		m.AddStringHeader(n, s)
+	} else {
+		h.Value = s
+	}
+}
+
+func (m *ChannelResponse) GetHeaderInfo(n string) *PBHeader {
+	var r *PBHeader
+	for _, h := range m.Header {
+		if h.Name == n {
+			r = h
+		}
+	}
+	return r
+}
+
+func (m *ChannelResponse) ListHeaderInfo(n string) []*PBHeader {
+	var r []*PBHeader
+	for _, h := range m.Header {
+		if h.Name == n {
+			r = append(r, h)
+		}
+	}
+	return r
+}

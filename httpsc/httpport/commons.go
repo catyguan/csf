@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/pkg/capnslog"
 )
@@ -39,6 +40,7 @@ func (this *DefaultConverter) BuildRequest(hreq *http.Request) (*corepb.ChannelR
 	if err != nil {
 		return nil, err
 	}
+	r.AddStringHeader(core.HEADER_REMOTE_ADDR, hreq.RemoteAddr)
 	return r, nil
 }
 

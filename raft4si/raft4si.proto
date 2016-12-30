@@ -7,16 +7,27 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
+message PBPeer {
+  uint64 node_id = 1;
+  string peer_location = 2;
+}
+
+message PBMembers {
+  uint64 member_id_seq = 1;
+  repeated PBPeer peers = 2;
+}
+
 // wal saved snapshot struct
 message PBSnapshot {
   bytes snapdata = 1;
   bytes hard_state = 2;
+  PBMembers members = 3;
 }
 
 // Raft propose struct 
 message PBPropose {
-  uint64 ProposeID = 2;
-  bytes Request = 1;
+  uint64 propose_id = 2;
+  bytes request = 1;
 }
 
 // wal saved Entry struct
@@ -29,3 +40,25 @@ message PBEntry {
 message PBLeadershipUpdateMessage {
 	bool local_leader = 1;
 }
+
+// Request/Response
+// AddNode
+message PBAddNodeActionRequest {
+  PBPeer peer = 1;
+}
+
+message PBAddNodeActionResponse {
+  uint64 node_id = 1;
+}
+
+// UpdateNode
+message PBUpdateNodeActionRequest {
+  PBPeer peer = 1;
+}
+// Nil Response
+
+// RemoveNode
+message PBRemoveNodeActionRequest {
+  uint64 node_id = 1;
+}
+// Nil Response

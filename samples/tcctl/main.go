@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2016 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rafthttp
+// etcdctl is a command line application that controls etcd.
+package main
 
-import "github.com/catyguan/csf/raft/raftpb"
+import (
+	"os"
 
-type encoder interface {
-	// encode encodes the given message to an output stream.
-	encode(m *raftpb.Message) error
-}
+	"github.com/catyguan/csf/csfctl"
+)
 
-type decoder interface {
-	// decode decodes the message from an input stream.
-	decode() (raftpb.Message, error)
+func main() {
+	// for _, s := range os.Args {
+	// 	fmt.Println(s)
+	// }
+
+	root := csfctl.NewRootEnv()
+	BuildRootEnv1(root)
+	rdir := root.RootDir()
+	rdir.CreateDir("test")
+	root.RunAsConsole()
+	os.Exit(1)
 }

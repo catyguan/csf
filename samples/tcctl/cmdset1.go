@@ -1,4 +1,4 @@
-// Copyright 2016 The CSF Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package interfaces defines the base interface class use by csfserver and modules.
-package raftserver
+package main
 
-import "github.com/catyguan/csf/pkg/capnslog"
+import "github.com/catyguan/csf/csfctl"
 
-var (
-	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "raftserver")
-)
+func BuildRootEnv1(root *csfctl.Env) {
+	root.CreateStandardCommands()
+}

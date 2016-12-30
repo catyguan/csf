@@ -48,3 +48,5 @@ type CoreService interface {
 type ServiceChannelHandler interface {
 	HandleRequest(ctx context.Context, si ServiceInvoker, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error)
 }
+
+type ServiceLocationBuilder func(sl *ServiceLocation, typ, content string) error

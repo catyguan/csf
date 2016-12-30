@@ -20,6 +20,11 @@ import (
 	"net/http"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/pkg/capnslog"
+)
+
+var (
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "http4si")
 )
 
 type DefaultConverter struct {

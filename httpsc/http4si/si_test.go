@@ -22,12 +22,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/stretchr/testify/assert"
 )
 
 func testClient() (*HttpServiceInvoker, error) {
-	port := 8086
+	port := 8087
 	cfg := &Config{}
 	cfg.URL = fmt.Sprintf("http://localhost:%d/service", port)
 	cfg.ExcecuteTimeout = 10 * time.Second
@@ -50,6 +51,25 @@ func TestBase(t *testing.T) {
 	v, err2 := c.AddValue(ctx, "test", 1)
 	assert.NoError(t, err2)
 	assert.Equal(t, uint64(1), v)
+}
+
+func TestInvoke20(t *testing.T) {
+	time.AfterFunc(11*time.Second, func() {
+		fmt.Printf("exec timeout")
+		os.Exit(-1)
+	})
+
+	si, err := testClient()
+	assert.NoError(t, err)
+
+	octx := context.Background()
+	ctx, _ := context.WithTimeout(octx, 10*time.Second)
+	c := counter.NewCounter(si)
+	for i := 0; i < 20; i++ {
+		v, err2 := c.AddValue(ctx, "test", 1)
+		plog.Infof("[%d] return - %v", i, v)
+		assert.NoError(t, err2)
+	}
 }
 
 func TestGet(t *testing.T) {
@@ -105,4 +125,25 @@ func TestServerTimeout(t *testing.T) {
 		t.Logf("invoke error - %v", err2)
 		assert.NotEqual(t, -1, strings.Index(err2.Error(), "canceled"))
 	}
+}
+
+func TestLocation(t *testing.T) {
+	time.AfterFunc(11*time.Second, func() {
+		fmt.Printf("exec timeout")
+		os.Exit(-1)
+	})
+
+	s := "http://localhost:8086/service?EXEC=10s"
+	sl, err0 := core.ParseLocation(s)
+	if !assert.NoError(t, err0) {
+		return
+	}
+	si := sl.Invoker
+
+	octx := context.Background()
+	ctx, _ := context.WithTimeout(octx, 10*time.Second)
+	c := counter.NewCounter(si)
+	v, err2 := c.AddValue(ctx, "test", 1)
+	assert.NoError(t, err2)
+	assert.Equal(t, uint64(1), v)
 }
