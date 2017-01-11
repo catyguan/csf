@@ -94,7 +94,7 @@ func TestLocker(t *testing.T) {
 
 func TestSingleTbhread(t *testing.T) {
 	ds := newDebugService(debugResponse, nil)
-	si := NewSingeThreadServiceContainer(ds, 100)
+	si := NewSingleThreadServiceContainer(ds, 100)
 	defer si.Close()
 
 	wg := sync.WaitGroup{}

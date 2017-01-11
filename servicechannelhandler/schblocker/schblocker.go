@@ -41,37 +41,32 @@ func (this *Blocker) impl() {
 }
 
 func (this *Blocker) HandleRequest(ctx context.Context, si core.ServiceInvoker, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
-	m := false
 	ok := false
 	for _, ru := range this.rules {
 		switch ru.typ {
 		case 1:
 			if ru.path == "*" {
-				if !m {
-					ok = true
-				}
-			} else if ru.path == creq.ServicePath {
-				m = true
 				ok = true
+				break
+			} else if ru.path == creq.ServicePath {
+				ok = true
+				break
 			}
 		case 2:
 			if ru.path == "*" {
-				if !m {
-					ok = false
-				}
-			} else if ru.path == creq.ServicePath {
-				m = true
 				ok = false
+				break
+			} else if ru.path == creq.ServicePath {
+				ok = false
+				break
 			}
 		case 3:
 			if creq.IsQueryType() {
-				if !m {
-					ok = true
-				}
+				ok = true
 			} else {
-				m = true
 				ok = false
 			}
+			break
 		}
 	}
 

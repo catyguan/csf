@@ -13,6 +13,45 @@
 // limitations under the License.
 package core
 
+import "github.com/catyguan/csf/core/corepb"
+
 var (
 	HEADER_REMOTE_ADDR = "REMOTE_ADDR"
+	HEADER_ERROR_TRACE = "ERROR_TRACE"
 )
+
+var (
+	CommonHeaders CommonHeaderHelper
+)
+
+type CommonHeaderHelper struct {
+}
+
+func (this *CommonHeaderHelper) GetRemoteAddr(cr *corepb.ChannelRequest) string {
+	h := cr.GetHeaderInfo(HEADER_REMOTE_ADDR)
+	if h == nil {
+		return ""
+	}
+	return h.Value
+}
+
+func (this *CommonHeaderHelper) SetRemoteAddr(cr *corepb.ChannelRequest, ip string) {
+	cr.AddStringHeader(HEADER_REMOTE_ADDR, ip)
+}
+
+func (this *CommonHeaderHelper) GetErrorTrace(cr *corepb.ChannelRequest) []*corepb.PBErrorTrace {
+	hl := cr.ListHeaderInfo(HEADER_ERROR_TRACE)
+	r := make([]*corepb.PBErrorTrace, 0, len(hl))
+	for _, h := range hl {
+		et := &corepb.PBErrorTrace{}
+		et.Unmarshal(h.Data)
+		r = append(r, et)
+	}
+	return r
+}
+
+func (this *CommonHeaderHelper) AddErrorTrace(cr *corepb.ChannelRequest, port, err string) {
+	et := &corepb.PBErrorTrace{Port: port, Err: err}
+	data, _ := et.Marshal()
+	cr.AddHeader(HEADER_ERROR_TRACE, data)
+}

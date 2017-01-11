@@ -53,3 +53,8 @@ message PBChannelResponse {
   PBResponse response = 1;
   repeated PBHeader header = 2;
 }
+
+message PBErrorTrace {
+  string port = 1;
+  string err = 2; 
+}

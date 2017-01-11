@@ -40,7 +40,7 @@ func (this *DefaultConverter) BuildRequest(hreq *http.Request) (*corepb.ChannelR
 	if err != nil {
 		return nil, err
 	}
-	r.AddStringHeader(core.HEADER_REMOTE_ADDR, hreq.RemoteAddr)
+	core.CommonHeaders.SetRemoteAddr(r, hreq.RemoteAddr)
 	return r, nil
 }
 

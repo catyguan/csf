@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/catyguan/csf/csfctl"
+	_ "github.com/catyguan/csf/httpsc/http4si"
 )
 
 func main() {

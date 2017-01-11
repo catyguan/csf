@@ -14,8 +14,13 @@
 
 package main
 
-import "github.com/catyguan/csf/csfctl"
+import (
+	"github.com/catyguan/csf/csfctl"
+	"github.com/catyguan/csf/service/counter"
+)
 
 func BuildRootEnv1(root *csfctl.Env) {
 	root.CreateStandardCommands()
+	rdir := root.RootDir()
+	counter.CreateCommandDir(rdir)
 }

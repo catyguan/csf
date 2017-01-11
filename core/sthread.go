@@ -20,14 +20,14 @@ import (
 	"github.com/catyguan/csf/pkg/runobj"
 )
 
-type SingeThreadServiceContainer struct {
+type SingleThreadServiceContainer struct {
 	cs CoreService
 
 	ro *runobj.RunObj
 }
 
-func NewSingeThreadServiceContainer(cs CoreService, queueSize int) *SingeThreadServiceContainer {
-	r := &SingeThreadServiceContainer{
+func NewSingleThreadServiceContainer(cs CoreService, queueSize int) *SingleThreadServiceContainer {
+	r := &SingleThreadServiceContainer{
 		cs: cs,
 		ro: runobj.NewRunObj(queueSize),
 	}
@@ -35,12 +35,12 @@ func NewSingeThreadServiceContainer(cs CoreService, queueSize int) *SingeThreadS
 	return r
 }
 
-func (this *SingeThreadServiceContainer) impl() {
+func (this *SingleThreadServiceContainer) impl() {
 	_ = ServiceInvoker(this)
 	_ = ServiceHolder(this)
 }
 
-func (this *SingeThreadServiceContainer) doRun(ready chan error, ach <-chan *runobj.ActionRequest, p interface{}) {
+func (this *SingleThreadServiceContainer) doRun(ready chan error, ach <-chan *runobj.ActionRequest, p interface{}) {
 	close(ready)
 	for {
 		select {
@@ -72,7 +72,7 @@ func (this *SingeThreadServiceContainer) doRun(ready chan error, ach <-chan *run
 	}
 }
 
-func (this *SingeThreadServiceContainer) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
+func (this *SingleThreadServiceContainer) InvokeRequest(ctx context.Context, creq *corepb.ChannelRequest) (*corepb.ChannelResponse, error) {
 	req := &creq.Request
 	_, err := this.cs.VerifyRequest(ctx, req)
 	if err != nil {
@@ -98,15 +98,15 @@ func (this *SingeThreadServiceContainer) InvokeRequest(ctx context.Context, creq
 	return corepb.MakeChannelResponse(resp), nil
 }
 
-func (this *SingeThreadServiceContainer) IsClosed() bool {
+func (this *SingleThreadServiceContainer) IsClosed() bool {
 	return this.ro.IsClosed()
 }
 
-func (this *SingeThreadServiceContainer) Close() {
+func (this *SingleThreadServiceContainer) Close() {
 	this.ro.Close()
 }
 
-func (this *SingeThreadServiceContainer) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
+func (this *SingleThreadServiceContainer) ExecuteServiceFunc(ctx context.Context, sfunc ServiceFunc) error {
 	a := &runobj.ActionRequest{
 		Type: 2,
 		P1:   ctx,

@@ -1,4 +1,4 @@
-// Copyright 2015 The etcd Authors
+// Copyright 2015 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,5 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package command is a set of libraries for csfctl commands.
-package command
+package counter
+
+import "github.com/catyguan/csf/csfctl"
+
+func CreateCommandDir(pdir *csfctl.CommandDir) {
+	o := pdir.CreateDir("counter")
+	BuildCommandDir(o)
+}
+
+func BuildCommandDir(dir *csfctl.CommandDir) {
+	dir.AddCommand(createGETCommand())
+	dir.AddCommand(createADDCommand())
+}
