@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/catyguan/csf/snapshot"
 	"github.com/catyguan/csf/storage4si"
 	"github.com/catyguan/csf/wal"
@@ -73,6 +74,7 @@ func NewWALStorage(cfg *Config) (*WALStorage, error) {
 
 func (this *WALStorage) impl() {
 	_ = storage4si.Storage(this)
+	_ = masterslave.MasterNode(this)
 }
 
 func (this *WALStorage) Close() {
@@ -132,10 +134,16 @@ type wsCursor struct {
 
 func (this *WALStorage) BeginLoad(start uint64) (interface{}, error) {
 	c, err := this.w.GetCursor(start)
+	if err != nil {
+		return nil, err
+	}
 	return &wsCursor{c: c, start: start}, err
 }
-
 func (this *WALStorage) LoadRequest(c interface{}, size int, lis storage4si.StorageListener) (uint64, []*corepb.Request, error) {
+	return this.doLoadRequest(c, size, lis, nil)
+}
+
+func (this *WALStorage) doLoadRequest(c interface{}, size int, lis storage4si.StorageListener, f masterslave.MasterFollower) (uint64, []*corepb.Request, error) {
 	wsc := c.(*wsCursor)
 
 	ll := uint64(0)
@@ -166,6 +174,9 @@ func (this *WALStorage) LoadRequest(c interface{}, size int, lis storage4si.Stor
 		r = nil
 		if lis != nil {
 			this.AddListener(lis)
+		}
+		if f != nil {
+			this.AddListener(&storage4si.MasterFollowerListener{Follower: f})
 		}
 	}
 	return ll, r, nil
@@ -222,4 +233,33 @@ func (this *WALStorage) doRemoveListener(lis storage4si.StorageListener) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.llist.Remove(lis)
+}
+
+func (this *WALStorage) MasterLoadLastSnapshot() (uint64, []byte, error) {
+	lidx, r, err := this.LoadLastSnapshot()
+	if err != nil {
+		return 0, nil, err
+	}
+	if r == nil {
+		return lidx, nil, nil
+	}
+	b, err2 := ioutil.ReadAll(r)
+	return lidx, b, err2
+}
+
+func (this *WALStorage) MasterBeginLoad(idx uint64) (interface{}, error) {
+	return this.BeginLoad(idx)
+}
+
+func (this *WALStorage) MasterLoadRequest(c interface{}, size int, f masterslave.MasterFollower) ([]*corepb.Request, error) {
+	_, r1, r2 := this.doLoadRequest(c, size, nil, f)
+	return r1, r2
+}
+
+func (this *WALStorage) MasterEndLoad(c interface{}) {
+	this.EndLoad(c)
+}
+
+func (this *WALStorage) RemoveFollower(f masterslave.MasterFollower) {
+	this.RemoveListener(&storage4si.MasterFollowerListener{Follower: f})
 }

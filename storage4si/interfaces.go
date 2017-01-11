@@ -17,6 +17,7 @@ import (
 	"io"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/masterslave"
 )
 
 type RequestEntry struct {
@@ -56,13 +57,15 @@ type Rebuildable interface {
 }
 
 type StorageListener interface {
+	GetFollower() masterslave.MasterFollower
+
 	OnReset()
 
 	OnTruncate(idx uint64)
 
 	OnSaveRequest(idx uint64, req *corepb.Request)
 
-	OnSaveSanepshot(idx uint64)
+	OnSaveSnapshot(idx uint64)
 
 	OnClose()
 }

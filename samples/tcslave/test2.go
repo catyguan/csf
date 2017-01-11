@@ -25,12 +25,12 @@ import (
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/httpsc/http4si"
 	"github.com/catyguan/csf/httpsc/httpport"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/servicechannelhandler/schblocker"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
 	"github.com/catyguan/csf/storage4si"
-	"github.com/catyguan/csf/storage4si/masterslave"
 )
 
 func main2() {
@@ -86,7 +86,7 @@ func main2() {
 		}
 
 		cfg2 := masterslave.NewSlaveConfig()
-		cfg2.Apply = masterslave.NewSlaveStorageContainerApply(ssi)
+		cfg2.Apply = storage4si.NewSlaveStorageContainerApply(ssi)
 		cfg2.Master = masterslave.NewMasterAPI(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), si)
 		service := masterslave.NewSlaveService(cfg2)
 		err = service.Run()
@@ -107,7 +107,7 @@ func main2() {
 
 	if true {
 		cfg := masterslave.NewMasterConfig()
-		cfg.Storage = ms
+		cfg.Master = ms.(masterslave.MasterNode)
 		service := masterslave.NewMasterService(cfg)
 		si := core.NewLockerServiceContainer(service, nil)
 

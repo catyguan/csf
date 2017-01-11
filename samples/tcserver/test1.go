@@ -26,11 +26,11 @@ import (
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/httpsc/httpport"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
 	"github.com/catyguan/csf/storage4si"
-	"github.com/catyguan/csf/storage4si/masterslave"
 	"github.com/catyguan/csf/storage4si/walstorage"
 )
 
@@ -96,12 +96,12 @@ func main1() {
 
 	if true {
 		cfg := masterslave.NewMasterConfig()
-		cfg.Storage = ms
+		cfg.Master = ms.(masterslave.MasterNode)
 		service := masterslave.NewMasterService(cfg)
 		si := core.NewSimpleServiceContainer(service)
 
 		sc := core.NewServiceChannel()
-		sc.Next(schlog.NewLogger("MASTER"))
+		// sc.Next(schlog.NewLogger("MASTER"))
 		sc.Sink(si)
 
 		pmux.AddInvoker(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), sc)

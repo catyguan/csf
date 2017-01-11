@@ -21,7 +21,6 @@ import (
 
 	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/pkg/capnslog"
-	"github.com/catyguan/csf/storage4si"
 )
 
 var (
@@ -36,7 +35,7 @@ type MasterAPI interface {
 }
 
 type MasterConfig struct {
-	Storage       storage4si.Storage
+	Master        MasterNode
 	QuerySize     int
 	PullWaitTime  time.Duration
 	SessionExpire time.Duration

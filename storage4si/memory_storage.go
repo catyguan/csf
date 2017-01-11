@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/masterslave"
 )
 
 type MemoryStorage struct {
@@ -51,6 +52,7 @@ func NewMemoryStorage(maxSize int) Storage {
 
 func (this *MemoryStorage) impl() {
 	_ = Storage(this)
+	_ = masterslave.MasterNode(this)
 	_ = Rebuildable(this)
 }
 
@@ -127,6 +129,10 @@ func (this *MemoryStorage) BeginLoad(start uint64) (interface{}, error) {
 }
 
 func (this *MemoryStorage) LoadRequest(c interface{}, size int, lis StorageListener) (uint64, []*corepb.Request, error) {
+	return this.doLoadRequest(c, size, lis, nil)
+}
+
+func (this *MemoryStorage) doLoadRequest(c interface{}, size int, lis StorageListener, f masterslave.MasterFollower) (uint64, []*corepb.Request, error) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 
@@ -135,6 +141,9 @@ func (this *MemoryStorage) LoadRequest(c interface{}, size int, lis StorageListe
 	if !ok {
 		if lis != nil {
 			this.doAddListener(lis)
+		}
+		if f != nil {
+			this.doAddListener(&MasterFollowerListener{Follower: f})
 		}
 		return 0, nil, nil
 	}
@@ -159,6 +168,9 @@ func (this *MemoryStorage) LoadRequest(c interface{}, size int, lis StorageListe
 		r = nil
 		if lis != nil {
 			this.doAddListener(lis)
+		}
+		if f != nil {
+			this.doAddListener(&MasterFollowerListener{Follower: f})
 		}
 	}
 	cc.start = ll + 1
@@ -187,7 +199,7 @@ func (this *MemoryStorage) doSaveSnapshot(idx uint64, data []byte) error {
 	}
 	this.snapData = data
 	this.snapIndex = idx
-	this.llist.OnSaveSanepshot(idx)
+	this.llist.OnSaveSnapshot(idx)
 	return nil
 }
 
@@ -318,4 +330,33 @@ func (this *MemoryStorage) Count() int {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	return this.size
+}
+
+func (this *MemoryStorage) MasterLoadLastSnapshot() (uint64, []byte, error) {
+	lidx, r, err := this.LoadLastSnapshot()
+	if err != nil {
+		return 0, nil, err
+	}
+	if r == nil {
+		return lidx, nil, nil
+	}
+	b, err2 := ioutil.ReadAll(r)
+	return lidx, b, err2
+}
+
+func (this *MemoryStorage) MasterBeginLoad(idx uint64) (interface{}, error) {
+	return this.BeginLoad(idx)
+}
+
+func (this *MemoryStorage) MasterLoadRequest(c interface{}, size int, f masterslave.MasterFollower) ([]*corepb.Request, error) {
+	_, r1, r2 := this.doLoadRequest(c, size, nil, f)
+	return r1, r2
+}
+
+func (this *MemoryStorage) MasterEndLoad(c interface{}) {
+	this.EndLoad(c)
+}
+
+func (this *MemoryStorage) RemoveFollower(f masterslave.MasterFollower) {
+	this.RemoveListener(&MasterFollowerListener{Follower: f})
 }

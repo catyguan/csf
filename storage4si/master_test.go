@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package masterslave
+package storage4si
 
 import (
 	"bytes"
@@ -22,43 +22,21 @@ import (
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
-	"github.com/catyguan/csf/storage4si"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCopyR(t *testing.T) {
-	sa := &slaveAgent{}
-
-	for i := 1; i <= 10; i++ {
-		req := &corepb.Request{}
-		req.ID = uint64(i)
-		sa.requests = append(sa.requests, req)
-	}
-	tmp := sa.requests
-	plog.Infof("%v", tmp)
-
-	r1 := sa.doCopyR(0)
-	req := &corepb.Request{}
-	req.ID = uint64(11)
-	sa.requests = append(sa.requests, req)
-
-	plog.Infof("%v", r1)
-	plog.Infof("%v", sa.requests)
-	plog.Infof("%v", tmp)
-
-}
-
-func doTestCall1(s storage4si.Storage) {
+func doTestCall1(s Storage) {
 	assert.NotNil(nil, nil)
 }
 
 func TestBase(t *testing.T) {
-	ms := storage4si.NewMemoryStorage(1024)
-	cfg := NewMasterConfig()
-	cfg.Storage = ms
-	service := NewMasterService(cfg)
-	si := core.NewSimpleServiceInvoker(service)
-	api := NewMasterAPI("test", si)
+	ms := NewMemoryStorage(1024).(*MemoryStorage)
+	cfg := masterslave.NewMasterConfig()
+	cfg.Master = ms
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceContainer(service)
+	api := masterslave.NewMasterAPI("test", si)
 
 	ctx := context.Background()
 	sid, err := api.Begin(ctx)
@@ -78,12 +56,12 @@ func TestBase(t *testing.T) {
 }
 
 func TestSnapshot(t *testing.T) {
-	ms := storage4si.NewMemoryStorage(1024)
-	cfg := NewMasterConfig()
-	cfg.Storage = ms
-	service := NewMasterService(cfg)
-	si := core.NewSimpleServiceInvoker(service)
-	api := NewMasterAPI("test", si)
+	ms := NewMemoryStorage(1024).(*MemoryStorage)
+	cfg := masterslave.NewMasterConfig()
+	cfg.Master = ms
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceContainer(service)
+	api := masterslave.NewMasterAPI("test", si)
 
 	ctx := context.Background()
 	sid, err := api.Begin(ctx)
@@ -108,12 +86,12 @@ func TestSnapshot(t *testing.T) {
 }
 
 func TestProcess(t *testing.T) {
-	ms := storage4si.NewMemoryStorage(1024)
-	cfg := NewMasterConfig()
-	cfg.Storage = ms
-	service := NewMasterService(cfg)
-	si := core.NewSimpleServiceInvoker(service)
-	api := NewMasterAPI("test", si)
+	ms := NewMemoryStorage(1024).(*MemoryStorage)
+	cfg := masterslave.NewMasterConfig()
+	cfg.Master = ms
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceContainer(service)
+	api := masterslave.NewMasterAPI("test", si)
 
 	ctx := context.Background()
 	sid, err := api.Begin(ctx)
@@ -176,13 +154,13 @@ func TestProcess(t *testing.T) {
 }
 
 func TestSessionExpire(t *testing.T) {
-	ms := storage4si.NewMemoryStorage(1024)
-	cfg := NewMasterConfig()
-	cfg.Storage = ms
+	ms := NewMemoryStorage(1024).(*MemoryStorage)
+	cfg := masterslave.NewMasterConfig()
+	cfg.Master = ms
 	cfg.SessionExpire = 1 * time.Second
-	service := NewMasterService(cfg)
-	si := core.NewSimpleServiceInvoker(service)
-	api := NewMasterAPI("test", si)
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceContainer(service)
+	api := masterslave.NewMasterAPI("test", si)
 
 	ctx := context.Background()
 	sid, err := api.Begin(ctx)
@@ -194,5 +172,5 @@ func TestSessionExpire(t *testing.T) {
 	time.Sleep(1100 * time.Millisecond)
 	_, _, err2 := api.LastSnapshot(ctx, sid)
 	assert.Error(t, err2)
-	assert.Equal(t, ErrSessionNotExists, err2)
+	assert.Equal(t, masterslave.ErrSessionNotExists, err2)
 }

@@ -149,6 +149,10 @@ func (this *cursorImpl) Read() (*Entry, error) {
 		this.c.Close()
 		this.c = nil
 
+		if this.w == nil {
+			return nil, ErrClosed
+		}
+
 		c, err := this.w.createCursor(idx)
 		if err != nil {
 			return nil, err
@@ -157,6 +161,5 @@ func (this *cursorImpl) Read() (*Entry, error) {
 			return nil, nil
 		}
 		this.c = c
-
 	}
 }

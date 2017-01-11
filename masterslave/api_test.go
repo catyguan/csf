@@ -19,9 +19,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/httpsc/http4si"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCopyR(t *testing.T) {
+	sa := &slaveAgent{}
+
+	for i := 1; i <= 10; i++ {
+		req := &corepb.Request{}
+		req.ID = uint64(i)
+		sa.requests = append(sa.requests, req)
+	}
+	tmp := sa.requests
+	plog.Infof("%v", tmp)
+
+	r1 := sa.doCopyR(0)
+	req := &corepb.Request{}
+	req.ID = uint64(11)
+	sa.requests = append(sa.requests, req)
+
+	plog.Infof("%v", r1)
+	plog.Infof("%v", sa.requests)
+	plog.Infof("%v", tmp)
+
+}
 
 func testClient() (*http4si.HttpServiceInvoker, error) {
 	cfg := &http4si.Config{}

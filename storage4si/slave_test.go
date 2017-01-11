@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package masterslave
+package storage4si
 
 import (
 	"testing"
@@ -20,27 +20,27 @@ import (
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
-	"github.com/catyguan/csf/storage4si"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/stretchr/testify/assert"
 )
 
-func testMasterAPI() (MasterAPI, storage4si.Storage) {
-	ms := storage4si.NewMemoryStorage(1024)
-	cfg := NewMasterConfig()
-	cfg.Storage = ms
-	service := NewMasterService(cfg)
-	si := core.NewSimpleServiceInvoker(service)
-	api := NewMasterAPI("test", si)
+func testMasterAPI() (masterslave.MasterAPI, Storage) {
+	ms := NewMemoryStorage(1024).(*MemoryStorage)
+	cfg := masterslave.NewMasterConfig()
+	cfg.Master = ms
+	service := masterslave.NewMasterService(cfg)
+	si := core.NewSimpleServiceContainer(service)
+	api := masterslave.NewMasterAPI("test", si)
 	return api, ms
 }
 
 func TestSlaveBase(t *testing.T) {
 	master, _ := testMasterAPI()
 
-	cfg := NewSlaveConfig()
+	cfg := masterslave.NewSlaveConfig()
 	cfg.Master = master
-	cfg.Apply = &fakeSlaveApply{}
-	service := NewSlaveService(cfg)
+	cfg.Apply = &masterslave.FakeSlaveApply{}
+	service := masterslave.NewSlaveService(cfg)
 
 	err := service.Run()
 	if !assert.NoError(t, err) {
@@ -54,10 +54,10 @@ func TestSlaveBase(t *testing.T) {
 func TestSlaveFollow(t *testing.T) {
 	master, ms := testMasterAPI()
 
-	cfg := NewSlaveConfig()
+	cfg := masterslave.NewSlaveConfig()
 	cfg.Master = master
-	cfg.Apply = &fakeSlaveApply{}
-	service := NewSlaveService(cfg)
+	cfg.Apply = &masterslave.FakeSlaveApply{}
+	service := masterslave.NewSlaveService(cfg)
 
 	err := service.Run()
 	if !assert.NoError(t, err) {

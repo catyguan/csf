@@ -15,6 +15,7 @@ package storage4si
 
 import (
 	"github.com/catyguan/csf/core/corepb"
+	"github.com/catyguan/csf/masterslave"
 	"github.com/catyguan/csf/pkg/capnslog"
 )
 
@@ -22,9 +23,19 @@ type Listeners struct {
 	llist []StorageListener
 }
 
+func (this *Listeners) same(l1 StorageListener, l2 StorageListener) bool {
+	if l1 == l2 {
+		return true
+	}
+	if l1.GetFollower() != nil && l1.GetFollower() == l2.GetFollower() {
+		return true
+	}
+	return false
+}
+
 func (this *Listeners) Add(lis StorageListener) {
 	for _, l := range this.llist {
-		if l == lis {
+		if this.same(l, lis) {
 			return
 		}
 	}
@@ -33,7 +44,7 @@ func (this *Listeners) Add(lis StorageListener) {
 
 func (this *Listeners) Remove(lis StorageListener) {
 	for i, l := range this.llist {
-		if l == lis {
+		if this.same(l, lis) {
 			c := len(this.llist)
 			if i < c-1 {
 				this.llist[i] = this.llist[c-1]
@@ -62,9 +73,9 @@ func (this *Listeners) OnSaveRequest(idx uint64, req *corepb.Request) {
 	}
 }
 
-func (this *Listeners) OnSaveSanepshot(idx uint64) {
+func (this *Listeners) OnSaveSnapshot(idx uint64) {
 	for _, lis := range this.llist {
-		lis.OnSaveSanepshot(idx)
+		lis.OnSaveSnapshot(idx)
 	}
 }
 
@@ -90,6 +101,10 @@ func NewLogListener(n string, l *capnslog.PackageLogger) StorageListener {
 	return r
 }
 
+func (this *LogListener) GetFollower() masterslave.MasterFollower {
+	return nil
+}
+
 func (this *LogListener) OnReset() {
 	this.l.Infof("%v OnReset", this.name)
 }
@@ -102,8 +117,8 @@ func (this *LogListener) OnSaveRequest(idx uint64, req *corepb.Request) {
 	this.l.Infof("%v OnSaveRequest(%v, %v)", this.name, idx, req)
 }
 
-func (this *LogListener) OnSaveSanepshot(idx uint64) {
-	this.l.Infof("%v OnSaveRequest(%v)", this.name, idx)
+func (this *LogListener) OnSaveSnapshot(idx uint64) {
+	this.l.Infof("%v OnSaveSnapshot(%v)", this.name, idx)
 }
 
 func (this *LogListener) OnClose() {

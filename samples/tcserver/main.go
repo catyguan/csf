@@ -16,5 +16,5 @@
 package main
 
 func main() {
-	main3()
+	main1()
 }

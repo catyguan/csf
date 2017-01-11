@@ -20,7 +20,6 @@ import (
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/core/corepb"
-	"github.com/catyguan/csf/storage4si"
 )
 
 type SlaveServiceApply struct {
@@ -54,23 +53,4 @@ func (this *SlaveServiceApply) ApplyRequests(reqlist []*corepb.Request) error {
 		}
 		return nil
 	})
-}
-
-type SlaveStorageContainerApply struct {
-	ssc *storage4si.StorageServiceContainer
-}
-
-func NewSlaveStorageContainerApply(ssc *storage4si.StorageServiceContainer) *SlaveStorageContainerApply {
-	r := &SlaveStorageContainerApply{ssc: ssc}
-	return r
-}
-
-func (this *SlaveStorageContainerApply) ApplySnapshot(idx uint64, data []byte) error {
-	ctx := context.Background()
-	return this.ssc.ApplySnapshot(ctx, idx, data)
-}
-
-func (this *SlaveStorageContainerApply) ApplyRequests(reqlist []*corepb.Request) error {
-	ctx := context.Background()
-	return this.ssc.ApplyRequests(ctx, reqlist)
 }

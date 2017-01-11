@@ -125,7 +125,7 @@ func createCounter() (counter.Counter, *counter.CounterService) {
 	return counter.NewCounter(si), s
 }
 
-func doTestCall1(t *testing.T, c counter.Counter) {
+func doTestCall2(t *testing.T, c counter.Counter) {
 	ctx := context.Background()
 
 	v, err := c.GetValue(ctx, "test")
@@ -142,7 +142,7 @@ func doTestCall1(t *testing.T, c counter.Counter) {
 	assert.True(t, 11 == v)
 }
 
-func TestBase(t *testing.T) {
+func TestMSBase(t *testing.T) {
 	ms := NewMemoryStorage(16).(*MemoryStorage)
 	cfg := NewConfig()
 	cfg.Storage = ms
@@ -154,7 +154,7 @@ func TestBase(t *testing.T) {
 	defer si.Close()
 
 	c := counter.NewCounter(si)
-	doTestCall1(t, c)
+	doTestCall2(t, c)
 
 	assert.Equal(t, int(2), ms.Count())
 }
@@ -170,7 +170,7 @@ func TestRecover(t *testing.T) {
 	defer si.Close()
 
 	c := counter.NewCounter(si)
-	doTestCall1(t, c)
+	doTestCall2(t, c)
 
 	cfg2 := NewConfig()
 	cfg2.Storage = ms

@@ -16,13 +16,11 @@ package masterslave
 
 import (
 	"errors"
-	"io/ioutil"
 	"sync"
 	"time"
 
 	"github.com/catyguan/csf/core/corepb"
 	"github.com/catyguan/csf/pkg/idleticker"
-	"github.com/catyguan/csf/storage4si"
 )
 
 var (
@@ -31,7 +29,7 @@ var (
 
 type slaveAgent struct {
 	id        uint64
-	lastIndex uint64
+	snapIndex uint64
 	lastError error
 	ling      bool
 	cursor    interface{}
@@ -42,10 +40,10 @@ type slaveAgent struct {
 }
 
 func (this *slaveAgent) impl() {
-	_ = storage4si.StorageListener(this)
+	_ = MasterFollower(this)
 }
 
-func (this *slaveAgent) beError(err string) {
+func (this *slaveAgent) OnMasterError(err string) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.lastError = errors.New(err)
@@ -84,15 +82,7 @@ func (this *slaveAgent) doCopyR(sz int) []*corepb.Request {
 	return r
 }
 
-func (this *slaveAgent) OnReset() {
-	this.beError("reseted")
-}
-
-func (this *slaveAgent) OnTruncate(idx uint64) {
-	this.beError("truncated")
-}
-
-func (this *slaveAgent) OnSaveRequest(idx uint64, req *corepb.Request) {
+func (this *slaveAgent) OnMasterSaveRequest(idx uint64, req *corepb.Request) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.requests = append(this.requests, req)
@@ -105,16 +95,9 @@ func (this *slaveAgent) OnSaveRequest(idx uint64, req *corepb.Request) {
 	}
 }
 
-func (this *slaveAgent) OnSaveSanepshot(idx uint64) {
-}
-
-func (this *slaveAgent) OnClose() {
-	this.beError("closed")
-}
-
 type masterEP struct {
-	storage storage4si.Storage
-	cfg     *MasterConfig
+	master MasterNode
+	cfg    *MasterConfig
 
 	slaveId uint64
 	slaves  map[uint64]*slaveAgent
@@ -123,7 +106,7 @@ type masterEP struct {
 
 func newMasterEP(cfg *MasterConfig) *masterEP {
 	r := new(masterEP)
-	r.storage = cfg.Storage
+	r.master = cfg.Master
 	r.cfg = cfg
 	r.slaveId = uint64(time.Now().UnixNano())
 	r.slaves = make(map[uint64]*slaveAgent)
@@ -161,9 +144,9 @@ func (this *masterEP) closeAgent(sa *slaveAgent) {
 	if sa.ti != nil {
 		sa.ti.Stop()
 	}
-	this.storage.RemoveListener(sa)
+	this.master.RemoveFollower(sa)
 	if sa.cursor != nil {
-		this.storage.EndLoad(sa.cursor)
+		this.master.MasterEndLoad(sa.cursor)
 		sa.cursor = nil
 	}
 }
@@ -187,20 +170,14 @@ func (this *masterEP) LastSnapshot(sid uint64) (uint64, []byte, error) {
 	}
 	sa.ti.Reset()
 
-	lidx, r, err1 := this.storage.LoadLastSnapshot()
+	lidx, b, err1 := this.master.MasterLoadLastSnapshot()
 	if err1 != nil {
 		return 0, nil, err1
 	}
-	var b []byte
-	if r == nil {
+	if b == nil {
 		b = make([]byte, 0, 0)
-	} else {
-		b, err = ioutil.ReadAll(r)
-		if err != nil {
-			return 0, nil, err
-		}
 	}
-	sa.lastIndex = lidx
+	sa.snapIndex = lidx
 	return lidx, b, nil
 }
 
@@ -218,19 +195,19 @@ func (this *masterEP) Process(sid uint64) ([]*corepb.Request, error) {
 	if !ling {
 		// query
 		if sa.cursor == nil {
-			sa.cursor, err = this.storage.BeginLoad(sa.lastIndex)
+			sa.cursor, err = this.master.MasterBeginLoad(sa.snapIndex + 1)
 			if err != nil {
 				return nil, err
 			}
 		}
-		_, rlist, err1 := this.storage.LoadRequest(sa.cursor, this.cfg.QuerySize, sa)
+		rlist, err1 := this.master.MasterLoadRequest(sa.cursor, this.cfg.QuerySize, sa)
 		if err1 != nil {
 			return nil, err1
 		}
 		if len(rlist) != 0 {
 			return rlist, nil
 		}
-		this.storage.EndLoad(sa.cursor)
+		this.master.MasterEndLoad(sa.cursor)
 		sa.cursor = nil
 		sa.ling = true
 	}
