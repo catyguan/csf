@@ -17,10 +17,12 @@ package main
 import (
 	"github.com/catyguan/csf/csfctl"
 	"github.com/catyguan/csf/service/counter"
+	"github.com/catyguan/csf/storage4si/storage4si0admin"
 )
 
 func BuildRootEnv1(root *csfctl.Env) {
 	root.CreateStandardCommands()
 	rdir := root.RootDir()
-	counter.CreateCommandDir(rdir)
+	cdir := counter.CreateCommandDir(rdir)
+	cdir.AddCommand(storage4si0admin.CreateSNAPSHOTCommand())
 }

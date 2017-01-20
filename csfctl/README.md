@@ -80,6 +80,22 @@ env.GetVarString(...)
 env.GetVarBool(...)
 env.GetVarXXXX
 
+环境变量具有传递特性，子环境会读取父环境的变量
+
+### 命令行引用环境变量
+
+设置命令行非严格模式
+env set STRICT false
+控制变量STRICT缺省值为false
+
+引用
+echo $STRICT
+echo ${STRICT}
+
+代码中引用
+env.FormatVars(s) -- 会判断STRICT设置
+env.DoFormatVars(s) -- 直接处理
+
 ### 显示帮助
 
 csfctl.DoHelp(ctx, env, cmdobj)

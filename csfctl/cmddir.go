@@ -60,6 +60,20 @@ func (this *CommandDir) AddCommand(cmd *Command) *CommandDir {
 	return this
 }
 
+func (this *CommandDir) RemoveCommand(n string) bool {
+	for i, cmd := range this.Commands {
+		if cmd.Name == n {
+			tmp := this.Commands
+			this.Commands = tmp[:i]
+			if i < len(tmp)-1 {
+				this.Commands = append(this.Commands, tmp[i+1:]...)
+			}
+			return true
+		}
+	}
+	return false
+}
+
 func (this *CommandDir) GetCommand(s string) *Command {
 	for _, cmd := range this.Commands {
 		if cmd.Is(s) {

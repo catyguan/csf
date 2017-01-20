@@ -16,6 +16,7 @@ package counter
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/csfctl"
@@ -29,9 +30,10 @@ func createGETCommand() *csfctl.Command {
 		Aliases:     []string{},
 		Args: csfctl.Flags{
 			csfctl.Flag{Name: "h", Type: "bool", Usage: "show help"},
+			csfctl.Flag{Name: "rec", Type: "string", Default: "", Usage: "record result to ENV Vars"},
 		},
 		Vars: csfctl.Flags{
-			csfctl.Flag{Name: "COUNTER_LOC", Type: "string", Usage: "counter service location"},
+			csfctl.Flag{Name: "COUNTER_LOC", Type: "string", Usage: "counter service location, default use SERVICE_LOC"},
 		},
 		Action: handleGETCommand,
 	}
@@ -40,11 +42,12 @@ func createGETCommand() *csfctl.Command {
 func handleGETCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandDir, cmdobj *csfctl.Command, args []string) error {
 	vars, nargs, err := cmdobj.Args.Parse(args)
 	if err != nil {
-		return env.PrintErrorf(err.Error())
+		return env.PrintError(err)
 	}
 	args = nargs
 
 	varH := vars["h"].(bool)
+	varRec := vars["rec"].(string)
 	if varH {
 		csfctl.DoHelp(ctx, env, cmdobj)
 		return nil
@@ -55,19 +58,25 @@ func handleGETCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandD
 	}
 	loc := env.GetVarString("COUNTER_LOC", "")
 	if loc == "" {
+		loc = env.GetVarString("SERVICE_LOC", "")
+	}
+	if loc == "" {
 		return env.PrintErrorf("COUNTER_LOC nil")
 	}
 
 	n := args[0]
 	sl, err2 := core.ParseLocation(loc)
 	if err2 != nil {
-		return env.PrintErrorf(err2.Error())
+		return env.PrintError(err2)
 	}
 	api := NewCounter(sl.Invoker)
 	v, err3 := api.GetValue(ctx, n)
 	if err3 != nil {
-		return env.PrintErrorf(err3.Error())
+		return env.PrintError(err3)
 	}
 	env.Printf("%v\n", v)
+	if varRec != "" {
+		env.SetVar(varRec, fmt.Sprintf("%v", v))
+	}
 	return nil
 }

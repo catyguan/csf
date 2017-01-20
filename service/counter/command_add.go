@@ -32,7 +32,7 @@ func createADDCommand() *csfctl.Command {
 			csfctl.Flag{Name: "h", Type: "bool", Usage: "show help"},
 		},
 		Vars: csfctl.Flags{
-			csfctl.Flag{Name: "COUNTER_LOC", Type: "string", Usage: "counter service location"},
+			csfctl.Flag{Name: "COUNTER_LOC", Type: "string", Usage: "counter service location, default use SERVICE_LOC"},
 		},
 		Action: handleADDCommand,
 	}
@@ -56,6 +56,9 @@ func handleADDCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandD
 	}
 	loc := env.GetVarString("COUNTER_LOC", "")
 	if loc == "" {
+		loc = env.GetVarString("SERVICE_LOC", "")
+	}
+	if loc == "" {
 		return env.PrintErrorf("COUNTER_LOC nil")
 	}
 
@@ -67,12 +70,12 @@ func handleADDCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandD
 	}
 	sl, err2 := core.ParseLocation(loc)
 	if err2 != nil {
-		return env.PrintErrorf(err2.Error())
+		return env.PrintError(err2)
 	}
 	api := NewCounter(sl.Invoker)
 	rv, err3 := api.AddValue(ctx, n, uint64(v))
 	if err3 != nil {
-		return env.PrintErrorf(err3.Error())
+		return env.PrintError(err3)
 	}
 	env.Printf("%v\n", rv)
 	return nil

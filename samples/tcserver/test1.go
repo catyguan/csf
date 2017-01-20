@@ -31,6 +31,7 @@ import (
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
 	"github.com/catyguan/csf/storage4si"
+	"github.com/catyguan/csf/storage4si/storage4si0admin"
 	"github.com/catyguan/csf/storage4si/walstorage"
 )
 
@@ -92,6 +93,12 @@ func main1() {
 		sc.Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
+
+		as := storage4si0admin.NewAdminService(si)
+		sc2 := core.NewServiceChannel()
+		sc2.Next(schlog.NewLogger("STORAGE_ADMIN"))
+		sc2.Sink(core.NewSimpleServiceContainer(as))
+		amux.AddInvoker(storage4si0admin.DefaultAdminServiceName(counter.SERVICE_NAME), sc2)
 	}
 
 	if true {

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package storage4si0admin;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+message PBMakeSnapshotResult {
+  uint64 index = 1;
+}

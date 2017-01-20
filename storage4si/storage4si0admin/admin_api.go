@@ -1,4 +1,4 @@
-// Copyright 2015 The CSF Authors
+// Copyright 2016 The CSF Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package counter
+package storage4si0admin
 
-import "github.com/catyguan/csf/csfctl"
+import (
+	"context"
+	"fmt"
 
-func CreateCommandDir(pdir *csfctl.CommandDir) *csfctl.CommandDir {
-	o := pdir.CreateDir("counter")
-	BuildCommandDir(o)
-	return o
+	"github.com/catyguan/csf/pkg/capnslog"
+)
+
+var (
+	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "storage4si0admin")
+)
+
+type AdminAPI interface {
+	MakeSnapshot(ctx context.Context) (uint64, error)
 }
 
-func BuildCommandDir(dir *csfctl.CommandDir) {
-	dir.AddCommand(createGETCommand())
-	dir.AddCommand(createADDCommand())
+func DefaultAdminServiceName(s string) string {
+	return fmt.Sprintf("%s#admin", s)
 }

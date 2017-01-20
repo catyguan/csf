@@ -90,6 +90,11 @@ func (this *Env) Print(args ...interface{}) {
 	this.iPrint(fmt.Sprint(args...))
 }
 
+func (this *Env) PrintError(err error) error {
+	this.Println("ERR: " + err.Error())
+	return err
+}
+
 func (this *Env) PrintErrorf(format string, args ...interface{}) error {
 	s := fmt.Sprintf(format, args...)
 	this.Println("ERR: " + s)
@@ -114,6 +119,8 @@ func (this *Env) GetPwd() (*CommandDir, bool) {
 }
 
 func (this *Env) SetVar(n string, v string) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.vars == nil {
 		this.vars = make(map[string]string)
 	}
@@ -125,6 +132,8 @@ func (this *Env) SetVar(n string, v string) {
 }
 
 func (this *Env) GetVar(n string) (string, bool) {
+	this.mu.RLock()
+	defer this.mu.RUnlock()
 	var v string
 	var ok bool
 	if this.vars != nil {
@@ -140,6 +149,8 @@ func (this *Env) CopyVars(r map[string]string, local bool) {
 	if !local && this.backend != nil {
 		this.backend.CopyVars(r, local)
 	}
+	this.mu.RLock()
+	defer this.mu.RUnlock()
 	for k, v := range this.vars {
 		r[k] = v
 	}
@@ -214,9 +225,13 @@ func (this *Env) GetVarDuration(n string, dv time.Duration) time.Duration {
 }
 
 func (this *Env) FormatVars(s string) string {
-	if this.GetVarBool("STRICT", true) {
+	if this.GetVarBool("STRICT", false) {
 		return s
 	}
+	return this.DoFormatVars(s)
+}
+
+func (this *Env) DoFormatVars(s string) string {
 	buf := bytes.NewBuffer(make([]byte, 0))
 	q1 := false
 	q2 := false
@@ -307,6 +322,7 @@ func (this *Env) CreateStandardCommands() {
 	dir.AddCommand(CreateEXITCommand())
 	dir.AddCommand(CreateLSCommand())
 	dir.AddCommand(CreateCDCommand())
+	dir.AddCommand(CreateFCDCommand())
 	dir.AddCommand(CreateHELPCommand())
 	dir.AddCommand(CreateENVCommand())
 	dir.AddCommand(CreateEXECCommand())

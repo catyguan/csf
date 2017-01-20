@@ -61,7 +61,11 @@ func (this *MemoryStorage) SaveRequest(idx uint64, req *corepb.Request) (uint64,
 	defer this.mu.Unlock()
 
 	if idx == 0 {
-		idx = this.index + 1
+		if this.index < this.snapIndex {
+			idx = this.snapIndex + 1
+		} else {
+			idx = this.index + 1
+		}
 	}
 	if this.snapIndex != 0 && idx < this.snapIndex {
 		return 0, ErrConflict

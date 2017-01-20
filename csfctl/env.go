@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 )
 
 var (
@@ -35,6 +36,7 @@ type Env struct {
 
 	root *CommandDir
 	pwd  *CommandDir
+	mu   sync.RWMutex
 	vars map[string]string
 
 	out     io.Writer
@@ -128,6 +130,10 @@ func (this *Env) Exec(nr *bufio.Reader, ignoreErr bool) error {
 		}
 		cmd, errR := nr.ReadString('\n')
 		cmd = strings.TrimSpace(cmd)
+		if strings.HasPrefix(cmd, "#") {
+			// 注释, skip
+			continue
+		}
 		if cmd == "" {
 			if errR != nil {
 				if errR == io.EOF {

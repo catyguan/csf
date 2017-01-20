@@ -42,7 +42,7 @@ func HandleCDCommand(ctx context.Context, env *Env, pwd *CommandDir, _ *Command,
 	if path.IsAbs(dirn) {
 		ndirn = path.Clean(dirn)
 	} else {
-		ndirn = path.Join(pwd.GetPath(), dirn)
+		ndirn = path.Join(p, dirn)
 	}
 
 	plist := strings.Split(ndirn, "/")
