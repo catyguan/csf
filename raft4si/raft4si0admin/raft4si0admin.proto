@@ -1,0 +1,50 @@
+syntax = "proto3";
+package raft4si0admin;
+
+import "gogoproto/gogo.proto";
+import "github.com/catyguan/csf/raft4si/raft4si.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// Request/Response
+// Nil Request
+message PBMakeSnapshotResponse {
+  uint64 index = 1;
+}
+
+// QueryNodesInfo
+// nil Request
+message PBNodeInfo {
+	raft4si.PBPeer peer = 1;
+	bool live = 2;
+	bool fail = 3;
+	bool leader = 4;
+}
+
+message PBQueryNodesInfoResponse {
+	repeated PBNodeInfo node_info = 1;
+	uint64 local_node_id = 2;
+}
+
+// AddNode
+message PBAddNodeActionRequest {
+  raft4si.PBPeer peer = 1;
+}
+
+message PBAddNodeActionResponse {
+  uint64 node_id = 1;
+}
+
+// UpdateNode
+message PBUpdateNodeActionRequest {
+  raft4si.PBPeer peer = 1;
+}
+// Nil Response
+
+// RemoveNode
+message PBRemoveNodeActionRequest {
+  uint64 node_id = 1;
+}
+// Nil Response

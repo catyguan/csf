@@ -20,6 +20,7 @@ import (
 
 	"github.com/catyguan/csf/csfctl"
 	_ "github.com/catyguan/csf/httpsc/http4si"
+	_ "github.com/catyguan/csf/servicechannelhandler/schsign"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 	// }
 
 	root := csfctl.NewRootEnv()
-	BuildRootEnv1(root)
+	BuildRootEnv2(root)
 	rdir := root.RootDir()
 	rdir.CreateDir("test")
 	root.RunAsConsole()

@@ -29,8 +29,10 @@ import (
 	"github.com/catyguan/csf/httpsc/httpport"
 	"github.com/catyguan/csf/pkg/osutil"
 	"github.com/catyguan/csf/raft4si"
+	"github.com/catyguan/csf/raft4si/raft4si0admin"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/servicechannelhandler/schlog"
+	"github.com/catyguan/csf/servicechannelhandler/schsign"
 )
 
 func main3() {
@@ -104,6 +106,13 @@ func main3() {
 		sc.Sink(si)
 
 		smux.AddInvoker(counter.SERVICE_NAME, sc)
+
+		as := raft4si0admin.NewAdminService(si)
+		sc2 := core.NewServiceChannel()
+		sc2.Next(schlog.NewLogger("RAFT_ADMIN"))
+		sc2.Next(schsign.NewSign("123456", schsign.SIGN_REQUEST_VERIFY|schsign.SIGN_RESPONSE, false))
+		sc2.Sink(core.NewSimpleServiceContainer(as))
+		amux.AddInvoker(raft4si0admin.DefaultAdminServiceName(counter.SERVICE_NAME), sc2)
 	}
 
 	if rsc != nil {

@@ -42,23 +42,3 @@ message PBLeadershipUpdateMessage {
 }
 
 // Request/Response
-// AddNode
-message PBAddNodeActionRequest {
-  PBPeer peer = 1;
-}
-
-message PBAddNodeActionResponse {
-  uint64 node_id = 1;
-}
-
-// UpdateNode
-message PBUpdateNodeActionRequest {
-  PBPeer peer = 1;
-}
-// Nil Response
-
-// RemoveNode
-message PBRemoveNodeActionRequest {
-  uint64 node_id = 1;
-}
-// Nil Response

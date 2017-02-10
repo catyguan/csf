@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage4si0admin
+package raft4si0admin
 
 import (
 	"context"
@@ -21,23 +21,27 @@ import (
 	"github.com/catyguan/csf/csfctl"
 )
 
-func createSNAPSHOTCommand() *csfctl.Command {
+func createADDNODECommand() *csfctl.Command {
 	return &csfctl.Command{
-		Name:        "snapshot",
-		Usage:       "snapshot",
-		Description: `call StorageServiceContainer.MakeSnapshot`,
-		Aliases:     []string{"ss"},
+		Name:        "addnode",
+		Usage:       "addnode <peerLocation>",
+		Description: `call RaftServiceContainer.AddNode, return nodeId`,
+		Aliases:     []string{"raft.addnode"},
 		Args:        csfctl.Flags{
 		// csfctl.Flag{Name: "h", Type: "bool", Usage: "show help"},
 		},
 		Vars: csfctl.Flags{
 			csfctl.Flag{Name: "SERVICE_ADMIN_LOC", Type: "string", Usage: "service admin location"},
 		},
-		Action: handleSNAPSHOTCommand,
+		Action: handleADDNODECommand,
 	}
 }
 
-func handleSNAPSHOTCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandDir, cmdobj *csfctl.Command, args []string) error {
+func handleADDNODECommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandDir, cmdobj *csfctl.Command, args []string) error {
+	if len(args) != 1 {
+		csfctl.DoHelp(ctx, env, cmdobj)
+		return nil
+	}
 	loc := env.GetVarString("SERVICE_ADMIN_LOC", "")
 	if loc == "" {
 		return env.PrintErrorf("SERVICE_ADMIN_LOC nil")
@@ -48,7 +52,7 @@ func handleSNAPSHOTCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.Com
 		return env.PrintError(err2)
 	}
 	api := NewAdminAPI(DefaultAdminServiceName(sl.ServiceName), sl.Invoker)
-	rv, err3 := api.MakeSnapshot(ctx)
+	rv, err3 := api.AddNode(ctx, 0, args[0])
 	if err3 != nil {
 		return env.PrintError(err3)
 	}

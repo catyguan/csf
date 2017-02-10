@@ -54,6 +54,12 @@ func (this *ServiceChannel) InvokeRequest(ctx context.Context, creq *corepb.Chan
 	return this.head.InvokeRequest(ctx, creq)
 }
 
+func (this *ServiceChannel) Begin(h ServiceChannelHandler) *ServiceChannel {
+	i := this.head
+	this.head = &scInvoker{sc: this, h: h, next: i}
+	return this
+}
+
 func (this *ServiceChannel) Next(h ServiceChannelHandler) *ServiceChannel {
 	i := this.head
 	for {

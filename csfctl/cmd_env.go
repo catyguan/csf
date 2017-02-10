@@ -17,15 +17,17 @@ package csfctl
 import (
 	"bytes"
 	"context"
+	"strings"
 )
 
 func CreateENVCommand() *Command {
 	return &Command{
 		Name:  "env",
-		Usage: "env, env new, env set {varname} <varvalue>",
+		Usage: "env, env new, env set {varname} <varvalue>, env replace {varname} <searchString> <replaceString>",
 		Description: `env, list all env vars
  env new, create new env
- env set {varname} <varvalue>, set env var or remove env var`,
+ env set {varname} <varvalue>, set env var or remove env var
+ env replace {varname} <searchString> <replaceString>, replace env var string`,
 		Aliases: []string{},
 		Args: Flags{
 			Flag{Name: "h", Type: "bool", Usage: "show help"},
@@ -72,7 +74,7 @@ func HandleENVCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Co
 	case "set":
 		args = args[1:]
 		if len(args) == 0 {
-			return env.PrintErrorf("env {varname} <varvalue>")
+			return env.PrintErrorf("env set {varname} <varvalue>")
 		}
 		n := args[0]
 		v := ""
@@ -81,6 +83,22 @@ func HandleENVCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Co
 		}
 		env.SetVar(n, v)
 		env.Println("OK")
+	case "replace":
+		args = args[1:]
+		if len(args) < 3 {
+			return env.PrintErrorf("env replace {varname} <searchString> <replaceString>")
+		}
+		n := args[0]
+		ss := args[1]
+		rs := args[2]
+
+		v, b := env.GetVar(n)
+		if !b {
+			return env.PrintErrorf("miss ENV '%s'", n)
+		}
+		nv := strings.Replace(v, ss, rs, -1)
+		env.SetVar(n, nv)
+		env.Printf("%s -> %s\n", v, nv)
 	default:
 		return env.PrintErrorf("unknow action '%s'", act)
 	}

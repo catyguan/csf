@@ -18,8 +18,14 @@ import "github.com/catyguan/csf/pkg/capnslog"
 var (
 	plog = capnslog.NewPackageLogger("github.com/catyguan/csf", "raft4si")
 
-	SP_MESSAGE     = "message"
-	SP_ADD_NODE    = "addNode"
-	SP_UPDATE_NODE = "updateNode"
-	SP_REMOVE_NODE = "removeNode"
+	SP_MESSAGE = "message"
+)
+
+const (
+	actionOfInvokeRequest = iota
+	actionOfAddNode
+	actionOfUpdateNode
+	actionOfRemoveNode
+	actionOfMakeSnapshot
+	actionOfQueryNodes
 )

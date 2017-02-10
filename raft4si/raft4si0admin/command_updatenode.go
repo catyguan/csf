@@ -12,32 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage4si0admin
+package raft4si0admin
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/catyguan/csf/core"
 	"github.com/catyguan/csf/csfctl"
 )
 
-func createSNAPSHOTCommand() *csfctl.Command {
+func createUPDATENODECommand() *csfctl.Command {
 	return &csfctl.Command{
-		Name:        "snapshot",
-		Usage:       "snapshot",
-		Description: `call StorageServiceContainer.MakeSnapshot`,
-		Aliases:     []string{"ss"},
+		Name:        "updatenode",
+		Usage:       "updatenode <nodeId>, <peerLocation>",
+		Description: `call RaftServiceContainer.UpdateNode`,
+		Aliases:     []string{"raft.updatenode"},
 		Args:        csfctl.Flags{
 		// csfctl.Flag{Name: "h", Type: "bool", Usage: "show help"},
 		},
 		Vars: csfctl.Flags{
 			csfctl.Flag{Name: "SERVICE_ADMIN_LOC", Type: "string", Usage: "service admin location"},
 		},
-		Action: handleSNAPSHOTCommand,
+		Action: handleUPDATENODECommand,
 	}
 }
 
-func handleSNAPSHOTCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandDir, cmdobj *csfctl.Command, args []string) error {
+func handleUPDATENODECommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.CommandDir, cmdobj *csfctl.Command, args []string) error {
+	if len(args) != 2 {
+		csfctl.DoHelp(ctx, env, cmdobj)
+		return nil
+	}
+	nodeId, err1 := strconv.ParseUint(args[0], 0, 64)
+	if err1 != nil {
+		return env.PrintErrorf("nodeId invalid - %v", err1)
+	}
 	loc := env.GetVarString("SERVICE_ADMIN_LOC", "")
 	if loc == "" {
 		return env.PrintErrorf("SERVICE_ADMIN_LOC nil")
@@ -48,10 +57,10 @@ func handleSNAPSHOTCommand(ctx context.Context, env *csfctl.Env, pwd *csfctl.Com
 		return env.PrintError(err2)
 	}
 	api := NewAdminAPI(DefaultAdminServiceName(sl.ServiceName), sl.Invoker)
-	rv, err3 := api.MakeSnapshot(ctx)
+	err3 := api.UpdateNode(ctx, nodeId, args[1])
 	if err3 != nil {
 		return env.PrintError(err3)
 	}
-	env.Printf("%v\n", rv)
+	env.Printf("%v\n", "OK")
 	return nil
 }

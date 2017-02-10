@@ -16,6 +16,7 @@ package main
 
 import (
 	"github.com/catyguan/csf/csfctl"
+	"github.com/catyguan/csf/raft4si/raft4si0admin"
 	"github.com/catyguan/csf/service/counter"
 	"github.com/catyguan/csf/storage4si/storage4si0admin"
 )
@@ -24,5 +25,12 @@ func BuildRootEnv1(root *csfctl.Env) {
 	root.CreateStandardCommands()
 	rdir := root.RootDir()
 	cdir := counter.CreateCommandDir(rdir)
-	cdir.AddCommand(storage4si0admin.CreateSNAPSHOTCommand())
+	storage4si0admin.BuildCommandDir(cdir)
+}
+
+func BuildRootEnv2(root *csfctl.Env) {
+	root.CreateStandardCommands()
+	rdir := root.RootDir()
+	cdir := counter.CreateCommandDir(rdir)
+	raft4si0admin.BuildCommandDir(cdir)
 }

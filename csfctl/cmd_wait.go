@@ -14,25 +14,31 @@
 
 package csfctl
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-func CreateECHOCommand() *Command {
+func CreateWAITCommand() *Command {
 	return &Command{
-		Name:          "echo",
-		Usage:         "echo <content>",
-		Description:   `print content to Env output`,
-		Aliases:       []string{"print"},
-		Args:          Flags{},
-		Action:        HandleECHOCommand,
-		SkipLogFormat: true,
+		Name:        "wait",
+		Usage:       "wait <timeDuration>",
+		Description: `wait/sleep for some time`,
+		Aliases:     []string{"sleep"},
+		Args:        Flags{},
+		Action:      HandleWAITCommand,
 	}
 }
 
-func HandleECHOCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Command, args []string) error {
-	str := ""
-	if len(args) > 0 {
-		str = args[0]
+func HandleWAITCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Command, args []string) error {
+	if len(args) == 0 {
+		DoHelp(ctx, env, cmdobj)
+		return nil
 	}
-	env.Println(str)
+	du, err := time.ParseDuration(args[0])
+	if err != nil {
+		return env.PrintError(err)
+	}
+	time.Sleep(du)
 	return nil
 }

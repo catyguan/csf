@@ -50,6 +50,15 @@ func ParseLocation(s string) (*ServiceLocation, error) {
 	return r, nil
 }
 
+func (this *ServiceLocation) Copy(sl *ServiceLocation) {
+	this.Invoker = sl.Invoker
+	this.ServiceName = sl.ServiceName
+	this.Params = make(map[string]string)
+	for k, v := range sl.Params {
+		this.Params[k] = v
+	}
+}
+
 func (this *ServiceLocation) GetParam(s string) string {
 	r, ok := this.Params[s]
 	if !ok {

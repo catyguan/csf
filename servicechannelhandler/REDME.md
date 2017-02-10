@@ -38,3 +38,8 @@ NewSign(key string, signType uint16, signAll bool)
 
 	signAll
 		是否把整个数据进行签名，否的话只签名请求数据体或响应数据体
+
+LocBuilder
+	sign:[key];[signType];[signAll],invoker_location
+范例:
+	sign:123456;9;false,http://127.0.0.1:1080/test

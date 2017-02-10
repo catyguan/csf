@@ -52,51 +52,6 @@ func (this *peerInvoker) InvokeRequest(ctx context.Context, creq *corepb.Channel
 		this.rsc.onRecvRaftMessage(ctx, m)
 		resp := creq.CreateResponse(nil, nil)
 		return corepb.MakeChannelResponse(resp), nil
-	case SP_ADD_NODE:
-		req := PBAddNodeActionRequest{}
-		err := req.Unmarshal(creq.Data)
-		if err != nil {
-			return nil, err
-		}
-		pp := RaftPeer{}
-		pp.From(req.Peer)
-		rid, err1 := this.rsc.onAddNode(ctx, &pp)
-		if err1 != nil {
-			return nil, err1
-		}
-		o := PBAddNodeActionResponse{NodeId: rid}
-		rd, err2 := o.Marshal()
-		if err2 != nil {
-			return nil, err2
-		}
-		resp := creq.CreateResponse(rd, nil)
-		return corepb.MakeChannelResponse(resp), nil
-	case SP_UPDATE_NODE:
-		req := PBUpdateNodeActionRequest{}
-		err := req.Unmarshal(creq.Data)
-		if err != nil {
-			return nil, err
-		}
-		pp := RaftPeer{}
-		pp.From(req.Peer)
-		err1 := this.rsc.onUpdateNode(ctx, &pp)
-		if err1 != nil {
-			return nil, err1
-		}
-		resp := creq.CreateResponse(nil, nil)
-		return corepb.MakeChannelResponse(resp), nil
-	case SP_REMOVE_NODE:
-		req := PBRemoveNodeActionRequest{}
-		err := req.Unmarshal(creq.Data)
-		if err != nil {
-			return nil, err
-		}
-		err1 := this.rsc.onRemoveNode(ctx, req.NodeId)
-		if err1 != nil {
-			return nil, err1
-		}
-		resp := creq.CreateResponse(nil, nil)
-		return corepb.MakeChannelResponse(resp), nil
 	default:
 		return nil, core.ErrNotFound
 	}

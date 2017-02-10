@@ -42,6 +42,12 @@ pmux.AddInvoker(masterslave.DefaultMasterServiceName(counter.SERVICE_NAME), sc)
 
 ### 管理接口
 
+as := storage4si0admin.NewAdminService(si)
+sc := core.NewServiceChannel()
+sc.Next(schlog.NewLogger("STORAGE_ADMIN"))
+sc.Next(schsign.NewSign("123456", schsign.SIGN_REQUEST_VERIFY|schsign.SIGN_RESPONSE, false))
+sc.Sink(core.NewSimpleServiceContainer(as))
+amux.AddInvoker(storage4si0admin.DefaultAdminServiceName("service_name_xxxx"), sc)
 
 MakeSnapshot 立即启动快照功能
 

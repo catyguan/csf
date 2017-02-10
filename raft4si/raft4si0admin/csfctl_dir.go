@@ -12,27 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package csfctl
+package raft4si0admin
 
-import "context"
+import "github.com/catyguan/csf/csfctl"
 
-func CreateECHOCommand() *Command {
-	return &Command{
-		Name:          "echo",
-		Usage:         "echo <content>",
-		Description:   `print content to Env output`,
-		Aliases:       []string{"print"},
-		Args:          Flags{},
-		Action:        HandleECHOCommand,
-		SkipLogFormat: true,
-	}
-}
-
-func HandleECHOCommand(ctx context.Context, env *Env, pwd *CommandDir, cmdobj *Command, args []string) error {
-	str := ""
-	if len(args) > 0 {
-		str = args[0]
-	}
-	env.Println(str)
-	return nil
+func BuildCommandDir(dir *csfctl.CommandDir) {
+	dir.AddCommand(createSNAPSHOTCommand())
+	dir.AddCommand(createADDNODECommand())
+	dir.AddCommand(createUPDATENODECommand())
+	dir.AddCommand(createREMOVENODECommand())
+	dir.AddCommand(createNODESCommand())
 }

@@ -327,4 +327,5 @@ func (this *Env) CreateStandardCommands() {
 	dir.AddCommand(CreateENVCommand())
 	dir.AddCommand(CreateEXECCommand())
 	dir.AddCommand(CreateECHOCommand())
+	dir.AddCommand(CreateWAITCommand())
 }

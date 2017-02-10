@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage4si0admin
+package raft4si0admin
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func createSNAPSHOTCommand() *csfctl.Command {
 	return &csfctl.Command{
 		Name:        "snapshot",
 		Usage:       "snapshot",
-		Description: `call StorageServiceContainer.MakeSnapshot`,
+		Description: `call RaftServiceContainer.MakeSnapshot`,
 		Aliases:     []string{"ss"},
 		Args:        csfctl.Flags{
 		// csfctl.Flag{Name: "h", Type: "bool", Usage: "show help"},

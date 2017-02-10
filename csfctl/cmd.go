@@ -48,6 +48,8 @@ type Command struct {
 
 	// The function to call when this command is invoked
 	Action CommandAction
+
+	SkipLogFormat bool
 }
 
 func (this *Command) Is(n string) bool {

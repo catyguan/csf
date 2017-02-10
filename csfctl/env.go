@@ -269,11 +269,23 @@ func LocateCommand(pwd *CommandDir, cmd string) *Command {
 // }
 // return co, ok
 
+func logFormat(env *Env, co *Command, s string, l bool) {
+	if co != nil {
+		if co.SkipLogFormat {
+			return
+		}
+	}
+	if l {
+		env.Printf("-> %s\n", s)
+	}
+}
+
 func ProcessCommand(env *Env, pwd *CommandDir, cmdline string) (error, bool) {
 	str := env.FormatVars(cmdline)
+	l := false
 	if str != cmdline {
-		env.Printf("-> %s\n", str)
 		cmdline = str
+		l = true
 	}
 
 	slist := strings.SplitN(cmdline, " ", 2)
@@ -283,6 +295,7 @@ func ProcessCommand(env *Env, pwd *CommandDir, cmdline string) (error, bool) {
 		argline = strings.TrimSpace(slist[1])
 	}
 	co := LocateCommand(pwd, cmd)
+	logFormat(env, co, cmdline, l)
 	if co == nil {
 		return ErrNotFound, false
 	}

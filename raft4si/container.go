@@ -35,12 +35,14 @@ import (
 	"github.com/catyguan/csf/wal"
 )
 
+// TODO: members rwlock & live time
 type RaftPeer struct {
 	NodeID   uint64
 	Location string
 	addr     string
 	sl       *core.ServiceLocation
 	fail     uint64
+	live     time.Time
 }
 
 func (this *RaftPeer) From(pp *PBPeer) *RaftPeer {
@@ -53,6 +55,18 @@ func (this *RaftPeer) To(pp *PBPeer) *RaftPeer {
 	pp.NodeId = this.NodeID
 	pp.PeerLocation = this.Location
 	return this
+}
+
+func (this *RaftPeer) IsFail() bool {
+	return this.fail > 0
+}
+
+func (this *RaftPeer) IsLeader(lid uint64) bool {
+	return this.NodeID == lid
+}
+
+func (this *RaftPeer) IsLive(du time.Duration) bool {
+	return time.Now().Sub(this.live) <= du
 }
 
 type Config struct {
@@ -127,7 +141,7 @@ type RaftServiceContainer struct {
 	proIDGen *idutil.Generator
 	proWait  wait.Wait
 
-	mu            sync.Mutex
+	mu            sync.RWMutex
 	lastState     raftpb.HardState
 	lastConf      *raftpb.ConfState
 	lastIndex     uint64
@@ -153,6 +167,23 @@ func NewRaftServiceContainer(cs core.CoreService, cfg *Config) *RaftServiceConta
 
 func (this *RaftServiceContainer) impl() {
 	_ = core.ServiceInvoker(this)
+}
+
+func (this *RaftServiceContainer) LocalNodeId() uint64 {
+	return this.cfg.NodeID
+}
+
+func (this *RaftServiceContainer) getMember(nid uint64) *RaftPeer {
+	this.mu.RLock()
+	defer this.mu.RUnlock()
+	if this.members == nil {
+		return nil
+	}
+	p, ok := this.members[nid]
+	if ok {
+		return p
+	}
+	return nil
 }
 
 func (this *RaftServiceContainer) Run() error {
@@ -342,6 +373,7 @@ func (this *RaftServiceContainer) recoverFromSnapshot(ss *raftpb.Snapshot) ([]by
 		this.lastState = pState
 	}
 
+	this.mu.Lock()
 	if ps.Members != nil {
 		this.members = make(map[uint64]*RaftPeer)
 		this.midSeq = ps.Members.MemberIdSeq
@@ -351,6 +383,8 @@ func (this *RaftServiceContainer) recoverFromSnapshot(ss *raftpb.Snapshot) ([]by
 			this.members[pp.NodeID] = pp
 		}
 	}
+	this.mu.Unlock()
+
 	this.lastIndex = ss.Metadata.Index
 	this.lastSnapIndex = ss.Metadata.Index
 	return ps.Snapdata, nil
@@ -464,9 +498,11 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 						pbutil.MustUnmarshal(&pp, cc.Context)
 						mp := &RaftPeer{}
 						mp.From(&pp)
+						this.mu.Lock()
 						if this.members == nil {
 							this.members = make(map[uint64]*RaftPeer)
 						}
+						this.mu.Unlock()
 						if cc.Type == raftpb.ConfChangeUpdateNode {
 							old, ok := this.members[mp.NodeID]
 							if ok {
@@ -480,11 +516,15 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 								this.midSeq = mp.NodeID
 							}
 						}
+						this.mu.Lock()
 						this.members[mp.NodeID] = mp
+						this.mu.Unlock()
 					case raftpb.ConfChangeRemoveNode:
+						this.mu.Lock()
 						if this.members != nil {
 							delete(this.members, cc.NodeID)
 						}
+						this.mu.Unlock()
 					}
 				}
 			}
@@ -495,7 +535,7 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 				return
 			}
 			switch a.Type {
-			case 1: // InvokeRequest
+			case actionOfInvokeRequest: // InvokeRequest
 				ctx := a.P1.(context.Context)
 				req := a.P2.(*corepb.Request)
 				r, err := this.doApplyRequest(ctx, req)
@@ -508,7 +548,7 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 					}
 					a.Resp <- &runobj.ActionResponse{R1: r, Err: err}
 				}
-			case 2: // AddNode
+			case actionOfAddNode: // AddNode
 				ctx := a.P1.(context.Context)
 				rp := a.P2.(*RaftPeer)
 				if rp.NodeID == 0 {
@@ -527,7 +567,7 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 				if a.Resp != nil {
 					a.Resp <- &runobj.ActionResponse{R1: nid, Err: err}
 				}
-			case 3: // UpdateNode
+			case actionOfUpdateNode: // UpdateNode
 				ctx := a.P1.(context.Context)
 				rp := a.P2.(*RaftPeer)
 				pp := PBPeer{}
@@ -541,7 +581,7 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 				if a.Resp != nil {
 					a.Resp <- &runobj.ActionResponse{Err: err}
 				}
-			case 4: // RemoveNode
+			case actionOfRemoveNode: // RemoveNode
 				ctx := a.P1.(context.Context)
 				nid := a.P2.(uint64)
 				cc := raftpb.ConfChange{
@@ -551,6 +591,21 @@ func (this *RaftServiceContainer) doRun(ready chan error, ach <-chan *runobj.Act
 				err := this.Node.ProposeConfChange(ctx, cc)
 				if a.Resp != nil {
 					a.Resp <- &runobj.ActionResponse{Err: err}
+				}
+			case actionOfMakeSnapshot:
+				r, err := this.doMakeSnapshot()
+				if a.Resp != nil {
+					a.Resp <- &runobj.ActionResponse{R1: r, Err: err}
+				}
+			case actionOfQueryNodes:
+				nodes := make([]*RaftPeer, 0)
+				for _, rp := range this.members {
+					n := &RaftPeer{}
+					*n = *rp
+					nodes = append(nodes, n)
+				}
+				if a.Resp != nil {
+					a.Resp <- &runobj.ActionResponse{R1: this.leaderId, R2: nodes}
 				}
 			}
 		}
@@ -569,7 +624,7 @@ func (this *RaftServiceContainer) InvokeRequest(ctx context.Context, creq *corep
 	var resperr error
 	if !saved {
 		a := &runobj.ActionRequest{
-			Type: 1,
+			Type: actionOfInvokeRequest,
 			P1:   ctx,
 			P2:   req,
 		}
@@ -808,55 +863,13 @@ func (this *RaftServiceContainer) triggerSnapshot() {
 }
 
 func (this *RaftServiceContainer) onRecvRaftMessage(ctx context.Context, m raftpb.Message) {
+	fid := m.From
+	peer := this.getMember(fid)
+	if peer != nil {
+		peer.live = time.Now()
+	}
 	if this.Node != nil {
 		this.Node.Step(ctx, m)
 	}
-}
 
-func (this *RaftServiceContainer) onAddNode(ctx context.Context, peer *RaftPeer) (uint64, error) {
-	a := &runobj.ActionRequest{
-		Type: 2,
-		P1:   ctx,
-		P2:   peer,
-	}
-	ar, err1 := this.ro.ContextCall(ctx, a)
-	if err1 != nil {
-		return 0, err1
-	}
-	if ar.Err != nil {
-		return 0, ar.Err
-	}
-	return ar.R1.(uint64), nil
-}
-
-func (this *RaftServiceContainer) onUpdateNode(ctx context.Context, peer *RaftPeer) error {
-	a := &runobj.ActionRequest{
-		Type: 3,
-		P1:   ctx,
-		P2:   peer,
-	}
-	ar, err1 := this.ro.ContextCall(ctx, a)
-	if err1 != nil {
-		return err1
-	}
-	if ar.Err != nil {
-		return ar.Err
-	}
-	return nil
-}
-
-func (this *RaftServiceContainer) onRemoveNode(ctx context.Context, nodeId uint64) error {
-	a := &runobj.ActionRequest{
-		Type: 4,
-		P1:   ctx,
-		P2:   nodeId,
-	}
-	ar, err1 := this.ro.ContextCall(ctx, a)
-	if err1 != nil {
-		return err1
-	}
-	if ar.Err != nil {
-		return ar.Err
-	}
-	return nil
 }
