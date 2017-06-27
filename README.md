@@ -1,9 +1,12 @@
-# 集群系统框架 CSF (Cluster system framework)
+# 集群系统框架 CSF (Cluster System Framework)
 
 CSF为集群系统提供一个基础功能框架，包含:
 
-* 一致可靠性（Raft算法）
-* 集群节点之间的日志复制
+* 通讯框架 (rcch)
+* 集群元数据管理
+* Leader选举机制
+* 全局文件集群系统
+* 节点之间的日志复制
 * 业务功能可扩展
 * 节点管理
 * 接入认证机制

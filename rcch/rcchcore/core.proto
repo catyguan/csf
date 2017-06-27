@@ -1,0 +1,51 @@
+syntax = "proto3";
+package rcchcore;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+message PBHeader {
+  string name = 1;
+  string value = 2;
+  bytes data = 3;
+}
+
+message PBHeaders {
+  repeated PBHeader header = 1;
+}
+
+enum RequestType {
+  UNKNOW_REQUEST = 0;
+  QUERY = 1;
+  EXECUTE = 2;
+  MESSAGE = 3;
+}
+
+message PBRequestInfo {
+  uint64 ID = 1;
+  string target = 2;
+  string path = 3;
+  RequestType type = 4;
+}
+
+enum ResponseType {
+  UNKNOW_RESPONSE = 0;
+  RESPONSE = 1;
+  ACK = 2;
+  PUSH = 3;
+}
+
+message PBResponseInfo {
+  uint64 RequestID = 1;
+  bool has_error = 2;
+  ResponseType type = 3;
+}
+
+message PBErrorTrace {
+  string port = 1;
+  string err = 2; 
+}
